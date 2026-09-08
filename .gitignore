@@ -1,0 +1,43 @@
+# Python Virtual Environments & Cache
+.venv/
+venv/
+api-engine/.venv/
+api-engine/venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite
+*.sqlite-journal
+*.db
+
+# Composer & Node dependencies
+/vendor/
+admin-laravel/vendor/
+!admin-laravel/public/vendor/
+node_modules/
+admin-laravel/node_modules/
+
+# Environment configuration files
+.env
+admin-laravel/.env
+!admin-laravel/.env.example
+
+# Laravel runtime caches & logs
+admin-laravel/storage/*.key
+admin-laravel/storage/framework/cache/data/*
+!admin-laravel/storage/framework/cache/data/.gitignore
+admin-laravel/storage/framework/sessions/*
+!admin-laravel/storage/framework/sessions/.gitignore
+admin-laravel/storage/framework/testing/*
+!admin-laravel/storage/framework/testing/.gitignore
+admin-laravel/storage/framework/views/*
+!admin-laravel/storage/framework/views/.gitignore
+admin-laravel/storage/logs/*.log
+!admin-laravel/storage/logs/.gitignore
+
+# OS & Editor generated files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log

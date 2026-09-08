@@ -1,0 +1,63 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: chatbot_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chatbot_hub
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Python FastAPI LLM Streaming Engine
+  api-engine:
+    build:
+      context: ./api-engine
+      dockerfile: Dockerfile
+    container_name: chatbot_api_engine
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgrespassword@postgres:5432/chatbot_hub
+      - PORT=8000
+      - HOST=0.0.0.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./widget:/widget:ro
+
+  # Laravel 13 Admin Management Portal
+  admin-laravel:
+    build:
+      context: ./admin-laravel
+      dockerfile: Dockerfile
+    container_name: chatbot_admin_laravel
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    environment:
+      - DB_CONNECTION=pgsql
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=chatbot_hub
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgrespassword
+      - API_HOST_URL=http://localhost:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

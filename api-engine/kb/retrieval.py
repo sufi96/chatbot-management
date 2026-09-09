@@ -74,6 +74,23 @@ async def retrieve_for_collections(session, collection_ids, query, mode="hybrid"
     return out
 
 
+def fit_to_budget(chunks: list[RetrievedChunk], budget: int) -> list[RetrievedChunk]:
+    """The highest-ranked chunks that fit inside a character budget.
+
+    The first is always kept: one long passage beats no passage at all. Trimming
+    here rather than inside the context block is what keeps the prompt and the
+    citations shown to the visitor in agreement.
+    """
+    kept: list[RetrievedChunk] = []
+    used = 0
+    for chunk in chunks:
+        if kept and used + len(chunk.content) > budget:
+            break
+        kept.append(chunk)
+        used += len(chunk.content)
+    return kept
+
+
 def build_context_block(chunks: list[RetrievedChunk], titles: dict[str, str]) -> str:
     if not chunks:
         return ""

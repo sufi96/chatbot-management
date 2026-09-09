@@ -11,6 +11,7 @@ class AdminSettingsController extends Controller
     private const KEYS = [
         'embedding_base_url', 'embedding_api_key', 'embedding_model',
         'embedding_dimensions', 'vector_driver', 'chunk_size', 'chunk_overlap',
+        'context_char_budget',
     ];
 
     public function edit()
@@ -31,8 +32,9 @@ class AdminSettingsController extends Controller
             'embedding_model' => ['required', 'string', 'max:120'],
             'embedding_dimensions' => ['required', 'integer', 'min:64', 'max:4096'],
             'vector_driver' => ['required', 'in:pgvector,sqlite'],
-            'chunk_size' => ['required', 'integer', 'min:200', 'max:4000'],
+            'chunk_size' => ['required', 'integer', 'min:400', 'max:8000'],
             'chunk_overlap' => ['required', 'integer', 'min:0', 'lt:chunk_size'],
+            'context_char_budget' => ['required', 'integer', 'min:1000', 'max:20000'],
         ], [
             'chunk_overlap.lt' => 'Overlap must be smaller than the chunk size.',
         ]);

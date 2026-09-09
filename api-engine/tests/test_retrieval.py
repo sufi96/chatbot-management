@@ -118,3 +118,31 @@ def test_a_retrieved_chunk_keeps_the_heading_path_it_was_given():
     from kb.retrieval import RetrievedChunk
     chunk = RetrievedChunk(1, "s1", "body", 0.5, "Policy > Warranty")
     assert chunk.heading_path == "Policy > Warranty"
+
+
+def test_fit_to_budget_keeps_the_highest_ranked_chunks_that_fit():
+    from kb.retrieval import RetrievedChunk, fit_to_budget
+    chunks = [RetrievedChunk(n, "s", "x" * 100, 1.0 - n / 10) for n in range(5)]
+
+    kept = fit_to_budget(chunks, 250)
+
+    assert [c.chunk_id for c in kept] == [0, 1]
+
+
+def test_fit_to_budget_always_keeps_the_first_chunk():
+    from kb.retrieval import RetrievedChunk, fit_to_budget
+    chunks = [RetrievedChunk(1, "s", "x" * 5000, 0.9)]
+
+    assert len(fit_to_budget(chunks, 100)) == 1
+
+
+def test_fit_to_budget_passes_everything_through_when_it_all_fits():
+    from kb.retrieval import RetrievedChunk, fit_to_budget
+    chunks = [RetrievedChunk(n, "s", "x" * 100, 0.5) for n in range(3)]
+
+    assert len(fit_to_budget(chunks, 6000)) == 3
+
+
+def test_fit_to_budget_handles_an_empty_list():
+    from kb.retrieval import fit_to_budget
+    assert fit_to_budget([], 6000) == []

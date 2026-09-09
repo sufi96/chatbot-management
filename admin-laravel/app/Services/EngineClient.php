@@ -51,6 +51,34 @@ class EngineClient
         }
     }
 
+    /**
+     * Retrieval preview. Returns the decoded body, or an error entry the
+     * playground can display: a tuning tool must never fail silently, because
+     * "no results" and "the engine is down" look identical otherwise.
+     */
+    public static function search(array $collectionIds, string $query, string $mode,
+                                  int $topK, int $candidates, float $minScore): array
+    {
+        try {
+            $response = self::request()->post(self::base() . '/api/v1/kb/search', [
+                'collection_ids' => array_values($collectionIds),
+                'query' => $query,
+                'mode' => $mode,
+                'top_k' => $topK,
+                'candidates' => $candidates,
+                'min_score' => $minScore,
+            ]);
+
+            if (!$response->successful()) {
+                return ['results' => [], 'error' => 'Engine returned HTTP ' . $response->status()];
+            }
+
+            return $response->json();
+        } catch (\Throwable $e) {
+            return ['results' => [], 'error' => 'Could not reach the engine: ' . $e->getMessage()];
+        }
+    }
+
     public static function testEmbedding(string $baseUrl, string $apiKey, string $model): array
     {
         try {

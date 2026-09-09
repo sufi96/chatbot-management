@@ -50,6 +50,9 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     // Knowledge base
     Route::get('/knowledge', [KnowledgeBaseController::class, 'index'])->name('kb.index');
     Route::post('/knowledge', [KnowledgeBaseController::class, 'store'])->name('kb.store');
+    // Distinct path, so it cannot be mistaken for /knowledge/{id}
+    Route::get('/knowledge-playground', [KnowledgeBaseController::class, 'playground'])->name('kb.playground');
+    Route::post('/knowledge-playground', [KnowledgeBaseController::class, 'runPlayground'])->name('kb.playground.run');
     Route::get('/knowledge/{id}', [KnowledgeBaseController::class, 'show'])->name('kb.show');
     Route::delete('/knowledge/{id}', [KnowledgeBaseController::class, 'destroy'])->name('kb.destroy');
     Route::post('/knowledge/{id}/sources', [KnowledgeBaseController::class, 'storeSource'])->name('kb.sources.store');

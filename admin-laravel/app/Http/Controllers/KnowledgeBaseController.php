@@ -119,6 +119,71 @@ class KnowledgeBaseController extends Controller
         return redirect()->route('kb.show', $collectionId)->with('success', 'Source removed.');
     }
 
+    public function playground(Request $request)
+    {
+        $activeSystem = view()->shared('activeSystem');
+        $this->authorizeEditor($request, $activeSystem->id);
+
+        return view('kb.playground', [
+            'activeSystem' => $activeSystem,
+            'collections' => KbCollection::withCount('sources')
+                ->where('system_id', $activeSystem->id)->orderBy('name')->get(),
+            'results' => null,
+            'titles' => collect(),
+            'error' => null,
+            'query' => '',
+            'selected' => [],
+            'settings' => ['mode' => 'hybrid', 'top_k' => 5, 'candidates' => 30, 'min_score' => 0],
+        ]);
+    }
+
+    public function runPlayground(Request $request)
+    {
+        $activeSystem = view()->shared('activeSystem');
+        $this->authorizeEditor($request, $activeSystem->id);
+
+        $validated = $request->validate([
+            'query' => ['required', 'string', 'max:2000'],
+            'collections' => ['nullable', 'array'],
+            'collections.*' => ['string'],
+            'mode' => ['required', 'in:hybrid,vector,keyword'],
+            'top_k' => ['required', 'integer', 'min:1', 'max:20'],
+            'candidates' => ['required', 'integer', 'min:5', 'max:100'],
+            'min_score' => ['required', 'numeric', 'min:0', 'max:1'],
+        ]);
+
+        // Whatever the form posted, only this workspace's collections are searched.
+        $allowed = KbCollection::where('system_id', $activeSystem->id)
+            ->whereIn('id', $request->input('collections', []))
+            ->pluck('id')->all();
+
+        $response = EngineClient::search(
+            $allowed, $validated['query'], $validated['mode'],
+            (int) $validated['top_k'], (int) $validated['candidates'],
+            (float) $validated['min_score'],
+        );
+
+        $results = $response['results'] ?? [];
+
+        return view('kb.playground', [
+            'activeSystem' => $activeSystem,
+            'collections' => KbCollection::withCount('sources')
+                ->where('system_id', $activeSystem->id)->orderBy('name')->get(),
+            'results' => $results,
+            'titles' => KbSource::whereIn('id', array_column($results, 'source_id'))
+                ->pluck('title', 'id'),
+            'error' => $response['error'] ?? null,
+            'query' => $validated['query'],
+            'selected' => $allowed,
+            'settings' => [
+                'mode' => $validated['mode'],
+                'top_k' => (int) $validated['top_k'],
+                'candidates' => (int) $validated['candidates'],
+                'min_score' => (float) $validated['min_score'],
+            ],
+        ]);
+    }
+
     private function authorizeEditor(Request $request, string $systemId): void
     {
         abort_unless($request->user()->canManageSystem($systemId, 'editor'), 403);

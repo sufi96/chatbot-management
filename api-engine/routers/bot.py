@@ -17,7 +17,7 @@ class ConnectionTestRequest(BaseModel):
 @router.get("/{bot_id}/config")
 async def get_bot_public_config(bot_id: str, db: AsyncSession = Depends(get_db)):
     """Fetch public configuration for embedding widget."""
-    stmt = select(BotProfile).where(BotProfile.id == bot_id, BotProfile.is_active == 1)
+    stmt = select(BotProfile).where(BotProfile.id == bot_id, BotProfile.is_active.is_(True))
     result = await db.execute(stmt)
     bot = result.scalars().first()
 
@@ -33,6 +33,10 @@ async def get_bot_public_config(bot_id: str, db: AsyncSession = Depends(get_db))
         "widget_position": bot.widget_position or "bottom-right",
         "launcher_icon_url": bot.launcher_icon_url or "",
         "launcher_shape": bot.launcher_shape or "circle",
+        "launcher_size": bot.launcher_size or 60,
+        "close_icon_url": bot.close_icon_url or "",
+        "close_shape": bot.close_shape or "circle",
+        "close_size": bot.close_size or 52,
         "bot_avatar_url": bot.bot_avatar_url or "",
         "avatar_shape": bot.avatar_shape or "circle",
     }

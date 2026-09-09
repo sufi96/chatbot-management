@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import AsyncGenerator
-from sqlalchemy import Column, String, Text, Integer, Float, DateTime, ForeignKey, select
+from sqlalchemy import Column, String, Text, Integer, Float, DateTime, ForeignKey, select, Boolean
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base, relationship
 from config import settings
@@ -40,9 +40,13 @@ class BotProfile(Base):
     widget_position = Column(String(20), default="bottom-right")  # 'bottom-right' or 'bottom-left'
     launcher_icon_url = Column(String(500), nullable=True)
     launcher_shape = Column(String(30), default="circle")
+    launcher_size = Column(Integer, default=60)
+    close_icon_url = Column(String(500), nullable=True)
+    close_shape = Column(String(30), default="circle")
+    close_size = Column(Integer, default=52)
     bot_avatar_url = Column(String(500), nullable=True)
     avatar_shape = Column(String(30), default="circle")
-    is_active = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -132,7 +136,7 @@ async def init_db():
                 widget_greeting="Hi there! 👋 How can I help you today?",
                 widget_primary_color="#4F46E5",
                 widget_position="bottom-right",
-                is_active=1
+                is_active=True
             )
             session.add(default_bot)
             await session.commit()

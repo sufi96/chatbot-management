@@ -125,6 +125,10 @@ def chunk_document(text: str, *, title: str = "", size: int = 1800,
 
 ### 6.1 Stage one: parse into blocks
 
+Parsing lives in a new module, `api-engine/kb/blocks.py`, so that reading
+structure out of markdown and deciding chunk boundaries stay separable and
+separately testable.
+
 Walk the text line by line, emitting typed blocks. Each block records its kind,
 its text, and the heading stack in force when it started.
 
@@ -194,7 +198,9 @@ character, which simply means no overlap at that boundary.
 ### 6.5 The breadcrumb
 
 The heading path is the title and the heading stack joined by a space, an angle
-bracket and a space, omitting empty parts. It is rendered into the chunk text as
+bracket and a space, omitting empty parts. A part equal to the one before it is
+dropped, so a document whose top heading repeats its title does not say the name
+twice. It is rendered into the chunk text as
 a first line followed by a blank line:
 
 ```
@@ -261,20 +267,26 @@ Raising the chunk size raises the size of the assembled prompt. Five chunks at
 1800 characters is 9000 characters, roughly 2250 tokens, which is enough to
 crowd out the conversation on the 1B-parameter models this install runs.
 
-`build_context_block` gains a budget:
+`kb/retrieval.py` gains one function:
 
 ```python
-def build_context_block(chunks, titles, budget: int = 6000) -> str:
+def fit_to_budget(chunks: list[RetrievedChunk], budget: int) -> list[RetrievedChunk]:
 ```
 
-Chunks are added in fused-rank order until the next one would exceed `budget`,
-then the rest are dropped. Ranking already put the best passages first, so the
-cut falls on the least useful material. The chat route passes the configured
-`context_char_budget`.
+Chunks are kept in fused-rank order until the next one would exceed `budget`,
+then the rest are dropped. The highest-ranked chunk is always kept, even when it
+alone exceeds the budget, because returning nothing is worse than returning one
+long passage. Ranking already put the best passages first, so the cut falls on
+the least useful material.
+
+The trim lives here rather than inside `build_context_block` because the chat
+route feeds the same list to two places: the prompt and the `sources` event the
+widget renders as citations. Trimming once, before both, is what stops the
+widget citing a passage the model never saw.
 
 This is not a retrieval change. `top_k` still decides how many passages are
 retrieved and shown in the playground; the budget only decides how many reach
-the model.
+the model and the visitor.
 
 ## 9. Admin surfaces
 
@@ -340,7 +352,8 @@ first.
   heading path.
 - Both vector stores round-trip `heading_path` through `upsert` and through both
   search methods.
-- `build_context_block` stops at the budget and keeps the highest-ranked chunks.
+- `fit_to_budget` stops at the budget, keeps the highest-ranked chunks, and
+  always keeps the first one even when it alone exceeds the budget.
 
 ### 11.4 Laravel
 

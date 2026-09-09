@@ -13,6 +13,7 @@ from config import settings
 from database import get_db, get_settings
 from kb.embedding import EmbeddingClient
 from kb.indexer import index_source
+from kb.retrieval import retrieve_for_collections
 from kb.store import make_store
 
 router = APIRouter(prefix="/api/v1/kb", tags=["knowledge-base"])
@@ -60,3 +61,27 @@ async def test_embedding(req: EmbeddingTestRequest):
         return {"ok": False, "message": str(exc)[:300]}
     return {"ok": True, "dimensions": len(vectors[0]),
             "message": f"Answered with {len(vectors[0])} dimensions."}
+
+
+class SearchRequest(BaseModel):
+    """Retrieval preview, used by the tuning tools rather than by a chat."""
+    collection_ids: list[str]
+    query: str
+    mode: str = "hybrid"
+    top_k: int = 5
+    candidates: int = 30
+    min_score: float = 0.0
+
+
+@router.post("/search", dependencies=[Depends(require_admin_token)])
+async def search(req: SearchRequest, db: AsyncSession = Depends(get_db)):
+    results = await retrieve_for_collections(
+        db, req.collection_ids, req.query,
+        mode=req.mode, top_k=req.top_k,
+        candidates=req.candidates, min_score=req.min_score,
+    )
+    return {"results": [
+        {"chunk_id": r.chunk_id, "source_id": r.source_id,
+         "content": r.content, "score": r.score}
+        for r in results
+    ]}

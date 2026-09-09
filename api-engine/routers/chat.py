@@ -7,7 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 
-from database import get_db, BotProfile, System, ChatConversation, ChatMessage
+from database import (get_db, BotProfile, System, ChatConversation, ChatMessage,
+                      BotKbCollection, KbSource)
+from kb.retrieval import (augment_system_prompt, build_context_block,
+                          retrieve_for_collections)
 from llm_adapter import LLMAdapter
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
@@ -81,18 +84,62 @@ async def chat_stream(
 
     conv_id = conversation.id
 
+    # Retrieval runs before the model call. A failure here must never break a
+    # chat, so it degrades to answering without context.
+    retrieved = []
+    source_titles = {}
+    if bot.retrieval_enabled:
+        try:
+            rows = await db.execute(
+                select(BotKbCollection.collection_id).where(BotKbCollection.bot_id == bot.id))
+            collection_ids = list(rows.scalars().all())
+
+            retrieved = await retrieve_for_collections(
+                db, collection_ids, req.message,
+                mode=bot.retrieval_mode or "hybrid",
+                top_k=bot.retrieval_top_k or 5,
+                candidates=bot.retrieval_candidates or 30,
+                min_score=bot.retrieval_min_score or 0.0,
+            )
+            if retrieved:
+                title_rows = await db.execute(
+                    select(KbSource.id, KbSource.title).where(
+                        KbSource.id.in_([r.source_id for r in retrieved])))
+                source_titles = {row[0]: row[1] for row in title_rows.all()}
+        except Exception as retrieval_error:
+            print(f"[Retrieval] Skipped, answering without context: {retrieval_error}")
+            retrieved = []
+
+    context_block = build_context_block(retrieved, source_titles)
+    final_prompt = augment_system_prompt(
+        bot.system_prompt or "", context_block, bot.retrieval_fallback or "say_unknown")
+
     async def sse_event_stream():
         collected_response = []
+        if retrieved:
+            # Sent before the tokens so the widget can name its sources. An
+            # older widget ignores an event type it does not know.
+            sources_payload = {"type": "sources", "sources": [
+                {"n": i + 1, "title": source_titles.get(r.source_id, "Untitled"),
+                 "source_id": r.source_id}
+                for i, r in enumerate(retrieved)
+            ]}
+            yield f"data: {json.dumps(sources_payload)}\n\n"
         try:
             async for chunk in LLMAdapter.stream_chat(
                 base_url=bot.base_url,
                 api_key=bot.api_key or "",
                 model_name=bot.model_name,
-                system_prompt=bot.system_prompt or "",
+                system_prompt=final_prompt,
                 temperature=bot.temperature or 0.7,
                 max_tokens=bot.max_tokens or 1024,
                 history=req.history,
-                user_message=req.message
+                user_message=req.message,
+                top_p=bot.top_p if bot.top_p is not None else 1.0,
+                top_k_sampling=bot.top_k_sampling,
+                presence_penalty=bot.presence_penalty or 0.0,
+                frequency_penalty=bot.frequency_penalty or 0.0,
+                thinking_level=bot.thinking_level or "off"
             ):
                 # Extract text to save to DB
                 if chunk.startswith("data: "):

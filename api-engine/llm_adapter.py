@@ -22,7 +22,12 @@ class LLMAdapter:
         temperature: float,
         max_tokens: int,
         history: List[Dict[str, str]],
-        user_message: str
+        user_message: str,
+        top_p: float = 1.0,
+        top_k_sampling: int = None,
+        presence_penalty: float = 0.0,
+        frequency_penalty: float = 0.0,
+        thinking_level: str = "off"
     ) -> AsyncGenerator[str, None]:
         endpoint = cls._normalize_endpoint(base_url)
         headers = {
@@ -50,6 +55,21 @@ class LLMAdapter:
             "temperature": float(temperature or 0.7),
             "max_tokens": int(max_tokens or 1024)
         }
+
+        # Only send what the caller actually set. Endpoints differ in what they
+        # accept, and an unexpected key is rejected outright by some of them.
+        if top_p is not None and float(top_p) != 1.0:
+            payload["top_p"] = float(top_p)
+        if top_k_sampling:
+            payload["top_k"] = int(top_k_sampling)
+        if presence_penalty:
+            payload["presence_penalty"] = float(presence_penalty)
+        if frequency_penalty:
+            payload["frequency_penalty"] = float(frequency_penalty)
+        if thinking_level and thinking_level != "off":
+            # Understood by OpenAI-compatible reasoning models; harmlessly
+            # ignored by endpoints that do not implement it.
+            payload["reasoning_effort"] = thinking_level
 
         client_timeout = httpx.Timeout(connect=10.0, read=60.0, write=10.0, pool=10.0)
         try:

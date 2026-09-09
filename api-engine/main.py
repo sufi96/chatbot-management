@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from config import settings
 import database
 from database import init_db
-from routers import bot, chat
+from routers import bot, chat, kb
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,6 +38,7 @@ app.add_middleware(
 # Register API Routers
 app.include_router(bot.router)
 app.include_router(chat.router)
+app.include_router(kb.router)
 
 @app.get("/health")
 async def health_check():

@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     # unreachable database fails loudly instead of quietly serving a stale file.
     USE_SQLITE_FALLBACK: bool = os.getenv("USE_SQLITE_FALLBACK", "true").lower() not in ("0", "false", "no")
     
+    # Shared secret for the admin-plane routes. Read through Settings so the
+    # engine's .env file is honoured; os.getenv alone would not see it.
+    ADMIN_API_TOKEN: str = os.getenv("ADMIN_API_TOKEN", "")
+
     API_PORT: int = int(os.getenv("PORT", "8000"))
     API_HOST: str = os.getenv("HOST", "0.0.0.0")
     

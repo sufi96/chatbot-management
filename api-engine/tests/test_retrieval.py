@@ -106,3 +106,15 @@ async def test_hybrid_beats_either_branch_for_a_chunk_both_agree_on(session):
 
     # the refund chunk is top of both branches, so it must lead
     assert "Refunds" in results[0].content
+
+
+def test_retrieved_chunks_default_to_an_empty_heading_path():
+    from kb.retrieval import RetrievedChunk
+    chunk = RetrievedChunk(1, "s1", "body", 0.5)
+    assert chunk.heading_path == ""
+
+
+def test_a_retrieved_chunk_keeps_the_heading_path_it_was_given():
+    from kb.retrieval import RetrievedChunk
+    chunk = RetrievedChunk(1, "s1", "body", 0.5, "Policy > Warranty")
+    assert chunk.heading_path == "Policy > Warranty"

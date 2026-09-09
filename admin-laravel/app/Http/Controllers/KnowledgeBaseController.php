@@ -203,7 +203,19 @@ class KnowledgeBaseController extends Controller
             (float) $validated['min_score'],
         );
 
-        $results = $response['results'] ?? [];
+        // The breadcrumb is part of the indexed text, so it comes back inside
+        // the passage. Show it once, as a chip, not twice.
+        $results = array_map(function (array $result): array {
+            $result['heading_path'] = $result['heading_path'] ?? '';
+            $break = strpos($result['content'], "\n\n");
+            if ($result['heading_path'] !== ''
+                && str_starts_with($result['content'], 'Section: ')
+                && $break !== false) {
+                $result['content'] = ltrim(substr($result['content'], $break + 2));
+            }
+
+            return $result;
+        }, $response['results'] ?? []);
 
         return view('kb.playground', [
             'activeSystem' => $activeSystem,

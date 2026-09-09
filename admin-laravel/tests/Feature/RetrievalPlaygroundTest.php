@@ -52,7 +52,8 @@ class RetrievalPlaygroundTest extends TestCase
     public function test_running_a_query_shows_the_matching_passages(): void
     {
         Http::fake(['*' => Http::response(['results' => [
-            ['chunk_id' => 7, 'source_id' => 'kbs_1', 'content' => 'Thirty days.', 'score' => 0.0328],
+            ['chunk_id' => 7, 'source_id' => 'kbs_1', 'content' => 'Thirty days.',
+             'score' => 0.0328, 'heading_path' => ''],
         ]], 200)]);
 
         $this->actingAs($this->editor())
@@ -67,6 +68,44 @@ class RetrievalPlaygroundTest extends TestCase
             ->assertOk()
             ->assertSee('Thirty days.')
             ->assertSee('Refund policy');   // the source title is resolved, not just its id
+    }
+
+    public function test_a_passage_shows_its_section_and_hides_the_breadcrumb_line(): void
+    {
+        Http::fake(['*' => Http::response(['results' => [
+            ['chunk_id' => 7, 'source_id' => 'kbs_1',
+             'content' => "Section: Refund policy > Warranty\n\nTwo years on desk lamps.",
+             'score' => 0.0328, 'heading_path' => 'Refund policy > Warranty'],
+        ]], 200)]);
+
+        $this->actingAs($this->editor())
+            ->post(route('kb.playground.run'), [
+                'query' => 'warranty period',
+                'collections' => ['kbc_1'],
+                'mode' => 'hybrid', 'top_k' => 5, 'candidates' => 30, 'min_score' => 0,
+            ])
+            ->assertOk()
+            ->assertSee('Refund policy &gt; Warranty', false)
+            ->assertSee('Two years on desk lamps.')
+            ->assertDontSee('Section:');
+    }
+
+    public function test_a_passage_with_no_section_renders_without_a_chip(): void
+    {
+        Http::fake(['*' => Http::response(['results' => [
+            ['chunk_id' => 8, 'source_id' => 'kbs_1', 'content' => 'Plain passage.',
+             'score' => 0.01, 'heading_path' => ''],
+        ]], 200)]);
+
+        $this->actingAs($this->editor())
+            ->post(route('kb.playground.run'), [
+                'query' => 'anything',
+                'collections' => ['kbc_1'],
+                'mode' => 'hybrid', 'top_k' => 5, 'candidates' => 30, 'min_score' => 0,
+            ])
+            ->assertOk()
+            ->assertSee('Plain passage.')
+            ->assertDontSee('Section:');
     }
 
     public function test_a_query_that_matches_nothing_says_so(): void

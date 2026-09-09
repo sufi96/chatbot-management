@@ -23,6 +23,7 @@ class RetrievedChunk:
     source_id: str
     content: str
     score: float
+    heading_path: str = ""
 
 
 async def retrieve_for_collections(session, collection_ids, query, mode="hybrid",
@@ -48,14 +49,16 @@ async def retrieve_for_collections(session, collection_ids, query, mode="hybrid"
                                          settings["embedding_model"])
         branches.append([str(h.chunk_id) for h in hits])
         for h in hits:
-            by_id[str(h.chunk_id)] = RetrievedChunk(h.chunk_id, h.source_id, h.content, h.score)
+            by_id[str(h.chunk_id)] = RetrievedChunk(h.chunk_id, h.source_id, h.content,
+                                                    h.score, h.heading_path)
 
     if mode in ("hybrid", "keyword"):
         hits = await store.search_keyword(collection_ids, query, candidates)
         branches.append([str(h.chunk_id) for h in hits])
         for h in hits:
             by_id.setdefault(str(h.chunk_id),
-                             RetrievedChunk(h.chunk_id, h.source_id, h.content, h.score))
+                             RetrievedChunk(h.chunk_id, h.source_id, h.content,
+                                            h.score, h.heading_path))
 
     fused = fuse_rankings(branches)
 
@@ -64,7 +67,8 @@ async def retrieve_for_collections(session, collection_ids, query, mode="hybrid"
         if score < min_score:
             continue
         chunk = by_id[chunk_id]
-        out.append(RetrievedChunk(chunk.chunk_id, chunk.source_id, chunk.content, score))
+        out.append(RetrievedChunk(chunk.chunk_id, chunk.source_id, chunk.content,
+                                  score, chunk.heading_path))
         if len(out) >= top_k:
             break
     return out

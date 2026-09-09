@@ -25,6 +25,7 @@ class DashboardController extends Controller
                 'messageCount' => 0,
                 'recentBots' => collect(),
                 'recentConversations' => collect(),
+                'apiHost' => env('API_HOST_URL', 'http://localhost:8000'),
             ]);
         }
 
@@ -43,7 +44,7 @@ class DashboardController extends Controller
             });
         })->count();
 
-        $recentBots = (clone $botProfilesQuery)->latest()->take(5)->get();
+        $recentBots = (clone $botProfilesQuery)->with('system')->latest()->take(5)->get();
 
         $recentConversations = ChatConversation::with('bot')
             ->whereIn('bot_id', function ($query) use ($activeSystem) {
@@ -64,6 +65,7 @@ class DashboardController extends Controller
             'messageCount' => $messageCount,
             'recentBots' => $recentBots,
             'recentConversations' => $recentConversations,
+            'apiHost' => env('API_HOST_URL', 'http://localhost:8000'),
         ]);
     }
 }

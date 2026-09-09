@@ -1,486 +1,784 @@
 @extends('layouts.app')
 
+@section('page-title', $isEdit ? 'Edit bot profile' : 'New bot profile')
+
 @section('content')
-<div class="d-flex flex-column gap-4" style="max-width: 1200px;">
+@php
+    $snippet = $isEdit
+        ? "<script\n"
+            . "  src=\"{$apiHost}/widget.js\"\n"
+            . "  data-bot-id=\"{$bot->id}\"\n"
+            . "  data-api-host=\"{$apiHost}\"\n"
+            . "  defer>\n"
+            . "</script>"
+        : null;
+@endphp
 
-    <!-- Breadcrumb & Title -->
-    <div class="card border-0 shadow-sm p-4 rounded-4" style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); border: 1px solid #eef2f6 !important;">
-        <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3">
-            <div>
-                <a href="{{ route('bots.index') }}" class="text-decoration-none small text-primary d-inline-flex align-items-center gap-1.5 mb-1.5 fw-semibold">
-                    <i class="bi bi-arrow-left"></i> Back to Bot Profiles
-                </a>
-                <h4 class="fw-bold mb-1 text-dark" style="letter-spacing: -0.02em;">
-                    {{ $isEdit ? 'Edit Bot Profile: ' . $bot->name : 'Create New Bot Profile' }}
-                </h4>
-                <p class="text-secondary small mb-0">Configuring for workspace: <strong>{{ $activeSystem->name }}</strong></p>
-            </div>
-
+<div class="page-head mb-3">
+    <div>
+        <a href="{{ route('bots.index') }}" class="d-inline-flex align-items-center gap-1.5 mb-2" style="font-size: 0.8125rem;">
+            <i class="bi bi-arrow-left"></i> Bot profiles
+        </a>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <h1 class="mb-0">{{ $isEdit ? $bot->name : 'New bot profile' }}</h1>
             @if($isEdit)
-                <a href="{{ route('bots.embed', $bot->id) }}" class="btn btn-sm btn-brand d-inline-flex align-items-center gap-1.5 px-3 py-2 shadow-sm">
-                    <i class="bi bi-code-slash"></i> Get Embed Code
-                </a>
+                @if($bot->is_active)
+                    <span class="d-inline-flex align-items-center gap-1.5" style="color: var(--ok); font-size: 0.78125rem;">
+                        <span class="state-dot is-live"></span> Accepting chats
+                    </span>
+                @else
+                    <span class="d-inline-flex align-items-center gap-1.5 text-muted" style="font-size: 0.78125rem;">
+                        <span class="state-dot is-off"></span> Paused
+                    </span>
+                @endif
             @endif
         </div>
+        <p class="mt-1">
+            {{ $isEdit ? 'Changes apply to every site running this bot as soon as you save.' : 'Configuring in workspace ' . $activeSystem->name . '.' }}
+        </p>
     </div>
+</div>
 
-    <form action="{{ $isEdit ? route('bots.update', $bot->id) : route('bots.store') }}" method="POST" enctype="multipart/form-data" id="botForm">
-        @csrf
-        @if($isEdit)
-            @method('PUT')
-        @endif
+<form action="{{ $isEdit ? route('bots.update', $bot->id) : route('bots.store') }}" method="POST" enctype="multipart/form-data" id="botForm">
+    @csrf
+    @if($isEdit)
+        @method('PUT')
+    @endif
 
-        <div class="row g-4">
-            <!-- Left 8 Columns: Form Settings -->
-            <div class="col-12 col-lg-8">
+    <div class="row g-3">
 
-                <!-- 1. Identity & Status -->
-                <div class="card border-0 shadow-sm p-4 rounded-4 mb-4">
-                    <h6 class="fw-bold text-dark mb-3 d-flex align-items-center gap-2">
-                        <span class="rounded-circle bg-primary-subtle text-primary d-inline-flex align-items-center justify-content-center" style="width: 26px; height: 26px; font-size: 0.8rem;">1</span>
-                        <span>Bot Identity & Status</span>
-                    </h6>
+        {{-- ===================== Settings column ===================== --}}
+        <div class="col-12 col-lg-7 col-xxl-8">
 
+            {{-- Identity --}}
+            <div class="card mb-3">
+                <div class="card-header">Identity</div>
+                <div class="p-3">
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold text-dark">Bot Profile Name <span class="text-danger">*</span></label>
-                        <input type="text" name="name" id="input_name" class="form-control" value="{{ old('name', $bot->name) }}" placeholder="e.g. Sales Concierge, Support Assistant, Technical Guru" required>
+                        <label for="input_name" class="form-label">
+                            Profile name <span style="color: var(--danger);">*</span>
+                        </label>
+                        <input type="text" name="name" id="input_name" class="form-control"
+                               value="{{ old('name', $bot->name) }}"
+                               placeholder="Sales concierge, Support assistant, Billing triage" required>
                     </div>
 
-                    <div class="form-check form-switch pt-1 d-flex align-items-center gap-2">
-                        <input class="form-check-input" type="checkbox" role="switch" name="is_active" value="1" id="is_active" {{ old('is_active', $bot->is_active) ? 'checked' : '' }} style="width: 2.5em; height: 1.3em;">
-                        <label class="form-check-label small fw-semibold text-dark" for="is_active">Active & Online (Accepts live conversations via widget & API)</label>
+                    <div class="form-check form-switch d-flex align-items-center gap-2 mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" name="is_active" value="1"
+                               id="is_active" {{ old('is_active', $bot->is_active) ? 'checked' : '' }}>
+                        <label class="form-check-label" for="is_active">
+                            Accept live conversations through the widget and API
+                        </label>
                     </div>
                 </div>
+            </div>
 
-                <!-- 2. LLM Provider & Model Endpoint -->
-                <div class="card border-0 shadow-sm p-4 rounded-4 mb-4">
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                        <h6 class="fw-bold text-dark mb-0 d-flex align-items-center gap-2">
-                            <span class="rounded-circle bg-primary-subtle text-primary d-inline-flex align-items-center justify-content-center" style="width: 26px; height: 26px; font-size: 0.8rem;">2</span>
-                            <span>Model & Endpoint Configuration</span>
-                        </h6>
-                        <span class="badge bg-light text-secondary border px-2.5 py-1 small">OpenAI-Compatible Standard</span>
+            {{-- Model and endpoint --}}
+            <div class="card mb-3">
+                <div class="card-header d-flex align-items-center justify-content-between gap-2">
+                    <span>Model and endpoint</span>
+                    <span class="chip">OpenAI-compatible</span>
+                </div>
+                <div class="p-3">
+
+                    <label class="form-label">Provider</label>
+                    <div class="row g-2 mb-3">
+                        <div class="col-12 col-sm-6">
+                            <label class="d-flex align-items-start gap-2 p-2.5 h-100"
+                                   style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
+                                <input class="form-check-input mt-0 flex-shrink-0" type="radio" name="provider_type"
+                                       id="provider_ollama" value="ollama"
+                                       {{ old('provider_type', $bot->provider_type) === 'ollama' ? 'checked' : '' }}
+                                       onchange="applyProviderPreset('ollama')">
+                                <span class="min-w-0">
+                                    <span class="d-block fw-semibold" style="font-size: 0.8125rem;">Local Ollama</span>
+                                    <span class="figure-mono text-muted d-block text-truncate" style="font-size: 0.6875rem;">http://localhost:11434/v1</span>
+                                </span>
+                            </label>
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label class="d-flex align-items-start gap-2 p-2.5 h-100"
+                                   style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
+                                <input class="form-check-input mt-0 flex-shrink-0" type="radio" name="provider_type"
+                                       id="provider_custom" value="custom"
+                                       {{ old('provider_type', $bot->provider_type) === 'custom' ? 'checked' : '' }}
+                                       onchange="applyProviderPreset('custom')">
+                                <span class="min-w-0">
+                                    <span class="d-block fw-semibold" style="font-size: 0.8125rem;">Remote API</span>
+                                    <span class="text-muted d-block" style="font-size: 0.6875rem;">OpenAI, Groq, vLLM, DeepSeek</span>
+                                </span>
+                            </label>
+                        </div>
                     </div>
 
-                    <!-- Provider Selector -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-sm-6">
+                            <label for="base_url" class="form-label">
+                                Base URL <span style="color: var(--danger);">*</span>
+                            </label>
+                            <input type="text" name="base_url" id="base_url" class="form-control font-monospace"
+                                   value="{{ old('base_url', $bot->base_url) }}"
+                                   placeholder="http://localhost:11434/v1" required>
+                        </div>
+                        <div class="col-12 col-sm-6">
+                            <label for="api_key" class="form-label">API key</label>
+                            <input type="password" name="api_key" id="api_key" class="form-control font-monospace"
+                                   value="{{ old('api_key', $bot->api_key) }}"
+                                   placeholder="Not needed for local Ollama">
+                            <div class="form-text">Leave blank for a local endpoint.</div>
+                        </div>
+                    </div>
+
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold text-dark">Provider Type</label>
-                        <div class="row g-2">
-                            <div class="col-6">
-                                <div class="form-check card p-3 h-100 border rounded-3 cursor-pointer" onclick="document.getElementById('provider_ollama').checked = true; applyProviderPreset('ollama');">
-                                    <input class="form-check-input" type="radio" name="provider_type" id="provider_ollama" value="ollama" {{ old('provider_type', $bot->provider_type) === 'ollama' ? 'checked' : '' }} onchange="applyProviderPreset('ollama')">
-                                    <label class="form-check-label small fw-bold text-dark d-block" for="provider_ollama">
-                                        🦙 Local Ollama
-                                        <small class="text-muted fw-normal d-block" style="font-size: 0.72rem;">http://localhost:11434/v1</small>
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="col-6">
-                                <div class="form-check card p-3 h-100 border rounded-3 cursor-pointer" onclick="document.getElementById('provider_custom').checked = true; applyProviderPreset('custom');">
-                                    <input class="form-check-input" type="radio" name="provider_type" id="provider_custom" value="custom" {{ old('provider_type', $bot->provider_type) === 'custom' ? 'checked' : '' }} onchange="applyProviderPreset('custom')">
-                                    <label class="form-check-label small fw-bold text-dark d-block" for="provider_custom">
-                                        🌐 Custom API / Remote
-                                        <small class="text-muted fw-normal d-block" style="font-size: 0.72rem;">OpenAI, Groq, vLLM, DeepSeek, etc.</small>
-                                    </label>
-                                </div>
-                            </div>
+                        <div class="d-flex align-items-center justify-content-between mb-1">
+                            <label for="model_name" class="form-label mb-0">
+                                Model <span style="color: var(--danger);">*</span>
+                            </label>
+                            <span id="fetchModelsBadge" style="font-size: 0.6875rem;"></span>
                         </div>
+                        <div class="input-group">
+                            <input type="text" name="model_name" id="model_name" class="form-control font-monospace"
+                                   value="{{ old('model_name', $bot->model_name) }}"
+                                   placeholder="llama3.2" required>
+                            <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split"
+                                    data-bs-toggle="dropdown" aria-expanded="false" id="btnModelDropdownToggle"
+                                    title="Pick a discovered model">
+                                <span class="visually-hidden">Show discovered models</span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" id="modelsDropdownList"
+                                style="max-height: 260px; overflow-y: auto; min-width: 250px;">
+                                <li><span class="dropdown-item-text text-muted" style="font-size: 0.78125rem;">Fetch models to load the list</span></li>
+                            </ul>
+                            <button type="button" class="btn btn-brand" id="btnFetchModels"
+                                    onclick="fetchModelsFromBaseUrl()" title="Query the endpoint for available models">
+                                <i class="bi bi-arrow-repeat" id="iconFetch"></i>
+                                <span id="textFetch">Fetch models</span>
+                            </button>
+                        </div>
+                        <div class="form-text">Queries the base URL and confirms the endpoint answers.</div>
                     </div>
 
-                    <!-- Base URL & API Key -->
                     <div class="row g-3 mb-3">
-                        <div class="col-12 col-sm-6">
-                            <label class="form-label small fw-semibold text-dark">Base URL <span class="text-danger">*</span></label>
-                            <input type="text" name="base_url" id="base_url" class="form-control font-monospace" value="{{ old('base_url', $bot->base_url) }}" placeholder="http://localhost:11434/v1" required>
+                        <div class="col-6">
+                            <label for="temperature" class="form-label">Temperature</label>
+                            <input type="number" step="0.1" min="0" max="2" name="temperature" id="temperature"
+                                   class="form-control font-monospace" value="{{ old('temperature', $bot->temperature) }}">
+                            <div class="form-text">Lower is more predictable.</div>
                         </div>
-                        <div class="col-12 col-sm-6">
-                            <label class="form-label small fw-semibold text-dark">API Key (Optional for Ollama)</label>
-                            <input type="password" name="api_key" id="api_key" class="form-control font-monospace" value="{{ old('api_key', $bot->api_key) }}" placeholder="Leave blank for local Ollama">
-                        </div>
-                    </div>
-
-                    <!-- Model Name, Temperature, Max Tokens -->
-                    <div class="row g-3 mb-3">
-                        <div class="col-12 col-lg-6">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label class="form-label small fw-semibold text-dark mb-0">Model Name <span class="text-danger">*</span></label>
-                                <span id="fetchModelsBadge" class="small fw-semibold" style="font-size: 0.72rem;"></span>
-                            </div>
-                            <div class="input-group">
-                                <input type="text" name="model_name" id="model_name" class="form-control font-monospace" value="{{ old('model_name', $bot->model_name) }}" placeholder="e.g. llama3.2, mistral, gpt-4o" required>
-                                
-                                <!-- Dropdown Toggle Button -->
-                                <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false" id="btnModelDropdownToggle" title="Select discovered model">
-                                    <span class="visually-hidden">Toggle Dropdown</span>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end shadow-lg py-1 rounded-3" id="modelsDropdownList" style="max-height: 260px; overflow-y: auto; min-width: 250px;">
-                                    <li><span class="dropdown-item-text text-muted small"><i class="bi bi-info-circle me-1"></i> Click "Fetch Models" to load</span></li>
-                                </ul>
-
-                                <!-- Fetch Models Button -->
-                                <button type="button" class="btn btn-brand d-flex align-items-center gap-1.5 px-3" id="btnFetchModels" onclick="fetchModelsFromBaseUrl()" title="Test endpoint and discover models from Base URL">
-                                    <i class="bi bi-arrow-repeat" id="iconFetch"></i>
-                                    <span id="textFetch">Fetch Models</span>
-                                </button>
-                            </div>
-                            <div class="form-text text-muted mt-1" style="font-size: 0.72rem;">
-                                <i class="bi bi-hdd-network me-1"></i> Discovers models & tests endpoint connectivity automatically.
-                            </div>
-                        </div>
-                        <div class="col-6 col-lg-3">
-                            <label class="form-label small fw-semibold text-dark">Temperature</label>
-                            <input type="number" step="0.1" min="0" max="2" name="temperature" class="form-control" value="{{ old('temperature', $bot->temperature) }}">
-                        </div>
-                        <div class="col-6 col-lg-3">
-                            <label class="form-label small fw-semibold text-dark">Max Tokens</label>
-                            <input type="number" step="64" min="64" max="8192" name="max_tokens" class="form-control" value="{{ old('max_tokens', $bot->max_tokens) }}">
+                        <div class="col-6">
+                            <label for="max_tokens" class="form-label">Max tokens</label>
+                            <input type="number" step="64" min="64" max="8192" name="max_tokens" id="max_tokens"
+                                   class="form-control font-monospace" value="{{ old('max_tokens', $bot->max_tokens) }}">
+                            <div class="form-text">Ceiling on one reply.</div>
                         </div>
                     </div>
 
-                    <!-- Live Connection Test -->
-                    <div class="d-flex align-items-center gap-2 pt-3 border-top">
-                        <button type="button" onclick="testConnection()" id="btnTestConn" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1.5 px-3 py-1.5" style="font-size: 0.78rem;">
-                            <i class="bi bi-lightning-charge-fill text-warning"></i> Test Inference Response
+                    <div class="d-flex align-items-center gap-2 pt-3" style="border-top: 1px solid var(--border);">
+                        <button type="button" onclick="testConnection()" id="btnTestConn" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-plug"></i> Test inference
                         </button>
-                        <span id="testConnResult" class="small fw-medium"></span>
+                        <span id="testConnResult" style="font-size: 0.78125rem;"></span>
                     </div>
                 </div>
+            </div>
 
-                <!-- 3. System Instructions & Persona -->
-                <div class="card border-0 shadow-sm p-4 rounded-4 mb-4">
-                    <h6 class="fw-bold text-dark mb-2 d-flex align-items-center gap-2">
-                        <span class="rounded-circle bg-primary-subtle text-primary d-inline-flex align-items-center justify-content-center" style="width: 26px; height: 26px; font-size: 0.8rem;">3</span>
-                        <span>System Persona & Instructions</span>
-                    </h6>
-
-                    <div class="d-flex align-items-center gap-1.5 mb-2.5">
-                        <small class="text-secondary fw-semibold" style="font-size: 0.72rem;">Quick Presets:</small>
-                        <button type="button" onclick="setPromptPreset('support')" class="btn btn-sm btn-light border py-0.5 px-2.5 rounded-pill" style="font-size: 0.72rem;">Customer Support</button>
-                        <button type="button" onclick="setPromptPreset('sales')" class="btn btn-sm btn-light border py-0.5 px-2.5 rounded-pill" style="font-size: 0.72rem;">Sales Concierge</button>
-                        <button type="button" onclick="setPromptPreset('technical')" class="btn btn-sm btn-light border py-0.5 px-2.5 rounded-pill" style="font-size: 0.72rem;">Technical Support</button>
+            {{-- System prompt --}}
+            <div class="card mb-3">
+                <div class="card-header">System prompt</div>
+                <div class="p-3">
+                    <div class="d-flex align-items-center gap-1.5 mb-2 flex-wrap">
+                        <span class="text-muted" style="font-size: 0.75rem;">Start from</span>
+                        <button type="button" onclick="setPromptPreset('support')" class="btn btn-sm btn-outline-secondary">Support</button>
+                        <button type="button" onclick="setPromptPreset('sales')" class="btn btn-sm btn-outline-secondary">Sales</button>
+                        <button type="button" onclick="setPromptPreset('technical')" class="btn btn-sm btn-outline-secondary">Technical</button>
                     </div>
 
-                    <textarea name="system_prompt" id="system_prompt" rows="4" class="form-control font-monospace small" placeholder="You are a helpful, professional AI assistant...">{{ old('system_prompt', $bot->system_prompt) }}</textarea>
+                    <label for="system_prompt" class="visually-hidden">System prompt</label>
+                    <textarea name="system_prompt" id="system_prompt" rows="5" class="form-control font-monospace"
+                              placeholder="You are a helpful, professional assistant.">{{ old('system_prompt', $bot->system_prompt) }}</textarea>
+                    <div class="form-text">Sent ahead of every conversation. Be specific about tone, scope and what to refuse.</div>
                 </div>
+            </div>
 
-                <!-- 4. Images & Widget Customizer -->
-                <div class="card border-0 shadow-sm p-4 rounded-4 mb-4">
-                    <h6 class="fw-bold text-dark mb-3 d-flex align-items-center gap-2">
-                        <span class="rounded-circle bg-primary-subtle text-primary d-inline-flex align-items-center justify-content-center" style="width: 26px; height: 26px; font-size: 0.8rem;">4</span>
-                        <span>Branding, Custom Images & Silhouette Fitting</span>
-                    </h6>
+            {{-- Appearance --}}
+            <div class="card mb-3">
+                <div class="card-header">Widget appearance</div>
+                <div class="p-3">
 
-                    <!-- Custom Images Upload Section -->
-                    <div class="row g-3 mb-4 p-3.5 rounded-4 bg-light border">
-                        <!-- Launcher Button Image -->
-                        <div class="col-12 col-md-6">
-                            <label class="form-label small fw-bold text-dark d-flex align-items-center gap-1.5 mb-1">
-                                <i class="bi bi-circle-square text-primary"></i> Floating Launcher Button Icon
-                            </label>
-                            <small class="text-muted d-block mb-2" style="font-size: 0.72rem;">Shown in the floating button anchored on host site before clicked.</small>
-                            <input type="file" name="launcher_icon" id="launcher_icon_input" accept="image/*" class="form-control form-control-sm" onchange="previewUpload(this, 'prevLauncherImg', 'prevLauncherDefault')">
-
-                            @if($bot->launcher_icon_url)
-                                <div class="mt-2.5 d-flex align-items-center gap-2 p-2 rounded-3 bg-white border">
-                                    <img src="{{ $bot->launcher_icon_url }}" alt="Launcher" class="rounded border" style="width: 34px; height: 34px; object-fit: contain;">
-                                    <div class="form-check small mb-0">
-                                        <input class="form-check-input" type="checkbox" name="remove_launcher_icon" value="1" id="remove_launcher_icon">
-                                        <label class="form-check-label text-danger fw-medium" for="remove_launcher_icon" style="font-size: 0.75rem;">Reset to default icon</label>
-                                    </div>
-                                </div>
-                            @endif
-
-                            <div class="mt-3 pt-2.5 border-top">
-                                <label class="form-label small text-secondary fw-semibold mb-2" style="font-size: 0.74rem;">Launcher Shape & Background:</label>
-                                <div class="d-flex flex-column gap-1.5">
-                                    <label class="d-flex align-items-center gap-2 p-2 rounded-3 border bg-white cursor-pointer hover-bg-light">
-                                        <input type="radio" name="launcher_shape" id="launcher_shape_circle" value="circle" {{ old('launcher_shape', $bot->launcher_shape ?? 'circle') === 'circle' ? 'checked' : '' }} onchange="updateLivePreview()" class="form-check-input mt-0">
-                                        <div class="small">
-                                            <span class="fw-semibold text-dark d-block" style="font-size: 0.78rem;">Standard Filled Circle</span>
-                                            <span class="text-muted" style="font-size: 0.7rem;">Primary color background with white icon inside</span>
-                                        </div>
-                                    </label>
-
-                                    <label class="d-flex align-items-center gap-2 p-2 rounded-3 border bg-white cursor-pointer hover-bg-light">
-                                        <input type="radio" name="launcher_shape" id="launcher_shape_circle_transparent" value="circle_transparent" {{ old('launcher_shape', $bot->launcher_shape ?? 'circle') === 'circle_transparent' ? 'checked' : '' }} onchange="updateLivePreview()" class="form-check-input mt-0">
-                                        <div class="small">
-                                            <span class="fw-semibold text-dark d-block" style="font-size: 0.78rem;">Circle (No Fill / Transparent)</span>
-                                            <span class="text-muted" style="font-size: 0.7rem;">Circular outline border with clear transparent interior</span>
-                                        </div>
-                                    </label>
-
-                                    <label class="d-flex align-items-center gap-2 p-2 rounded-3 border bg-white cursor-pointer hover-bg-light">
-                                        <input type="radio" name="launcher_shape" id="launcher_shape_transparent_fit" value="transparent_fit" {{ old('launcher_shape', $bot->launcher_shape ?? 'circle') === 'transparent_fit' ? 'checked' : '' }} onchange="updateLivePreview()" class="form-check-input mt-0">
-                                        <div class="small">
-                                            <span class="fw-semibold text-primary d-block" style="font-size: 0.78rem;">✨ Cutout Silhouette (Remove Background)</span>
-                                            <span class="text-muted" style="font-size: 0.7rem;">Fits natural PNG shape (tall mascot, wide car, logos without container)</span>
-                                        </div>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Open Chatbox Bot Avatar -->
-                        <div class="col-12 col-md-6">
-                            <label class="form-label small fw-bold text-dark d-flex align-items-center gap-1.5 mb-1">
-                                <i class="bi bi-person-badge text-primary"></i> Chatbox Bot Avatar (When Open)
-                            </label>
-                            <small class="text-muted d-block mb-2" style="font-size: 0.72rem;">Displayed in header banner and next to each response.</small>
-                            <input type="file" name="bot_avatar" id="bot_avatar_input" accept="image/*" class="form-control form-control-sm" onchange="previewUpload(this, 'prevAvatarImg', 'prevAvatarDefault', 'prevMiniAvatarImg')">
-
-                            @if($bot->bot_avatar_url)
-                                <div class="mt-2.5 d-flex align-items-center gap-2 p-2 rounded-3 bg-white border">
-                                    <img src="{{ $bot->bot_avatar_url }}" alt="Avatar" class="rounded border" style="width: 34px; height: 34px; object-fit: contain;">
-                                    <div class="form-check small mb-0">
-                                        <input class="form-check-input" type="checkbox" name="remove_bot_avatar" value="1" id="remove_bot_avatar">
-                                        <label class="form-check-label text-danger fw-medium" for="remove_bot_avatar" style="font-size: 0.75rem;">Reset to default 🤖</label>
-                                    </div>
-                                </div>
-                            @endif
-
-                            <div class="mt-3 pt-2.5 border-top">
-                                <label class="form-label small text-secondary fw-semibold mb-2" style="font-size: 0.74rem;">Avatar Shape & Background:</label>
-                                <div class="d-flex flex-column gap-1.5">
-                                    <label class="d-flex align-items-center gap-2 p-2 rounded-3 border bg-white cursor-pointer hover-bg-light">
-                                        <input type="radio" name="avatar_shape" id="avatar_shape_circle" value="circle" {{ old('avatar_shape', $bot->avatar_shape ?? 'circle') === 'circle' ? 'checked' : '' }} onchange="updateLivePreview()" class="form-check-input mt-0">
-                                        <div class="small">
-                                            <span class="fw-semibold text-dark d-block" style="font-size: 0.78rem;">Standard Circle Badge</span>
-                                            <span class="text-muted" style="font-size: 0.7rem;">Contained circular avatar frame</span>
-                                        </div>
-                                    </label>
-
-                                    <label class="d-flex align-items-center gap-2 p-2 rounded-3 border bg-white cursor-pointer hover-bg-light">
-                                        <input type="radio" name="avatar_shape" id="avatar_shape_circle_transparent" value="circle_transparent" {{ old('avatar_shape', $bot->avatar_shape ?? 'circle') === 'circle_transparent' ? 'checked' : '' }} onchange="updateLivePreview()" class="form-check-input mt-0">
-                                        <div class="small">
-                                            <span class="fw-semibold text-dark d-block" style="font-size: 0.78rem;">Circle (Transparent Inner)</span>
-                                            <span class="text-muted" style="font-size: 0.7rem;">Subtle border with transparent background</span>
-                                        </div>
-                                    </label>
-
-                                    <label class="d-flex align-items-center gap-2 p-2 rounded-3 border bg-white cursor-pointer hover-bg-light">
-                                        <input type="radio" name="avatar_shape" id="avatar_shape_transparent_fit" value="transparent_fit" {{ old('avatar_shape', $bot->avatar_shape ?? 'circle') === 'transparent_fit' ? 'checked' : '' }} onchange="updateLivePreview()" class="form-check-input mt-0">
-                                        <div class="small">
-                                            <span class="fw-semibold text-primary d-block" style="font-size: 0.78rem;">✨ Cutout Silhouette (Remove Background)</span>
-                                            <span class="text-muted" style="font-size: 0.7rem;">Allows tall or wide transparent avatars without circular cropping</span>
-                                        </div>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Header Title & Position -->
                     <div class="row g-3 mb-3">
                         <div class="col-12 col-sm-6">
-                            <label class="form-label small fw-semibold text-dark">Widget Header Title</label>
-                            <input type="text" name="widget_title" id="widget_title" class="form-control" value="{{ old('widget_title', $bot->widget_title) }}" oninput="updateLivePreview()" required>
+                            <label for="widget_title" class="form-label">Header title</label>
+                            <input type="text" name="widget_title" id="widget_title" class="form-control"
+                                   value="{{ old('widget_title', $bot->widget_title) }}" oninput="updateLivePreview()" required>
                         </div>
                         <div class="col-12 col-sm-6">
-                            <label class="form-label small fw-semibold text-dark">Screen Position</label>
+                            <label for="widget_position" class="form-label">Screen position</label>
                             <select name="widget_position" id="widget_position" class="form-select">
-                                <option value="bottom-right" {{ old('widget_position', $bot->widget_position) === 'bottom-right' ? 'selected' : '' }}>Bottom Right Corner</option>
-                                <option value="bottom-left" {{ old('widget_position', $bot->widget_position) === 'bottom-left' ? 'selected' : '' }}>Bottom Left Corner</option>
+                                <option value="bottom-right" {{ old('widget_position', $bot->widget_position) === 'bottom-right' ? 'selected' : '' }}>Bottom right</option>
+                                <option value="bottom-left" {{ old('widget_position', $bot->widget_position) === 'bottom-left' ? 'selected' : '' }}>Bottom left</option>
                             </select>
                         </div>
                     </div>
 
-                    <!-- Welcome Greeting -->
                     <div class="mb-3">
-                        <label class="form-label small fw-semibold text-dark">Initial Welcome Greeting</label>
-                        <input type="text" name="widget_greeting" id="widget_greeting" class="form-control" value="{{ old('widget_greeting', $bot->widget_greeting) }}" oninput="updateLivePreview()">
+                        <label for="widget_greeting" class="form-label">Opening greeting</label>
+                        <input type="text" name="widget_greeting" id="widget_greeting" class="form-control"
+                               value="{{ old('widget_greeting', $bot->widget_greeting) }}" oninput="updateLivePreview()">
                     </div>
 
-                    <!-- Color Picker -->
-                    <div>
-                        <label class="form-label small fw-semibold text-dark d-block">Brand Accent Theme Color</label>
-                        <div class="d-flex align-items-center gap-2">
-                            <input type="color" name="widget_primary_color" id="widget_primary_color" class="form-control form-control-color border-0 rounded-circle cursor-pointer shadow-sm" value="{{ old('widget_primary_color', $bot->widget_primary_color ?: '#4f46e5') }}" oninput="updateLivePreview()" style="width: 36px; height: 36px;">
-                            <button type="button" onclick="setColor('#4f46e5')" class="btn btn-sm rounded-circle p-0 shadow-sm border border-2 border-white" style="background-color: #4f46e5; width: 30px; height: 30px;" title="Indigo"></button>
-                            <button type="button" onclick="setColor('#0ea5e9')" class="btn btn-sm rounded-circle p-0 shadow-sm border border-2 border-white" style="background-color: #0ea5e9; width: 30px; height: 30px;" title="Sky Blue"></button>
-                            <button type="button" onclick="setColor('#10b981')" class="btn btn-sm rounded-circle p-0 shadow-sm border border-2 border-white" style="background-color: #10b981; width: 30px; height: 30px;" title="Emerald"></button>
-                            <button type="button" onclick="setColor('#8b5cf6')" class="btn btn-sm rounded-circle p-0 shadow-sm border border-2 border-white" style="background-color: #8b5cf6; width: 30px; height: 30px;" title="Purple"></button>
-                            <button type="button" onclick="setColor('#f59e0b')" class="btn btn-sm rounded-circle p-0 shadow-sm border border-2 border-white" style="background-color: #f59e0b; width: 30px; height: 30px;" title="Amber"></button>
-                            <button type="button" onclick="setColor('#0f172a')" class="btn btn-sm rounded-circle p-0 shadow-sm border border-2 border-white" style="background-color: #0f172a; width: 30px; height: 30px;" title="Dark Slate"></button>
+                    <div class="mb-3">
+                        <label for="widget_primary_color" class="form-label">Widget colour</label>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <input type="color" name="widget_primary_color" id="widget_primary_color" class="form-control"
+                                   value="{{ old('widget_primary_color', $bot->widget_primary_color ?: '#1f2937') }}"
+                                   oninput="updateLivePreview()" style="width: 52px;">
+                            @foreach(['#1f2937' => 'Graphite', '#0ea5e9' => 'Sky', '#10b981' => 'Emerald', '#e0a03a' => 'Amber', '#dc5b4a' => 'Rust'] as $hex => $label)
+                                <button type="button" onclick="setColor('{{ $hex }}')" title="{{ $label }}"
+                                        style="width: 26px; height: 26px; padding: 0; background-color: {{ $hex }};
+                                               border: 1px solid var(--border-strong); border-radius: var(--r-sm);"></button>
+                            @endforeach
                         </div>
+                        <div class="form-text">Used for the launcher, the header and outgoing message bubbles.</div>
                     </div>
-                </div>
 
-                <!-- Submit Button -->
-                <div class="d-flex justify-content-end gap-2 pb-4">
-                    <a href="{{ route('bots.index') }}" class="btn btn-outline-secondary px-4 py-2">Cancel</a>
-                    <button type="submit" class="btn btn-brand px-4 py-2 shadow-sm">
-                        <i class="bi bi-check2-circle me-1.5"></i> {{ $isEdit ? 'Save Profile Changes' : 'Create Bot Profile' }}
-                    </button>
+                    <div class="row g-3" style="border-top: 1px solid var(--border); padding-top: 1rem;">
+
+                        {{-- Launcher --}}
+                        <div class="col-12 col-md-6">
+                            <div class="fw-semibold mb-1" style="font-size: 0.8125rem;">Launcher button</div>
+                            <p class="text-muted mb-2" style="font-size: 0.75rem;">The floating button before anyone opens the chat.</p>
+
+                            <label for="launcher_icon_input" class="visually-hidden">Launcher image</label>
+                            <input type="file" name="launcher_icon" id="launcher_icon_input" accept="image/*"
+                                   class="form-control form-control-sm"
+                                   onchange="previewUpload(this, 'prevLauncherImg', 'prevLauncherDefault')">
+
+                            @if($bot->launcher_icon_url)
+                                <div class="mt-2 d-flex align-items-center gap-2 p-2"
+                                     style="border: 1px solid var(--border); border-radius: var(--r-sm);">
+                                    <img src="{{ $bot->launcher_icon_url }}" alt="Current launcher image" class="identity">
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input" type="checkbox" name="remove_launcher_icon" value="1" id="remove_launcher_icon">
+                                        <label class="form-check-label" for="remove_launcher_icon" style="font-size: 0.75rem;">Remove and use the default</label>
+                                    </div>
+                                </div>
+                            @endif
+
+                            <div class="mt-3">
+                                <div class="text-muted mb-1.5" style="font-size: 0.75rem;">Shape</div>
+                                <div class="d-flex flex-column gap-1.5">
+                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
+                                        <input type="radio" name="launcher_shape" id="launcher_shape_circle" value="circle"
+                                               {{ old('launcher_shape', $bot->launcher_shape ?? 'circle') === 'circle' ? 'checked' : '' }}
+                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
+                                        <span>
+                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Filled circle</span>
+                                            <span class="text-muted" style="font-size: 0.6875rem;">Solid colour behind the icon</span>
+                                        </span>
+                                    </label>
+
+                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
+                                        <input type="radio" name="launcher_shape" id="launcher_shape_circle_transparent" value="circle_transparent"
+                                               {{ old('launcher_shape', $bot->launcher_shape ?? 'circle') === 'circle_transparent' ? 'checked' : '' }}
+                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
+                                        <span>
+                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Outlined circle</span>
+                                            <span class="text-muted" style="font-size: 0.6875rem;">Ring border, transparent inside</span>
+                                        </span>
+                                    </label>
+
+                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
+                                        <input type="radio" name="launcher_shape" id="launcher_shape_transparent_fit" value="transparent_fit"
+                                               {{ old('launcher_shape', $bot->launcher_shape ?? 'circle') === 'transparent_fit' ? 'checked' : '' }}
+                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
+                                        <span>
+                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Cutout silhouette</span>
+                                            <span class="text-muted" style="font-size: 0.6875rem;">Follows the PNG outline, no container</span>
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="mt-3">
+                                <label for="launcher_size" class="form-label d-flex align-items-center justify-content-between mb-1">
+                                    <span>Size</span>
+                                    <span class="figure-mono text-muted" id="launcherSizeOut">{{ old('launcher_size', $bot->launcher_size ?? 60) }}px</span>
+                                </label>
+                                <input type="range" class="form-range" name="launcher_size" id="launcher_size"
+                                       min="40" max="160" step="4"
+                                       value="{{ old('launcher_size', $bot->launcher_size ?? 60) }}"
+                                       oninput="updateLivePreview()">
+                                <div class="form-text">
+                                    Height of the button. A cutout image is given this height and may run up to 1.4 times as wide,
+                                    so a tall picture of a person stays tall instead of shrinking to fit a square.
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Close button --}}
+                        <div class="col-12 col-md-6">
+                            <div class="fw-semibold mb-1" style="font-size: 0.8125rem;">Close button</div>
+                            <p class="text-muted mb-2" style="font-size: 0.75rem;">The same button once the chat is open. Leave it empty for a plain cross.</p>
+
+                            <label for="close_icon_input" class="visually-hidden">Close image</label>
+                            <input type="file" name="close_icon" id="close_icon_input" accept="image/*"
+                                   class="form-control form-control-sm"
+                                   onchange="previewUpload(this, 'prevCloseImg', 'prevCloseDefault')">
+
+                            @if($bot->close_icon_url)
+                                <div class="mt-2 d-flex align-items-center gap-2 p-2"
+                                     style="border: 1px solid var(--border); border-radius: var(--r-sm);">
+                                    <img src="{{ $bot->close_icon_url }}" alt="Current close image" class="identity">
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input" type="checkbox" name="remove_close_icon" value="1" id="remove_close_icon">
+                                        <label class="form-check-label" for="remove_close_icon" style="font-size: 0.75rem;">Remove and use the default</label>
+                                    </div>
+                                </div>
+                            @endif
+
+                            <div class="mt-3">
+                                <div class="text-muted mb-1.5" style="font-size: 0.75rem;">Shape</div>
+                                <div class="d-flex flex-column gap-1.5">
+                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
+                                        <input type="radio" name="close_shape" id="close_shape_circle" value="circle"
+                                               {{ old('close_shape', $bot->close_shape ?? 'circle') === 'circle' ? 'checked' : '' }}
+                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
+                                        <span>
+                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Filled circle</span>
+                                            <span class="text-muted" style="font-size: 0.6875rem;">Solid colour behind the icon</span>
+                                        </span>
+                                    </label>
+
+                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
+                                        <input type="radio" name="close_shape" id="close_shape_circle_transparent" value="circle_transparent"
+                                               {{ old('close_shape', $bot->close_shape ?? 'circle') === 'circle_transparent' ? 'checked' : '' }}
+                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
+                                        <span>
+                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Outlined circle</span>
+                                            <span class="text-muted" style="font-size: 0.6875rem;">Ring border, transparent inside</span>
+                                        </span>
+                                    </label>
+
+                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
+                                        <input type="radio" name="close_shape" id="close_shape_transparent_fit" value="transparent_fit"
+                                               {{ old('close_shape', $bot->close_shape ?? 'circle') === 'transparent_fit' ? 'checked' : '' }}
+                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
+                                        <span>
+                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Cutout silhouette</span>
+                                            <span class="text-muted" style="font-size: 0.6875rem;">Follows the PNG outline, no container</span>
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="mt-3">
+                                <label for="close_size" class="form-label d-flex align-items-center justify-content-between mb-1">
+                                    <span>Size</span>
+                                    <span class="figure-mono text-muted" id="closeSizeOut">{{ old('close_size', $bot->close_size ?? 52) }}px</span>
+                                </label>
+                                <input type="range" class="form-range" name="close_size" id="close_size"
+                                       min="32" max="120" step="4"
+                                       value="{{ old('close_size', $bot->close_size ?? 52) }}"
+                                       oninput="updateLivePreview()">
+                                <div class="form-text">Usually a little smaller than the launcher, so closing feels lighter than opening.</div>
+                            </div>
+                        </div>
+
+                        {{-- Avatar --}}
+                        <div class="col-12 col-md-6">
+                            <div class="fw-semibold mb-1" style="font-size: 0.8125rem;">Chat avatar</div>
+                            <p class="text-muted mb-2" style="font-size: 0.75rem;">Shown in the chat header and beside each reply.</p>
+
+                            <label for="bot_avatar_input" class="visually-hidden">Avatar image</label>
+                            <input type="file" name="bot_avatar" id="bot_avatar_input" accept="image/*"
+                                   class="form-control form-control-sm"
+                                   onchange="previewUpload(this, 'prevAvatarImg', 'prevAvatarDefault', 'prevMiniAvatarImg')">
+
+                            @if($bot->bot_avatar_url)
+                                <div class="mt-2 d-flex align-items-center gap-2 p-2"
+                                     style="border: 1px solid var(--border); border-radius: var(--r-sm);">
+                                    <img src="{{ $bot->bot_avatar_url }}" alt="Current avatar" class="identity">
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input" type="checkbox" name="remove_bot_avatar" value="1" id="remove_bot_avatar">
+                                        <label class="form-check-label" for="remove_bot_avatar" style="font-size: 0.75rem;">Remove and use the default</label>
+                                    </div>
+                                </div>
+                            @endif
+
+                            <div class="mt-3">
+                                <div class="text-muted mb-1.5" style="font-size: 0.75rem;">Shape</div>
+                                <div class="d-flex flex-column gap-1.5">
+                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
+                                        <input type="radio" name="avatar_shape" id="avatar_shape_circle" value="circle"
+                                               {{ old('avatar_shape', $bot->avatar_shape ?? 'circle') === 'circle' ? 'checked' : '' }}
+                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
+                                        <span>
+                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Circle badge</span>
+                                            <span class="text-muted" style="font-size: 0.6875rem;">Cropped to a circular frame</span>
+                                        </span>
+                                    </label>
+
+                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
+                                        <input type="radio" name="avatar_shape" id="avatar_shape_circle_transparent" value="circle_transparent"
+                                               {{ old('avatar_shape', $bot->avatar_shape ?? 'circle') === 'circle_transparent' ? 'checked' : '' }}
+                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
+                                        <span>
+                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Outlined circle</span>
+                                            <span class="text-muted" style="font-size: 0.6875rem;">Hairline border, no fill</span>
+                                        </span>
+                                    </label>
+
+                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
+                                        <input type="radio" name="avatar_shape" id="avatar_shape_transparent_fit" value="transparent_fit"
+                                               {{ old('avatar_shape', $bot->avatar_shape ?? 'circle') === 'transparent_fit' ? 'checked' : '' }}
+                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
+                                        <span>
+                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Cutout silhouette</span>
+                                            <span class="text-muted" style="font-size: 0.6875rem;">Tall or wide art without cropping</span>
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
                 </div>
             </div>
 
-            <!-- Right 4 Columns: Interactive Live Preview -->
-            <div class="col-12 col-lg-4">
-                <div class="sticky-top" style="top: 90px; z-index: 10;">
-                    <div class="d-flex align-items-center justify-content-between mb-2">
-                        <small class="text-uppercase fw-bold text-secondary" style="font-size: 0.68rem; letter-spacing: 0.05em;">Interactive Live Preview</small>
-                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-0.5 small fw-semibold">
-                            <span class="status-pulse-dot" style="width: 5px; height: 5px;"></span> Real-time
-                        </span>
+            {{-- Sticky action bar: the form is long, so Save follows you down it. --}}
+            <div class="form-actions">
+                <span class="text-muted d-none d-sm-inline" style="font-size: 0.75rem;">
+                    {{ $isEdit ? 'Saving updates every site running this bot.' : 'You can change all of this later.' }}
+                </span>
+                <div class="d-flex align-items-center gap-2 ms-auto">
+                    <a href="{{ route('bots.index') }}" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-brand">
+                        {{ $isEdit ? 'Save changes' : 'Create bot profile' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {{-- ===================== Output column =====================
+             Preview and embed are both read-only outputs, so tabbing them is
+             safe: no required input ever ends up in a hidden pane.
+             ========================================================== --}}
+        <div class="col-12 col-lg-5 col-xxl-4">
+            <div class="sticky-top" style="top: 72px; z-index: 10;">
+                <div class="card overflow-hidden">
+                    <div class="card-header p-0">
+                        <ul class="nav nav-tabs px-2 pt-2" role="tablist" style="border-bottom: 0;">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pane-preview"
+                                        type="button" role="tab" aria-controls="pane-preview" aria-selected="true">Preview</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-embed"
+                                        type="button" role="tab" aria-controls="pane-embed" aria-selected="false">Embed</button>
+                            </li>
+                        </ul>
                     </div>
 
-                    <!-- Mock Widget Box -->
-                    <div class="card shadow-lg overflow-hidden border-0 mb-3" style="height: 520px; border-radius: 22px;">
-                        <!-- Header -->
-                        <div id="prevHeader" class="p-3 text-white d-flex align-items-center justify-content-between shadow-sm" style="background: linear-gradient(135deg, {{ $bot->widget_primary_color ?: '#4f46e5' }}, #6366f1);">
-                            <div class="d-flex align-items-center gap-2.5">
-                                <div id="prevAvatarContainer" class="rounded-circle bg-white bg-opacity-25 d-flex align-items-center justify-content-center overflow-hidden border border-white border-opacity-50 flex-shrink-0" style="width: 38px; height: 38px;">
-                                    <img id="prevAvatarImg" src="{{ $bot->bot_avatar_url ?: '' }}" alt="Avatar" style="{{ $bot->bot_avatar_url ? 'display:block;' : 'display:none;' }} width: 100%; height: 100%; object-fit: contain;">
-                                    <span id="prevAvatarDefault" style="{{ $bot->bot_avatar_url ? 'display:none;' : 'display:block;' }} font-size: 1.15rem;">🤖</span>
+                    <div class="tab-content">
+
+                        {{-- Preview: reflects what you are typing, before you save.
+                             It renders the customer-facing widget, so it keeps the
+                             bot's own brand colour rather than the console palette. --}}
+                        <div class="tab-pane fade show active" id="pane-preview" role="tabpanel">
+                            <div class="d-flex flex-column" style="height: 420px; background: #f4f4f5;">
+                                <div id="prevHeader" class="p-3 d-flex align-items-center justify-content-between flex-shrink-0"
+                                     style="background: {{ $bot->widget_primary_color ?: '#1f2937' }}; color: #ffffff;">
+                                    <div class="d-flex align-items-center gap-2.5">
+                                        <div id="prevAvatarContainer"
+                                             class="d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0"
+                                             style="width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,0.22);">
+                                            <img id="prevAvatarImg" src="{{ $bot->bot_avatar_url ?: '' }}" alt=""
+                                                 style="{{ $bot->bot_avatar_url ? 'display:block;' : 'display:none;' }} width: 100%; height: 100%; object-fit: contain;">
+                                            <i id="prevAvatarDefault" class="bi bi-robot"
+                                               style="{{ $bot->bot_avatar_url ? 'display:none;' : 'display:block;' }} font-size: 1rem; color: #ffffff;"></i>
+                                        </div>
+                                        <div>
+                                            <div id="prevTitle" class="fw-semibold" style="font-size: 0.8125rem; line-height: 1.2;">{{ $bot->widget_title ?: 'AI Assistant' }}</div>
+                                            <div style="font-size: 0.6875rem; opacity: 0.75;">Online</div>
+                                        </div>
+                                    </div>
+                                    <i class="bi bi-x-lg" style="font-size: 0.8rem; opacity: 0.7;"></i>
                                 </div>
-                                <div>
-                                    <div id="prevTitle" class="fw-bold small lh-1 mb-1">{{ $bot->widget_title ?: 'AI Assistant' }}</div>
-                                    <div class="text-white-50 d-flex align-items-center gap-1" style="font-size: 0.68rem;">
-                                        <span class="p-1 rounded-circle bg-success d-inline-block"></span> Online & Thinking
+
+                                <div class="p-3 flex-grow-1 overflow-auto d-flex flex-column gap-2.5">
+                                    <div class="d-flex align-items-start gap-2" style="max-width: 88%;">
+                                        <div id="prevMiniAvatar"
+                                             class="d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0"
+                                             style="width: 24px; height: 24px; border-radius: 50%; margin-top: 2px; color: #fff; background-color: {{ $bot->widget_primary_color ?: '#1f2937' }};">
+                                            <img id="prevMiniAvatarImg" src="{{ $bot->bot_avatar_url ?: '' }}" alt=""
+                                                 style="{{ $bot->bot_avatar_url ? 'display:block;' : 'display:none;' }} width: 100%; height: 100%; object-fit: contain;">
+                                            <i id="prevMiniAvatarDefault" class="bi bi-robot"
+                                               style="{{ $bot->bot_avatar_url ? 'display:none;' : 'display:block;' }} font-size: 0.7rem;"></i>
+                                        </div>
+                                        <div id="prevGreeting"
+                                             style="background: #ffffff; color: #18181b; border: 1px solid #e4e4e7; border-radius: 10px 10px 10px 3px; padding: 0.5rem 0.75rem; font-size: 0.78125rem; line-height: 1.5;">
+                                            {{ $bot->widget_greeting ?: 'Hello! How can I help you today?' }}
+                                        </div>
+                                    </div>
+
+                                    <div class="align-self-end" style="max-width: 82%;">
+                                        <div id="prevUserMsg"
+                                             style="background-color: {{ $bot->widget_primary_color ?: '#1f2937' }}; color: #ffffff; border-radius: 10px 10px 3px 10px; padding: 0.5rem 0.75rem; font-size: 0.78125rem; line-height: 1.5;">
+                                            Can you tell me more about your pricing?
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex align-items-center gap-2" style="max-width: 88%;">
+                                        <div style="width: 24px; height: 24px; flex-shrink: 0;"></div>
+                                        <div style="background: #ffffff; color: #71717a; border: 1px solid #e4e4e7; border-radius: 10px 10px 10px 3px; padding: 0.4375rem 0.75rem; font-size: 0.75rem;">
+                                            <span id="prevThinkingText">Thinking...</span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                            <i class="bi bi-x-lg text-white-50 small"></i>
-                        </div>
 
-                        <!-- Chat Area with spacious, beautiful bubbles -->
-                        <div class="p-3 bg-light flex-grow-1 overflow-auto d-flex flex-column gap-3">
-                            <!-- Bot Message with mini avatar -->
-                            <div class="d-flex align-items-start gap-2" style="max-width: 88%;">
-                                <div id="prevMiniAvatar" class="rounded-circle d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0 text-white mt-1 shadow-sm" style="width: 28px; height: 28px; background-color: {{ $bot->widget_primary_color ?: '#4f46e5' }}; font-size: 0.75rem;">
-                                    <img id="prevMiniAvatarImg" src="{{ $bot->bot_avatar_url ?: '' }}" alt="Bot" style="{{ $bot->bot_avatar_url ? 'display:block;' : 'display:none;' }} width: 100%; height: 100%; object-fit: contain;">
-                                    <span id="prevMiniAvatarDefault" style="{{ $bot->bot_avatar_url ? 'display:none;' : 'display:block;' }}">🤖</span>
+                                <div class="p-2 d-flex align-items-center gap-2 flex-shrink-0"
+                                     style="background: #ffffff; border-top: 1px solid #e4e4e7;">
+                                    <input type="text" aria-label="Message preview" disabled placeholder="Type a message"
+                                           style="flex: 1; min-width: 0; background: #f4f4f5; color: #71717a; border: 1px solid #e4e4e7; border-radius: 6px; padding: 0.375rem 0.625rem; font-size: 0.78125rem;">
+                                    <button type="button" id="prevSendBtn" disabled
+                                            style="border: none; border-radius: 6px; padding: 0.375rem 0.625rem; color: #fff; background-color: {{ $bot->widget_primary_color ?: '#1f2937' }};">
+                                        <i class="bi bi-send" style="font-size: 0.75rem;"></i>
+                                    </button>
                                 </div>
-                                <div class="d-flex flex-column align-items-start">
-                                    <div id="prevGreeting" class="p-3 rounded-4 bg-white text-dark shadow-sm border small lh-base" style="border-top-left-radius: 4px !important;">
-                                        {{ $bot->widget_greeting ?: 'Hello! How can I help you today?' }}
+                            </div>
+
+                            <div class="p-3" style="border-top: 1px solid var(--border);">
+                                <div class="d-flex align-items-end gap-4" style="min-height: 96px;">
+                                    <div class="text-center">
+                                        <div class="d-flex align-items-end justify-content-center" style="min-height: 72px;">
+                                            <div id="prevLauncherBtn"
+                                                 class="d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0"
+                                                 style="width: 48px; height: 48px; border-radius: 50%; color: #fff; background-color: {{ $bot->widget_primary_color ?: '#1f2937' }};">
+                                                <img id="prevLauncherImg" src="{{ $bot->launcher_icon_url ?: '' }}" alt=""
+                                                     style="{{ $bot->launcher_icon_url ? 'display:block;' : 'display:none;' }} width: 100%; height: 100%; object-fit: contain;">
+                                                <i id="prevLauncherDefault" class="bi bi-chat-dots"
+                                                   style="{{ $bot->launcher_icon_url ? 'display:none;' : 'display:block;' }} font-size: 1.05rem;"></i>
+                                            </div>
+                                        </div>
+                                        <div class="text-muted mt-2" style="font-size: 0.6875rem;">Closed</div>
                                     </div>
-                                    <span class="text-muted mt-1 px-1" style="font-size: 0.65rem;">Just now</span>
-                                </div>
-                            </div>
 
-                            <!-- Sample User Message -->
-                            <div class="d-flex flex-column align-items-end align-self-end" style="max-width: 82%;">
-                                <div id="prevUserMsg" class="p-3 rounded-4 text-white shadow-sm small lh-base" style="background-color: {{ $bot->widget_primary_color ?: '#4f46e5' }}; border-top-right-radius: 4px !important;">
-                                    Can you tell me more about your features?
-                                </div>
-                                <span class="text-muted mt-1 px-1" style="font-size: 0.65rem;">Just now</span>
-                            </div>
+                                    <div class="text-center">
+                                        <div class="d-flex align-items-end justify-content-center" style="min-height: 72px;">
+                                            <div id="prevCloseBtn"
+                                                 class="d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0"
+                                                 style="width: 42px; height: 42px; border-radius: 50%; color: #fff; background-color: {{ $bot->widget_primary_color ?: '#1f2937' }};">
+                                                <img id="prevCloseImg" src="{{ $bot->close_icon_url ?: '' }}" alt=""
+                                                     style="{{ $bot->close_icon_url ? 'display:block;' : 'display:none;' }} width: 100%; height: 100%; object-fit: contain;">
+                                                <i id="prevCloseDefault" class="bi bi-x-lg"
+                                                   style="{{ $bot->close_icon_url ? 'display:none;' : 'display:block;' }} font-size: 0.95rem;"></i>
+                                            </div>
+                                        </div>
+                                        <div class="text-muted mt-2" style="font-size: 0.6875rem;">Open</div>
+                                    </div>
 
-                            <!-- Simulated Thinking Animation Indicator Bubble -->
-                            <div class="d-flex align-items-start gap-2" style="max-width: 88%;">
-                                <div class="rounded-circle d-flex align-items-center justify-content-center text-white mt-1 shadow-sm" style="width: 28px; height: 28px; background: #6366f1; font-size: 0.75rem;">
-                                    ✨
-                                </div>
-                                <div class="p-2.5 px-3 rounded-4 bg-white text-muted shadow-sm border small d-inline-flex align-items-center gap-2" style="border-top-left-radius: 4px !important; font-size: 0.78rem;">
-                                    <span class="spinner-grow spinner-grow-sm text-primary" style="width: 10px; height: 10px;" role="status"></span>
-                                    <span class="fst-italic text-secondary" id="prevThinkingText">Thinking...</span>
+                                    <p class="text-muted mb-0 align-self-center" style="font-size: 0.75rem;">
+                                        The two states of the corner button, at the sizes you set. This follows the fields on the left, before you save.
+                                    </p>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Footer Input -->
-                        <div class="p-2.5 bg-white border-top d-flex align-items-center gap-2">
-                            <input type="text" class="form-control form-control-sm border-0 bg-light small py-2 px-3 rounded-3" placeholder="Type a message..." disabled>
-                            <button type="button" id="prevSendBtn" class="btn btn-sm btn-primary rounded-3 px-3 py-2" style="background-color: {{ $bot->widget_primary_color ?: '#4f46e5' }}; border: none;" disabled>
-                                <i class="bi bi-send-fill" style="font-size: 0.8rem;"></i>
-                            </button>
-                        </div>
-                    </div>
+                        {{-- Embed --}}
+                        <div class="tab-pane fade" id="pane-embed" role="tabpanel">
+                            @if($isEdit)
+                                <div class="p-3">
+                                    <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                                        <span class="form-label mb-0">Snippet</span>
+                                        <button type="button" class="btn btn-sm btn-brand" onclick="copyEmbedSnippet('{{ $bot->id }}')">
+                                            <i class="bi bi-clipboard" id="embedCopyIcon{{ $bot->id }}"></i>
+                                            <span id="embedCopyText{{ $bot->id }}">Copy</span>
+                                        </button>
+                                    </div>
 
-                    <!-- Floating Launcher Preview -->
-                    <div class="card p-3 shadow-sm border-0 rounded-4 bg-white">
-                        <small class="text-secondary text-uppercase fw-bold d-block mb-2" style="font-size: 0.68rem; letter-spacing: 0.05em;">Floating Launcher Button Preview:</small>
-                        <div class="d-flex align-items-center gap-3">
-                            <div id="prevLauncherBtn" class="rounded-circle text-white shadow d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0" style="width: 58px; height: 58px; background-color: {{ $bot->widget_primary_color ?: '#4f46e5' }}; cursor: pointer; transition: all 0.2s ease;">
-                                <img id="prevLauncherImg" src="{{ $bot->launcher_icon_url ?: '' }}" alt="Launcher" style="{{ $bot->launcher_icon_url ? 'display:block;' : 'display:none;' }} width: 100%; height: 100%; object-fit: contain;">
-                                <i id="prevLauncherDefault" class="bi bi-chat-dots-fill fs-4" style="{{ $bot->launcher_icon_url ? 'display:none;' : 'display:block;' }}"></i>
-                            </div>
-                            <small class="text-muted" style="font-size: 0.72rem; line-height: 1.45;">
-                                Anchored to the bottom corner before user clicks. Custom silhouette shapes will display without background!
-                            </small>
+                                    <pre class="code-block mb-3" id="embedSnippet{{ $bot->id }}">{{ $snippet }}</pre>
+
+                                    <div class="fw-semibold mb-2" style="font-size: 0.8125rem;">How to use it</div>
+                                    <ol class="ps-3 mb-3" style="font-size: 0.78125rem; line-height: 1.6;">
+                                        <li class="mb-1">Copy the snippet.</li>
+                                        <li class="mb-1">Paste it before the closing <code>&lt;/body&gt;</code> tag of your site.</li>
+                                        <li class="mb-1">Reload. The launcher appears in the corner you chose.</li>
+                                    </ol>
+
+                                    <div class="mb-3">
+                                        <div class="kv">
+                                            <span class="kv-key">Sites allowed to load it</span>
+                                            <span class="kv-val">{{ $bot->system->allowed_origins ?? '*' }}</span>
+                                        </div>
+                                        <div class="kv">
+                                            <span class="kv-key">Style isolation</span>
+                                            <span class="kv-val">Shadow DOM</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="p-2.5" style="border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2);">
+                                        <div class="fw-semibold mb-1" style="font-size: 0.78125rem;">This page is running the real widget</div>
+                                        <p class="text-muted mb-2" style="font-size: 0.75rem;">
+                                            It uses the last saved settings, not the unsaved ones on the left, and talks to the live model.
+                                        </p>
+                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="openTestWidget()">
+                                            <i class="bi bi-chat-dots"></i> Open test widget
+                                        </button>
+                                    </div>
+                                </div>
+                            @else
+                                <div class="empty">
+                                    <i class="bi bi-code-slash"></i>
+                                    <h6>No snippet yet</h6>
+                                    <p>Create the profile first. Its embed snippet appears here as soon as it has an ID.</p>
+                                </div>
+                            @endif
                         </div>
+
                     </div>
                 </div>
             </div>
         </div>
-    </form>
 
-</div>
+    </div>
+</form>
+
+@if($isEdit)
+    {{-- The real bot, embedded here so the test widget is the genuine article. --}}
+    <script
+        src="{{ $apiHost }}/widget.js"
+        data-bot-id="{{ $bot->id }}"
+        data-api-host="{{ $apiHost }}"
+        defer>
+    </script>
+@endif
 
 @push('scripts')
 <script>
+    // Opens the real widget that this page embeds, not the mock preview.
+    function openTestWidget() {
+        var host = document.querySelector('chat-widget');
+        var launcher = host && host.shadowRoot ? host.shadowRoot.getElementById('chat-launcher') : null;
+        if (launcher) {
+            launcher.click();
+        } else {
+            window.alert('The widget has not finished loading. Check that the streaming engine on port 8000 is running, then reload.');
+        }
+    }
+
     function getSelectedRadioValue(name, defaultValue) {
         var el = document.querySelector('input[name="' + name + '"]:checked');
         return el ? el.value : defaultValue;
     }
 
+    function readRange(id, fallback) {
+        var el = document.getElementById(id);
+        return el && el.value ? el.value : fallback;
+    }
+
+    function setText(id, value) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = value;
+    }
+
+    /**
+     * Draws one corner-button state in the preview.
+     *
+     * A cutout keeps its natural proportions: it is given the chosen height and
+     * allowed up to 1.4x that in width, which is what stops a tall image such as
+     * a person from being squashed into a square. The widget applies the same
+     * rule, so the preview and the live launcher agree.
+     */
+    function styleCornerButton(btn, img, defaultIcon, shape, size, color) {
+        if (!btn) return;
+
+        if (shape === 'transparent_fit') {
+            btn.style.backgroundColor = 'transparent';
+            btn.style.boxShadow = 'none';
+            btn.style.borderRadius = '0';
+            btn.style.width = 'auto';
+            btn.style.height = 'auto';
+            btn.style.overflow = 'visible';
+            btn.style.border = 'none';
+            if (img) {
+                img.style.maxHeight = size + 'px';
+                img.style.maxWidth = Math.round(size * 1.4) + 'px';
+                img.style.width = 'auto';
+                img.style.height = 'auto';
+                img.style.borderRadius = '0';
+                img.style.filter = 'drop-shadow(0 4px 12px rgba(0,0,0,0.25))';
+            }
+            if (defaultIcon) {
+                defaultIcon.style.color = color;
+                defaultIcon.style.fontSize = Math.round(size * 0.45) + 'px';
+            }
+            return;
+        }
+
+        btn.style.width = size + 'px';
+        btn.style.height = size + 'px';
+        btn.style.borderRadius = '50%';
+        btn.style.overflow = 'hidden';
+
+        if (shape === 'circle_transparent') {
+            btn.style.backgroundColor = 'transparent';
+            btn.style.boxShadow = '0 4px 14px rgba(15,23,42,0.12)';
+            btn.style.border = '2px solid ' + color;
+            if (defaultIcon) defaultIcon.style.color = color;
+        } else {
+            btn.style.backgroundColor = color;
+            btn.style.boxShadow = '0 4px 14px rgba(15,23,42,0.18)';
+            btn.style.border = 'none';
+            if (defaultIcon) defaultIcon.style.color = '#ffffff';
+        }
+
+        if (img) {
+            img.style.maxHeight = '100%';
+            img.style.maxWidth = '100%';
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.borderRadius = '50%';
+            img.style.filter = 'none';
+        }
+        if (defaultIcon) defaultIcon.style.fontSize = Math.round(size * 0.42) + 'px';
+    }
+
     function updateLivePreview() {
         var title = document.getElementById('widget_title').value || 'AI Assistant';
         var greeting = document.getElementById('widget_greeting').value || 'Hello!';
-        var color = document.getElementById('widget_primary_color').value || '#4f46e5';
+        var color = document.getElementById('widget_primary_color').value || '#1f2937';
 
         var launcherShape = getSelectedRadioValue('launcher_shape', 'circle');
         var avatarShape = getSelectedRadioValue('avatar_shape', 'circle');
 
         document.getElementById('prevTitle').textContent = title;
         document.getElementById('prevGreeting').textContent = greeting;
-        document.getElementById('prevHeader').style.background = 'linear-gradient(135deg, ' + color + ', #6366f1)';
+        document.getElementById('prevHeader').style.background = color;
         document.getElementById('prevUserMsg').style.backgroundColor = color;
         document.getElementById('prevSendBtn').style.backgroundColor = color;
 
-        // Apply Launcher Shape & Background styling
-        var launcherBtn = document.getElementById('prevLauncherBtn');
-        var launcherImg = document.getElementById('prevLauncherImg');
-        var launcherDefault = document.getElementById('prevLauncherDefault');
+        // Both corner-button states share the same rules, so one helper draws
+        // each of them at the size the sliders ask for.
+        var closeShape = getSelectedRadioValue('close_shape', 'circle');
+        var launcherSize = parseInt(readRange('launcher_size', 60), 10);
+        var closeSize = parseInt(readRange('close_size', 52), 10);
 
-        if (launcherShape === 'transparent_fit') {
-            launcherBtn.style.backgroundColor = 'transparent';
-            launcherBtn.style.boxShadow = 'none';
-            launcherBtn.style.borderRadius = '0';
-            launcherBtn.style.width = 'auto';
-            launcherBtn.style.height = 'auto';
-            launcherBtn.style.overflow = 'visible';
-            launcherBtn.style.border = 'none';
-            launcherImg.style.maxHeight = '65px';
-            launcherImg.style.maxWidth = '85px';
-            launcherImg.style.width = 'auto';
-            launcherImg.style.height = 'auto';
-            launcherImg.style.filter = 'drop-shadow(0 4px 12px rgba(0,0,0,0.25))';
-            launcherImg.style.borderRadius = '0';
-            if (launcherDefault) launcherDefault.style.color = color;
-        } else if (launcherShape === 'circle_transparent') {
-            launcherBtn.style.backgroundColor = 'transparent';
-            launcherBtn.style.boxShadow = '0 4px 14px rgba(0,0,0,0.12)';
-            launcherBtn.style.borderRadius = '50%';
-            launcherBtn.style.width = '58px';
-            launcherBtn.style.height = '58px';
-            launcherBtn.style.overflow = 'hidden';
-            launcherBtn.style.border = '2px solid ' + color;
-            launcherImg.style.maxHeight = '100%';
-            launcherImg.style.maxWidth = '100%';
-            launcherImg.style.width = '100%';
-            launcherImg.style.height = '100%';
-            launcherImg.style.filter = 'none';
-            launcherImg.style.borderRadius = '50%';
-            if (launcherDefault) launcherDefault.style.color = color;
-        } else {
-            // Standard circle contained
-            launcherBtn.style.backgroundColor = color;
-            launcherBtn.style.boxShadow = '0 6px 18px rgba(0,0,0,0.2)';
-            launcherBtn.style.borderRadius = '50%';
-            launcherBtn.style.width = '58px';
-            launcherBtn.style.height = '58px';
-            launcherBtn.style.overflow = 'hidden';
-            launcherBtn.style.border = 'none';
-            launcherImg.style.maxHeight = '100%';
-            launcherImg.style.maxWidth = '100%';
-            launcherImg.style.width = '100%';
-            launcherImg.style.height = '100%';
-            launcherImg.style.filter = 'none';
-            launcherImg.style.borderRadius = '50%';
-            if (launcherDefault) launcherDefault.style.color = '#ffffff';
-        }
+        setText('launcherSizeOut', launcherSize + 'px');
+        setText('closeSizeOut', closeSize + 'px');
+
+        styleCornerButton(
+            document.getElementById('prevLauncherBtn'),
+            document.getElementById('prevLauncherImg'),
+            document.getElementById('prevLauncherDefault'),
+            launcherShape, launcherSize, color
+        );
+
+        styleCornerButton(
+            document.getElementById('prevCloseBtn'),
+            document.getElementById('prevCloseImg'),
+            document.getElementById('prevCloseDefault'),
+            closeShape, closeSize, color
+        );
 
         // Apply Avatar Shape & Background styling
         var avatarContainer = document.getElementById('prevAvatarContainer');
@@ -624,7 +922,7 @@
 
         var badge = document.getElementById('fetchModelsBadge');
         if (badge) {
-            badge.className = 'small fw-semibold text-success';
+            badge.className = 'text-success';
             badge.innerHTML = '<i class="bi bi-check2-circle"></i> Selected: ' + modelName;
         }
     }
@@ -641,7 +939,7 @@
         var testConnResult = document.getElementById('testConnResult');
 
         if (!baseUrl) {
-            badge.className = 'small fw-semibold text-danger';
+            badge.className = 'text-danger';
             badge.innerHTML = '<i class="bi bi-exclamation-circle"></i> Base URL is required';
             return;
         }
@@ -649,7 +947,7 @@
         btn.disabled = true;
         icon.className = 'spinner-border spinner-border-sm';
         text.textContent = 'Fetching...';
-        badge.className = 'small fw-semibold text-secondary';
+        badge.className = 'text-muted';
         badge.innerHTML = '<i class="bi bi-hourglass-split"></i> Querying endpoint...';
 
         fetch('http://localhost:8000/api/v1/bot/fetch-models', {
@@ -664,7 +962,7 @@
         .then(function(data) {
             btn.disabled = false;
             icon.className = 'bi bi-arrow-repeat';
-            text.textContent = 'Fetch Models';
+            text.textContent = 'Fetch models';
 
             if (data.success && data.models && data.models.length > 0) {
                 dropdownList.innerHTML = '';
@@ -689,42 +987,42 @@
                     selectDiscoveredModel(currentModel);
                 }
 
-                badge.className = 'small fw-semibold text-success';
+                badge.className = 'text-success';
                 badge.innerHTML = '<i class="bi bi-check-circle-fill"></i> ' + data.count + ' model(s) found';
 
                 if (testConnResult) {
-                    testConnResult.className = 'small fw-medium text-success';
-                    testConnResult.innerHTML = '✅ Base URL connected (' + data.count + ' model(s) available)';
+                    testConnResult.className = 'text-success';
+                    testConnResult.innerHTML = '<i class="bi bi-check2-circle"></i> Endpoint reachable, ' + data.count + ' model(s) available';
                 }
 
                 var toggleBtn = document.getElementById('btnModelDropdownToggle');
                 var bsDropdown = bootstrap.Dropdown.getOrCreateInstance(toggleBtn);
                 bsDropdown.show();
             } else {
-                badge.className = 'small fw-semibold text-danger';
-                badge.innerHTML = '❌ ' + (data.message || 'No models returned');
+                badge.className = 'text-danger';
+                badge.innerHTML = '<i class="bi bi-exclamation-circle"></i> ' + (data.message || 'No models returned');
 
                 dropdownList.innerHTML = '<li><span class="dropdown-item-text text-danger small"><i class="bi bi-exclamation-triangle me-1"></i> ' + (data.message || 'No models found') + '</span></li>';
 
                 if (testConnResult) {
-                    testConnResult.className = 'small fw-medium text-danger';
-                    testConnResult.innerHTML = '❌ ' + (data.message || 'Connection failed');
+                    testConnResult.className = 'text-danger';
+                    testConnResult.innerHTML = '<i class="bi bi-exclamation-circle"></i> ' + (data.message || 'Connection failed');
                 }
             }
         })
         .catch(function(err) {
             btn.disabled = false;
             icon.className = 'bi bi-arrow-repeat';
-            text.textContent = 'Fetch Models';
+            text.textContent = 'Fetch models';
 
-            badge.className = 'small fw-semibold text-danger';
-            badge.innerHTML = '❌ FastAPI engine unreachable';
+            badge.className = 'text-danger';
+            badge.innerHTML = '<i class="bi bi-exclamation-circle"></i> Streaming engine unreachable';
 
             dropdownList.innerHTML = '<li><span class="dropdown-item-text text-danger small"><i class="bi bi-x-circle me-1"></i> FastAPI engine unreachable</span></li>';
 
             if (testConnResult) {
-                testConnResult.className = 'small fw-medium text-danger';
-                testConnResult.textContent = '❌ FastAPI engine on port 8000 unreachable';
+                testConnResult.className = 'text-danger';
+                testConnResult.textContent = 'Streaming engine on port 8000 is unreachable';
             }
         });
     }
@@ -739,7 +1037,7 @@
             document.getElementById('model_name').value = 'gpt-4o-mini';
             var badge = document.getElementById('fetchModelsBadge');
             if (badge) {
-                badge.className = 'small fw-semibold text-secondary';
+                badge.className = 'text-muted';
                 badge.innerHTML = 'Enter API key & click Fetch Models';
             }
         }
@@ -765,13 +1063,13 @@
 
         if (!baseUrl) {
             statusEl.className = 'small fw-medium text-danger';
-            statusEl.textContent = '❌ Base URL is required';
+            statusEl.textContent = 'Base URL is required';
             return;
         }
 
         if (!modelName) {
             statusEl.className = 'small fw-medium text-warning text-dark';
-            statusEl.textContent = '⚠️ Please select or fetch a Model Name first.';
+            statusEl.textContent = 'Choose a model first, or fetch the list.';
             return;
         }
 
@@ -793,16 +1091,16 @@
             btn.disabled = false;
             if (data.success) {
                 statusEl.className = 'small fw-medium text-success';
-                statusEl.textContent = '✅ ' + data.message;
+                statusEl.textContent = data.message;
             } else {
                 statusEl.className = 'small fw-medium text-danger';
-                statusEl.textContent = '❌ ' + data.message;
+                statusEl.textContent = data.message;
             }
         })
         .catch(function(err) {
             btn.disabled = false;
             statusEl.className = 'small fw-medium text-danger';
-            statusEl.textContent = '❌ Could not connect to FastAPI engine on port 8000';
+            statusEl.textContent = 'Could not reach the streaming engine on port 8000';
         });
     }
 

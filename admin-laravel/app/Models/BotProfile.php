@@ -31,6 +31,10 @@ class BotProfile extends Model
         'widget_position',
         'launcher_icon_url',
         'launcher_shape',
+        'launcher_size',
+        'close_icon_url',
+        'close_shape',
+        'close_size',
         'bot_avatar_url',
         'avatar_shape',
         'is_active',
@@ -41,6 +45,8 @@ class BotProfile extends Model
         return [
             'temperature' => 'float',
             'max_tokens' => 'integer',
+            'launcher_size' => 'integer',
+            'close_size' => 'integer',
             'is_active' => 'boolean',
         ];
     }

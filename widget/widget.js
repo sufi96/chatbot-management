@@ -49,11 +49,22 @@
     var botConfig = {
         title: "AI Assistant",
         greeting: "Hello! How can I help you today?",
-        primaryColor: "#4F46E5",
+        primaryColor: "#1f2937",
         position: "bottom-right",
         launcherIconUrl: "",
+        launcherSize: 60,
+        closeIconUrl: "",
+        closeShape: "circle",
+        closeSize: 52,
         botAvatarUrl: ""
     };
+
+    // Default avatar glyph. Drawn inline so the widget pulls no external assets.
+    var DEFAULT_AVATAR_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" ' +
+        'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<rect x="4" y="8" width="16" height="12" rx="3"></rect>' +
+        '<path d="M12 8V5"></path><circle cx="12" cy="3.5" r="1.5"></circle>' +
+        '<path d="M9 13h.01M15 13h.01M9.5 16.5h5"></path></svg>';
 
     // Create Container and Shadow DOM to completely isolate styles
     var hostContainer = document.createElement("div");
@@ -69,7 +80,7 @@
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             -webkit-font-smoothing: antialiased;
         }
 
@@ -87,32 +98,36 @@
             left: 24px;
         }
 
-        /* Launcher Button */
+        /* Launcher Button.
+           Size comes from the profile. A cutout launcher takes its height from
+           --launcher-size and may be up to 1.4x as wide, so tall artwork such
+           as a person renders at the height you asked for instead of being
+           squeezed into a fixed box. */
         .launcher-btn {
-            width: 60px;
-            height: 60px;
+            width: var(--launcher-size, 60px);
+            height: var(--launcher-size, 60px);
             border-radius: 50%;
-            background-color: var(--primary-color, #4F46E5);
+            background-color: var(--primary-color, #1f2937);
             color: #ffffff;
             border: none;
             outline: none;
             cursor: pointer;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+            transition: transform 0.16s ease, box-shadow 0.16s ease;
             position: relative;
             overflow: hidden;
         }
 
         .launcher-btn:hover {
-            transform: scale(1.08);
-            box-shadow: 0 8px 26px rgba(0, 0, 0, 0.28);
+            transform: scale(1.04);
+            box-shadow: 0 6px 20px rgba(15, 23, 42, 0.24);
         }
 
         .launcher-btn:active {
-            transform: scale(0.95);
+            transform: scale(0.97);
         }
 
         .launcher-icon {
@@ -141,9 +156,9 @@
             border-radius: 0 !important;
             width: auto !important;
             height: auto !important;
-            min-width: 48px;
-            max-width: 96px;
-            max-height: 84px;
+            min-width: 32px;
+            max-width: calc(var(--launcher-size, 60px) * 1.4);
+            max-height: var(--launcher-size, 60px);
             overflow: visible !important;
         }
 
@@ -151,8 +166,8 @@
             border-radius: 0 !important;
             width: auto !important;
             height: auto !important;
-            max-height: 72px;
-            max-width: 92px;
+            max-height: var(--launcher-size, 60px);
+            max-width: calc(var(--launcher-size, 60px) * 1.4);
             object-fit: contain !important;
             filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.28));
             transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease;
@@ -164,57 +179,116 @@
         }
 
         .launcher-btn.shape-transparent-fit .launcher-icon-chat {
-            color: var(--primary-color, #4F46E5);
+            color: var(--primary-color, #1f2937);
             filter: drop-shadow(0 4px 10px rgba(0,0,0,0.2));
         }
 
-        .launcher-btn.shape-transparent-fit .launcher-icon-close {
-            background: var(--primary-color, #4F46E5);
+        /* --- Close state ---------------------------------------------------
+           While the panel is open the same button acts as the close control,
+           so it takes the close shape, size and artwork, not the launcher's. */
+        .widget-open .launcher-btn {
+            width: var(--close-size, 52px) !important;
+            height: var(--close-size, 52px) !important;
+            min-width: 0 !important;
+            max-width: var(--close-size, 52px) !important;
+            max-height: var(--close-size, 52px) !important;
+            overflow: hidden !important;
+        }
+
+        .widget-open .launcher-btn.close-shape-circle {
+            background-color: var(--primary-color, #1f2937) !important;
+            border: none !important;
+            border-radius: 50% !important;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18) !important;
+        }
+
+        .widget-open .launcher-btn.close-shape-circle-transparent {
+            background: transparent !important;
+            border: 2px solid var(--primary-color, #1f2937) !important;
+            border-radius: 50% !important;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12) !important;
+        }
+
+        .widget-open .launcher-btn.close-shape-circle-transparent .launcher-icon-close {
+            color: var(--primary-color, #1f2937);
+        }
+
+        .widget-open .launcher-btn.close-shape-transparent-fit {
+            background: transparent !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            width: auto !important;
+            height: auto !important;
+            max-width: calc(var(--close-size, 52px) * 1.4) !important;
+            max-height: var(--close-size, 52px) !important;
+            overflow: visible !important;
+        }
+
+        .widget-open .launcher-btn.close-shape-transparent-fit .launcher-icon-close {
+            color: var(--primary-color, #1f2937);
+            filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.2));
+        }
+
+        .close-custom-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
             border-radius: 50%;
-            padding: 8px;
-            width: 44px;
-            height: 44px;
-            color: #ffffff;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.26);
+            display: block;
+        }
+
+        .close-shape-transparent-fit .close-custom-img {
+            border-radius: 0 !important;
+            width: auto !important;
+            height: auto !important;
+            max-height: var(--close-size, 52px);
+            max-width: calc(var(--close-size, 52px) * 1.4);
+            object-fit: contain !important;
+            filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.26));
         }
 
         .launcher-btn.shape-circle-transparent {
             background: transparent !important;
-            border: 2.5px solid var(--primary-color, #4F46E5) !important;
+            border: 2.5px solid var(--primary-color, #1f2937) !important;
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14) !important;
         }
 
         .launcher-btn.shape-circle-transparent .launcher-icon-chat {
-            color: var(--primary-color, #4F46E5);
+            color: var(--primary-color, #1f2937);
         }
 
         .launcher-icon-close {
-            display: none;
             width: 26px;
             height: 26px;
         }
 
-        .widget-open .launcher-icon-chat,
-        .widget-open .launcher-custom-img {
-            display: none !important;
+        #launcher-inner,
+        #close-inner {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
         }
 
-        .widget-open .launcher-icon-close {
-            display: block !important;
-        }
+        #close-inner { display: none; }
+
+        .widget-open #launcher-inner { display: none; }
+        .widget-open #close-inner { display: flex; }
 
         /* Chat Panel */
         .chat-panel {
             position: absolute;
             bottom: 76px;
             right: 0;
-            width: 390px;
-            height: 590px;
+            width: 380px;
+            height: 570px;
             max-width: calc(100vw - 32px);
             max-height: calc(100vh - 110px);
             background: #ffffff;
-            border-radius: 20px;
-            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.18);
+            border-radius: 14px;
+            box-shadow: 0 10px 34px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.06);
             display: flex;
             flex-direction: column;
             overflow: hidden;
@@ -240,14 +314,14 @@
 
         /* Header */
         .chat-header {
-            background: var(--primary-color, #4F46E5);
+            background: var(--primary-color, #1f2937);
             color: #ffffff;
             padding: 16px 20px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            border-top-left-radius: 20px;
-            border-top-right-radius: 20px;
+            border-top-left-radius: 14px;
+            border-top-right-radius: 14px;
         }
 
         .header-info {
@@ -355,7 +429,7 @@
             flex: 1;
             padding: 20px 18px;
             overflow-y: auto;
-            background: #F8FAFC;
+            background: #FAFAFA;
             display: flex;
             flex-direction: column;
             gap: 16px;
@@ -395,7 +469,7 @@
             width: 30px;
             height: 30px;
             border-radius: 50%;
-            background: var(--primary-color, #4F46E5);
+            background: var(--primary-color, #1f2937);
             color: #ffffff;
             display: flex;
             align-items: center;
@@ -429,8 +503,8 @@
 
         .bot-mini-avatar.shape-circle-transparent {
             background: transparent !important;
-            border: 1.5px solid var(--primary-color, #4F46E5) !important;
-            color: var(--primary-color, #4F46E5);
+            border: 1.5px solid var(--primary-color, #1f2937) !important;
+            color: var(--primary-color, #1f2937);
         }
 
         .bot-mini-avatar img {
@@ -440,8 +514,8 @@
         }
 
         .message-bubble {
-            padding: 10px 14px;
-            border-radius: 16px;
+            padding: 9px 13px;
+            border-radius: 12px;
             font-size: 13.5px;
             line-height: 1.5;
             word-break: break-word;
@@ -454,7 +528,7 @@
             align-items: center;
             gap: 9px;
             padding: 2px 2px;
-            color: #475569;
+            color: #52525B;
             font-size: 13px;
             font-weight: 500;
         }
@@ -463,7 +537,7 @@
             display: inline-block;
             width: 14px;
             height: 14px;
-            border: 2px solid var(--primary-color, #4F46E5);
+            border: 2px solid var(--primary-color, #1f2937);
             border-top-color: transparent;
             border-radius: 50%;
             animation: thinkingSpin 0.85s linear infinite;
@@ -491,23 +565,21 @@
         }
 
         .message-row.user .message-bubble {
-            background: var(--primary-color, #4F46E5);
+            background: var(--primary-color, #1f2937);
             color: #ffffff;
-            border-top-right-radius: 4px;
-            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
+            border-top-right-radius: 3px;
         }
 
         .message-row.bot .message-bubble {
             background: #ffffff;
-            color: #1E293B;
-            border-top-left-radius: 4px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-            border: 1px solid #E2E8F0;
+            color: #18181B;
+            border-top-left-radius: 3px;
+            border: 1px solid #E4E4E7;
         }
 
         .message-time {
             font-size: 11px;
-            color: #94A3B8;
+            color: #A1A1AA;
             margin-top: 3px;
             padding: 0 4px;
         }
@@ -517,9 +589,9 @@
             display: none;
             padding: 12px 16px;
             background: #ffffff;
-            border-radius: 18px;
-            border-bottom-left-radius: 4px;
-            border: 1px solid #E2E8F0;
+            border-radius: 12px;
+            border-bottom-left-radius: 3px;
+            border: 1px solid #E4E4E7;
             align-self: flex-start;
             gap: 5px;
             align-items: center;
@@ -535,7 +607,7 @@
             width: 6px;
             height: 6px;
             border-radius: 50%;
-            background: #94A3B8;
+            background: #A1A1AA;
             animation: blink 1.3s infinite both;
         }
 
@@ -551,7 +623,7 @@
         .chat-footer {
             padding: 12px 16px;
             background: #ffffff;
-            border-top: 1px solid #F1F5F9;
+            border-top: 1px solid #E4E4E7;
             display: flex;
             flex-direction: column;
             gap: 8px;
@@ -561,16 +633,17 @@
             display: flex;
             align-items: flex-end;
             gap: 8px;
-            background: #F1F5F9;
-            border-radius: 14px;
+            background: #F4F4F5;
+            border-radius: 10px;
             padding: 6px 12px;
-            border: 1.5px solid transparent;
+            border: 1px solid #E4E4E7;
             transition: border-color 0.2s ease, background 0.2s ease;
         }
 
         .input-row:focus-within {
-            border-color: var(--primary-color, #4F46E5);
+            border-color: var(--primary-color, #1f2937);
             background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.10);
         }
 
         .chat-input {
@@ -582,17 +655,17 @@
             line-height: 1.45;
             max-height: 96px;
             resize: none;
-            color: #0F172A;
+            color: #18181B;
             padding: 6px 2px;
         }
 
         .send-btn {
-            background: var(--primary-color, #4F46E5);
+            background: var(--primary-color, #1f2937);
             color: #ffffff;
             border: none;
-            border-radius: 10px;
-            width: 34px;
-            height: 34px;
+            border-radius: 8px;
+            width: 32px;
+            height: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -608,13 +681,25 @@
         }
 
         .send-btn:not(:disabled):hover {
-            transform: scale(1.05);
+            filter: brightness(1.12);
         }
 
         .powered-by {
-            font-size: 11px;
+            font-size: 10.5px;
             text-align: center;
-            color: #94A3B8;
+            color: #A1A1AA;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.001ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.001ms !important;
+            }
+            .launcher-btn:hover,
+            .launcher-btn:active { transform: none; }
         }
     `;
     shadowRoot.appendChild(styleSheet);
@@ -627,7 +712,7 @@
         <div class="chat-panel" id="chat-panel">
             <div class="chat-header">
                 <div class="header-info">
-                    <div class="avatar-circle" id="header-avatar">🤖</div>
+                    <div class="avatar-circle" id="header-avatar">${DEFAULT_AVATAR_SVG}</div>
                     <div class="header-text">
                         <h3 id="bot-title">AI Assistant</h3>
                         <div class="status-badge">
@@ -671,10 +756,12 @@
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                 </svg>
             </span>
-            <svg class="launcher-icon launcher-icon-close" viewBox="0 0 24 24">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
+            <span id="close-inner">
+                <svg class="launcher-icon launcher-icon-close" viewBox="0 0 24 24">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </span>
         </button>
     `;
     shadowRoot.appendChild(wrapper);
@@ -682,6 +769,7 @@
     // Element references
     var launcherBtn = shadowRoot.getElementById("launcher-btn");
     var launcherInner = shadowRoot.getElementById("launcher-inner");
+    var closeInner = shadowRoot.getElementById("close-inner");
     var headerAvatar = shadowRoot.getElementById("header-avatar");
     var btnCloseHeader = shadowRoot.getElementById("btn-close-header");
     var btnClear = shadowRoot.getElementById("btn-clear");
@@ -712,7 +800,7 @@
             if (botConfig.botAvatarUrl) {
                 miniAvatar.innerHTML = '<img src="' + botConfig.botAvatarUrl + '" alt="Bot">';
             } else {
-                miniAvatar.textContent = "🤖";
+                miniAvatar.innerHTML = DEFAULT_AVATAR_SVG;
             }
             row.appendChild(miniAvatar);
         }
@@ -755,8 +843,12 @@
                 botConfig.position = data.widget_position || botConfig.position;
                 botConfig.launcherIconUrl = data.launcher_icon_url || "";
                 botConfig.botAvatarUrl = data.bot_avatar_url || "";
-                botConfig.launcherShape = data.launcher_shape || "circle_fill";
-                botConfig.avatarShape = data.avatar_shape || "circle_fill";
+                botConfig.launcherShape = data.launcher_shape || "circle";
+                botConfig.avatarShape = data.avatar_shape || "circle";
+                botConfig.launcherSize = parseInt(data.launcher_size, 10) || 60;
+                botConfig.closeIconUrl = data.close_icon_url || "";
+                botConfig.closeShape = data.close_shape || "circle";
+                botConfig.closeSize = parseInt(data.close_size, 10) || 52;
 
                 botTitleEl.textContent = botConfig.title;
                 updateColors(botConfig.primaryColor);
@@ -769,8 +861,18 @@
                 }
 
                 if (botConfig.launcherIconUrl) {
-                    launcherInner.innerHTML = '<img src="' + botConfig.launcherIconUrl + '" class="launcher-custom-img" alt="Chat">';
+                    launcherInner.innerHTML = '<img src="' + botConfig.launcherIconUrl + '" class="launcher-custom-img" alt="">';
                 }
+
+                // Close button: its own shape, size and optional artwork.
+                launcherBtn.classList.add("close-shape-" + botConfig.closeShape.replace(/_/g, "-"));
+
+                if (botConfig.closeIconUrl) {
+                    closeInner.innerHTML = '<img src="' + botConfig.closeIconUrl + '" class="close-custom-img" alt="">';
+                }
+
+                wrapper.style.setProperty("--launcher-size", botConfig.launcherSize + "px");
+                wrapper.style.setProperty("--close-size", botConfig.closeSize + "px");
 
                 // Set header avatar and shape if configured
                 if (botConfig.avatarShape === "transparent_fit") {

@@ -13,6 +13,7 @@ from config import settings
 from database import get_db, get_settings
 from kb.embedding import EmbeddingClient
 from kb.indexer import index_source
+from kb.reindex import prepare_vector_column, sources_to_reindex
 from kb.retrieval import retrieve_for_collections
 from kb.store import make_store
 
@@ -85,3 +86,22 @@ async def search(req: SearchRequest, db: AsyncSession = Depends(get_db)):
          "content": r.content, "score": r.score}
         for r in results
     ]}
+
+
+class ReindexRequest(BaseModel):
+    dimensions: int = 768
+
+
+async def _reindex_in_background(source_ids: list[str]) -> None:
+    async with database.async_session_factory() as session:
+        for source_id in source_ids:
+            await index_source(session, source_id)
+
+
+@router.post("/reindex", dependencies=[Depends(require_admin_token)])
+async def reindex_everything(req: ReindexRequest, background: BackgroundTasks,
+                             db: AsyncSession = Depends(get_db)):
+    await prepare_vector_column(db, req.dimensions)
+    source_ids = await sources_to_reindex(db)
+    background.add_task(_reindex_in_background, source_ids)
+    return {"status": "accepted", "sources": len(source_ids)}

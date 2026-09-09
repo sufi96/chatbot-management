@@ -79,6 +79,20 @@ class EngineClient
         }
     }
 
+    public static function reindexAll(int $dimensions): array
+    {
+        try {
+            $response = self::request()->timeout(60)
+                ->post(self::base() . '/api/v1/kb/reindex', ['dimensions' => $dimensions]);
+
+            return $response->successful()
+                ? $response->json()
+                : ['status' => 'failed', 'message' => 'Engine returned HTTP ' . $response->status()];
+        } catch (\Throwable $e) {
+            return ['status' => 'failed', 'message' => 'Could not reach the engine: ' . $e->getMessage()];
+        }
+    }
+
     public static function testEmbedding(string $baseUrl, string $apiKey, string $model): array
     {
         try {

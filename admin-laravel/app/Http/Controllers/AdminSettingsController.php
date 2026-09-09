@@ -44,6 +44,19 @@ class AdminSettingsController extends Controller
         return redirect()->route('admin.settings')->with('success', 'Settings saved.');
     }
 
+    public function reindex(Request $request)
+    {
+        $dimensions = (int) AppSetting::get('embedding_dimensions');
+        $result = EngineClient::reindexAll($dimensions);
+
+        if (($result['status'] ?? '') !== 'accepted') {
+            return back()->with('error', $result['message'] ?? 'Re-indexing could not be started.');
+        }
+
+        return back()->with('success',
+            'Re-indexing started for ' . ($result['sources'] ?? 0) . ' sources. Watch their status in the knowledge base.');
+    }
+
     public function test(Request $request)
     {
         $validated = $request->validate([

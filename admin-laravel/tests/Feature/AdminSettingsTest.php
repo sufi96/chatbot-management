@@ -106,4 +106,31 @@ class AdminSettingsTest extends TestCase
             ->assertOk()
             ->assertJson(['ok' => true, 'dimensions' => 768]);
     }
+
+    public function test_re_indexing_reports_how_many_sources_were_queued(): void
+    {
+        Http::fake(['*' => Http::response(['status' => 'accepted', 'sources' => 4], 200)]);
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('admin.settings.reindex'))
+            ->assertRedirect()
+            ->assertSessionHas('success', fn ($message) => str_contains($message, '4 sources'));
+    }
+
+    public function test_a_failed_re_index_reports_the_problem(): void
+    {
+        Http::fake(['*' => Http::response('down', 503)]);
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('admin.settings.reindex'))
+            ->assertRedirect()
+            ->assertSessionHas('error');
+    }
+
+    public function test_a_system_admin_cannot_trigger_a_re_index(): void
+    {
+        $this->actingAs($this->systemAdmin())
+            ->post(route('admin.settings.reindex'))
+            ->assertForbidden();
+    }
 }

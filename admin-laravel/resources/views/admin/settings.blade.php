@@ -59,8 +59,14 @@
                 <div id="embeddingTestResult" class="mt-2" style="font-size: 0.8125rem;"></div>
 
                 <div class="alert alert-warning mt-3 mb-0">
-                    Changing the model or the dimensions invalidates every vector already stored.
-                    Existing collections keep working on keyword search alone until they are indexed again.
+                    <div class="mb-2">
+                        Changing the model or the dimensions invalidates every vector already stored.
+                        Existing collections keep working on keyword search alone until they are indexed again.
+                    </div>
+                    <div class="text-muted" style="font-size: 0.75rem;">
+                        Save your changes first, then re-index. On PostgreSQL a dimension change also
+                        alters the column, which clears the old vectors before rebuilding them.
+                    </div>
                 </div>
             </div>
         </div>
@@ -110,6 +116,23 @@
             </div>
         </div>
     </form>
+
+    <div class="card mt-3">
+        <div class="card-header">Rebuild the index</div>
+        <div class="p-3 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3">
+            <p class="text-muted mb-0" style="font-size: 0.8125rem;">
+                Re-embeds every source in every workspace with the settings above. Run this after
+                changing the model or the dimensions. It runs in the background.
+            </p>
+            <form action="{{ route('admin.settings.reindex') }}" method="POST" class="flex-shrink-0 m-0"
+                  onsubmit="return confirm('Re-embed every source in every workspace?');">
+                @csrf
+                <button type="submit" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-repeat"></i> Re-index everything
+                </button>
+            </form>
+        </div>
+    </div>
 
 </div>
 @endsection

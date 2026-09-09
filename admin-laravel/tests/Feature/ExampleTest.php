@@ -2,18 +2,21 @@
 
 namespace Tests\Feature;
 
-// use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
     /**
-     * A basic test example.
+     * The dashboard has been behind auth since the first commit, so the stock
+     * skeleton assertion of a 200 here never held. A guest is redirected.
      */
-    public function test_the_application_returns_a_successful_response(): void
+    public function test_a_guest_is_sent_to_the_login_screen(): void
     {
-        $response = $this->get('/');
+        $this->get('/')->assertRedirect(route('login'));
+    }
 
-        $response->assertStatus(200);
+    public function test_the_login_screen_is_reachable(): void
+    {
+        $this->get(route('login'))->assertOk();
     }
 }

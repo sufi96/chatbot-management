@@ -182,23 +182,21 @@
                 </div>
             </div>
 
-            {{-- System prompt --}}
-            <div class="card mb-3">
-                <div class="card-header">System prompt</div>
-                <div class="p-3">
-                    <div class="d-flex align-items-center gap-1.5 mb-2 flex-wrap">
-                        <span class="text-muted" style="font-size: 0.75rem;">Start from</span>
-                        <button type="button" onclick="setPromptPreset('support')" class="btn btn-sm btn-outline-secondary">Support</button>
-                        <button type="button" onclick="setPromptPreset('sales')" class="btn btn-sm btn-outline-secondary">Sales</button>
-                        <button type="button" onclick="setPromptPreset('technical')" class="btn btn-sm btn-outline-secondary">Technical</button>
+            {{-- Prompt and knowledge live on the Brain page --}}
+            @if($isEdit)
+                <div class="card mb-3">
+                    <div class="card-header">Brain</div>
+                    <div class="p-3 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3">
+                        <p class="text-muted mb-0" style="font-size: 0.8125rem;">
+                            The system prompt, the collections this bot reads, and its retrieval and
+                            generation settings are on their own page.
+                        </p>
+                        <a href="{{ route('bots.brain', $bot->id) }}" class="btn btn-outline-primary flex-shrink-0">
+                            <i class="bi bi-diagram-2"></i> Open Brain
+                        </a>
                     </div>
-
-                    <label for="system_prompt" class="visually-hidden">System prompt</label>
-                    <textarea name="system_prompt" id="system_prompt" rows="5" class="form-control font-monospace"
-                              placeholder="You are a helpful, professional assistant.">{{ old('system_prompt', $bot->system_prompt) }}</textarea>
-                    <div class="form-text">Sent ahead of every conversation. Be specific about tone, scope and what to refuse.</div>
                 </div>
-            </div>
+            @endif
 
             {{-- Appearance --}}
             <div class="card mb-3">
@@ -1040,17 +1038,6 @@
                 badge.className = 'text-muted';
                 badge.innerHTML = 'Enter API key & click Fetch Models';
             }
-        }
-    }
-
-    function setPromptPreset(type) {
-        var el = document.getElementById('system_prompt');
-        if (type === 'support') {
-            el.value = "You are a professional customer support AI assistant. Answer user questions clearly, politely, and concisely.";
-        } else if (type === 'sales') {
-            el.value = "You are an enthusiastic and knowledgeable sales concierge. Help customers find products and guide them through features and pricing.";
-        } else if (type === 'technical') {
-            el.value = "You are an expert technical support engineer. Provide step-by-step diagnostic instructions and clean code snippets.";
         }
     }
 

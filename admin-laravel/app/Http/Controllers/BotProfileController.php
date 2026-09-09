@@ -149,7 +149,6 @@ class BotProfileController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'system_prompt' => ['nullable', 'string'],
             'provider_type' => ['required', 'in:ollama,custom'],
             'base_url' => ['required', 'string', 'max:500'],
             'api_key' => ['nullable', 'string', 'max:500'],

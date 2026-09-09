@@ -20,7 +20,7 @@ async def test_settings_fall_back_to_defaults(session):
     settings = await get_settings(session)
     assert settings["embedding_model"] == "nomic-embed-text"
     assert settings["embedding_dimensions"] == "768"
-    assert settings["chunk_size"] == "900"
+    assert settings["chunk_size"] == "1800"
 
 
 @pytest.mark.asyncio
@@ -30,7 +30,7 @@ async def test_stored_settings_override_defaults(session):
 
     settings = await get_settings(session)
     assert settings["embedding_model"] == "custom-model"
-    assert settings["chunk_size"] == "900"  # untouched default survives
+    assert settings["chunk_size"] == "1800"  # untouched default survives
 
 
 @pytest.mark.asyncio

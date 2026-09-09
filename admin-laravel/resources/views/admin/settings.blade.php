@@ -95,17 +95,23 @@
                     <div class="col-6">
                         <label for="chunk_size" class="form-label">Chunk size</label>
                         <input type="number" name="chunk_size" id="chunk_size" class="form-control font-monospace"
-                               min="200" max="4000" value="{{ old('chunk_size', $settings['chunk_size']) }}" required>
-                        <div class="form-text">Characters per passage. Larger means more context and fewer, blunter matches.</div>
+                               min="400" max="8000" value="{{ old('chunk_size', $settings['chunk_size']) }}" required>
+                        <div class="form-text">A ceiling, not a target. Headings, tables and code blocks decide where a passage ends; this only stops one growing without limit.</div>
                     </div>
                     <div class="col-6">
                         <label for="chunk_overlap" class="form-label">Overlap</label>
                         <input type="number" name="chunk_overlap" id="chunk_overlap" class="form-control font-monospace"
                                min="0" value="{{ old('chunk_overlap', $settings['chunk_overlap']) }}" required>
-                        <div class="form-text">Characters repeated between neighbours, so a sentence split across two passages is still findable.</div>
+                        <div class="form-text">Characters repeated when one long passage has to be cut. Sections never overlap, because the boundary between them already means something.</div>
+                    </div>
+                    <div class="col-6">
+                        <label for="context_char_budget" class="form-label">Context budget</label>
+                        <input type="number" name="context_char_budget" id="context_char_budget" class="form-control font-monospace"
+                               min="1000" max="20000" value="{{ old('context_char_budget', $settings['context_char_budget']) }}" required>
+                        <div class="form-text">Characters of retrieved material sent to the model. Lower it if answers wander on a small model.</div>
                     </div>
                 </div>
-                <div class="form-text mt-2">Applies to sources indexed from now on. Existing chunks keep the size they were made with.</div>
+                <div class="form-text mt-2">Chunking applies to sources indexed from now on. Existing chunks keep the boundaries they were made with until you rebuild the index.</div>
             </div>
         </div>
 

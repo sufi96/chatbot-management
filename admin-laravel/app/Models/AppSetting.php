@@ -20,8 +20,9 @@ class AppSetting extends Model
         'embedding_model' => 'nomic-embed-text',
         'embedding_dimensions' => '768',
         'vector_driver' => 'pgvector',
-        'chunk_size' => '900',
-        'chunk_overlap' => '150',
+        'chunk_size' => '1800',
+        'chunk_overlap' => '200',
+        'context_char_budget' => '6000',
     ];
 
     public static function get(string $key, $default = null)

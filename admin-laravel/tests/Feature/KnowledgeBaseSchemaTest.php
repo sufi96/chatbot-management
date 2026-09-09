@@ -8,6 +8,7 @@ use App\Models\KbCollection;
 use App\Models\KbSource;
 use App\Models\System;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class KnowledgeBaseSchemaTest extends TestCase
@@ -103,7 +104,12 @@ class KnowledgeBaseSchemaTest extends TestCase
     public function test_app_settings_fall_back_to_the_shipped_default(): void
     {
         $this->assertSame('nomic-embed-text', AppSetting::get('embedding_model'));
-        $this->assertSame('900', AppSetting::get('chunk_size'));
+        $this->assertSame('1800', AppSetting::get('chunk_size'));
+    }
+
+    public function test_chunks_carry_a_heading_path(): void
+    {
+        $this->assertTrue(Schema::hasColumn('kb_chunks', 'heading_path'));
     }
 
     public function test_deleting_a_collection_removes_its_sources(): void

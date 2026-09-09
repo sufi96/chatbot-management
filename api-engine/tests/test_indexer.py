@@ -87,7 +87,8 @@ async def test_reindexing_replaces_the_previous_chunks(session):
 
     rows = (await session.execute(
         text("SELECT content FROM kb_chunks WHERE source_id='src3'"))).scalars().all()
-    assert rows == ["second body"]
+    # The title leads every chunk as a breadcrumb, so the body follows it.
+    assert rows == ["Section: T\n\nsecond body"]
 
 
 @pytest.mark.asyncio
@@ -143,3 +144,36 @@ async def test_a_missing_upload_records_an_error(session, tmp_path, monkeypatch)
     source = await session.get(KbSource, "src6")
     assert source.status == "error"
     assert "not found" in source.error_message.lower()
+
+
+@pytest.mark.asyncio
+async def test_indexing_records_the_heading_path_and_the_title(session):
+    session.add(KbSource(id="s9", collection_id="col1", type="text",
+                         title="Customer Policy",
+                         body="## Warranty\n\nTwo years on desk lamps.",
+                         status="pending"))
+    await session.commit()
+
+    count = await index_source(session, "s9", embedder=StubEmbedder())
+    assert count == 1
+
+    row = (await session.execute(text(
+        "SELECT content, heading_path FROM kb_chunks WHERE source_id = 's9'"))).one()
+    assert row.heading_path == "Customer Policy > Warranty"
+    assert row.content.startswith("Section: Customer Policy > Warranty\n\n")
+
+
+@pytest.mark.asyncio
+async def test_a_qa_source_is_one_chunk_with_no_heading_path(session):
+    session.add(KbSource(id="s10", collection_id="col1", type="qa",
+                         title="How do I get a refund?", body="Within 30 days.",
+                         status="pending"))
+    await session.commit()
+
+    count = await index_source(session, "s10", embedder=StubEmbedder())
+    assert count == 1
+
+    row = (await session.execute(text(
+        "SELECT content, heading_path FROM kb_chunks WHERE source_id = 's10'"))).one()
+    assert row.content == "Q: How do I get a refund?\nA: Within 30 days."
+    assert (row.heading_path or "") == ""

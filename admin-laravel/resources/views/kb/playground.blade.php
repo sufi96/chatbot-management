@@ -129,6 +129,11 @@
                                 </span>
                                 <span class="chip figure-mono">score {{ number_format($result['score'], 4) }}</span>
                             </div>
+                            @if(!empty($result['heading_path']))
+                                <div class="mb-1">
+                                    <span class="chip">{{ $result['heading_path'] }}</span>
+                                </div>
+                            @endif
                             <p class="text-muted mb-0" style="font-size: 0.78125rem; line-height: 1.6;">
                                 {{ $result['content'] }}
                             </p>

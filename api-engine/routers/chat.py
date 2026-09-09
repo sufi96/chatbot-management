@@ -7,10 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 
-from database import (get_db, BotProfile, System, ChatConversation, ChatMessage,
-                      BotKbCollection, KbSource)
+from database import (get_db, get_settings, BotProfile, System, ChatConversation,
+                      ChatMessage, BotKbCollection, KbSource)
 from kb.retrieval import (augment_system_prompt, build_context_block,
-                          retrieve_for_collections)
+                          fit_to_budget, retrieve_for_collections)
 from llm_adapter import LLMAdapter
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
@@ -101,6 +101,12 @@ async def chat_stream(
                 candidates=bot.retrieval_candidates or 30,
                 min_score=bot.retrieval_min_score or 0.0,
             )
+            # Bigger chunks mean a bigger prompt. Trim before the titles are
+            # looked up so the citations match what the model actually saw.
+            engine_settings = await get_settings(db)
+            retrieved = fit_to_budget(
+                retrieved, int(engine_settings["context_char_budget"]))
+
             if retrieved:
                 title_rows = await db.execute(
                     select(KbSource.id, KbSource.title).where(

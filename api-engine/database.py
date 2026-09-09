@@ -141,6 +141,7 @@ class KbChunk(Base):
     ordinal = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
     char_count = Column(Integer, default=0)
+    heading_path = Column(String(500), nullable=True)
     embedding_model = Column(String(120), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -169,8 +170,9 @@ SETTING_DEFAULTS = {
     "embedding_model": "nomic-embed-text",
     "embedding_dimensions": "768",
     "vector_driver": "pgvector",
-    "chunk_size": "900",
-    "chunk_overlap": "150",
+    "chunk_size": "1800",
+    "chunk_overlap": "200",
+    "context_char_budget": "6000",
 }
 
 

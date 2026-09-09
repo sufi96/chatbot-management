@@ -83,7 +83,8 @@ async def search(req: SearchRequest, db: AsyncSession = Depends(get_db)):
     )
     return {"results": [
         {"chunk_id": r.chunk_id, "source_id": r.source_id,
-         "content": r.content, "score": r.score}
+         "content": r.content, "score": r.score,
+         "heading_path": r.heading_path}
         for r in results
     ]}
 

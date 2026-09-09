@@ -18,6 +18,7 @@ class Hit:
     source_id: str
     content: str
     score: float
+    heading_path: str = ""
 
 
 class VectorStore(Protocol):
@@ -50,8 +51,10 @@ class SqliteVectorStore:
         for c in chunks:
             await self.session.execute(text("""
                 INSERT INTO kb_chunks
-                    (collection_id, source_id, ordinal, content, char_count, embedding_model, embedding)
-                VALUES (:collection_id, :source_id, :ordinal, :content, :char_count, :embedding_model, :embedding)
+                    (collection_id, source_id, ordinal, content, char_count,
+                     heading_path, embedding_model, embedding)
+                VALUES (:collection_id, :source_id, :ordinal, :content, :char_count,
+                        :heading_path, :embedding_model, :embedding)
             """), {**c, "embedding": pack(c["embedding"])})
         await self.session.commit()
 
@@ -65,7 +68,7 @@ class SqliteVectorStore:
         if not collection_ids:
             return []
         sql = """
-            SELECT id, source_id, content, embedding FROM kb_chunks
+            SELECT id, source_id, content, heading_path, embedding FROM kb_chunks
             WHERE collection_id IN :cids AND embedding IS NOT NULL
         """
         params = {}
@@ -86,7 +89,8 @@ class SqliteVectorStore:
 
         scores = matrix @ query          # vectors are stored normalised
         order = np.argsort(-scores)[:limit]
-        return [Hit(rows[i].id, rows[i].source_id, rows[i].content, float(scores[i]))
+        return [Hit(rows[i].id, rows[i].source_id, rows[i].content, float(scores[i]),
+                    rows[i].heading_path or "")
                 for i in order]
 
     async def search_keyword(self, collection_ids, query_text, limit) -> list[Hit]:
@@ -97,7 +101,8 @@ class SqliteVectorStore:
             return []
 
         stmt = text("""
-            SELECT id, source_id, content FROM kb_chunks WHERE collection_id IN :cids
+            SELECT id, source_id, content, heading_path FROM kb_chunks
+            WHERE collection_id IN :cids
         """).bindparams(bindparam("cids", expanding=True))
         rows = (await self.session.execute(stmt, {"cids": list(collection_ids)})).all()
 
@@ -106,7 +111,8 @@ class SqliteVectorStore:
             haystack = r.content.lower()
             score = sum(haystack.count(term) for term in terms)
             if score:
-                scored.append(Hit(r.id, r.source_id, r.content, float(score)))
+                scored.append(Hit(r.id, r.source_id, r.content, float(score),
+                                  r.heading_path or ""))
         scored.sort(key=lambda h: h.score, reverse=True)
         return scored[:limit]
 
@@ -124,9 +130,10 @@ class PgVectorStore:
         for c in chunks:
             await self.session.execute(text("""
                 INSERT INTO kb_chunks
-                    (collection_id, source_id, ordinal, content, char_count, embedding_model, embedding)
+                    (collection_id, source_id, ordinal, content, char_count,
+                     heading_path, embedding_model, embedding)
                 VALUES (:collection_id, :source_id, :ordinal, :content, :char_count,
-                        :embedding_model, CAST(:embedding AS vector))
+                        :heading_path, :embedding_model, CAST(:embedding AS vector))
             """), {**c, "embedding": "[" + ",".join(str(x) for x in c["embedding"]) + "]"})
         await self.session.commit()
 
@@ -145,20 +152,21 @@ class PgVectorStore:
         if embedding_model:
             params["model"] = embedding_model
         rows = (await self.session.execute(text(f"""
-            SELECT id, source_id, content,
+            SELECT id, source_id, content, heading_path,
                    1 - (embedding <=> CAST(:q AS vector)) AS score
             FROM kb_chunks
             WHERE collection_id = ANY(:cids) AND embedding IS NOT NULL{model_clause}
             ORDER BY embedding <=> CAST(:q AS vector)
             LIMIT :lim
         """), params)).all()
-        return [Hit(r.id, r.source_id, r.content, float(r.score)) for r in rows]
+        return [Hit(r.id, r.source_id, r.content, float(r.score), r.heading_path or "")
+                for r in rows]
 
     async def search_keyword(self, collection_ids, query_text, limit) -> list[Hit]:
         if not collection_ids or not query_text.strip():
             return []
         rows = (await self.session.execute(text("""
-            SELECT id, source_id, content,
+            SELECT id, source_id, content, heading_path,
                    ts_rank_cd(content_tsv, plainto_tsquery('english', :q)) AS score
             FROM kb_chunks
             WHERE collection_id = ANY(:cids)
@@ -166,7 +174,8 @@ class PgVectorStore:
             ORDER BY score DESC
             LIMIT :lim
         """), {"q": query_text, "cids": list(collection_ids), "lim": limit})).all()
-        return [Hit(r.id, r.source_id, r.content, float(r.score)) for r in rows]
+        return [Hit(r.id, r.source_id, r.content, float(r.score), r.heading_path or "")
+                for r in rows]
 
 
 def make_store(session, driver: str) -> VectorStore:

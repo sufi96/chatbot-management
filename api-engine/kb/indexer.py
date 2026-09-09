@@ -6,7 +6,7 @@ extraction onward, because the parsing libraries are Python.
 from datetime import datetime
 
 from database import KbSource, get_settings
-from kb.chunking import chunk_text
+from kb.chunking import Chunk, chunk_document
 from kb.embedding import EmbeddingClient
 from kb.extract import extract_file, resolve_upload
 from kb.store import make_store
@@ -40,14 +40,15 @@ async def index_source(session, source_id: str, embedder=None) -> int:
             raise ValueError("Source has no text to index.")
 
         # A question and answer pair is one idea; splitting it would return half
-        # an answer.
+        # an answer, and it has no headings to carry.
         if source.type == "qa":
-            pieces = [body]
+            chunks = [Chunk(text=body, heading_path="")]
         else:
-            pieces = chunk_text(body,
-                                size=int(settings["chunk_size"]),
-                                overlap=int(settings["chunk_overlap"]))
-        if not pieces:
+            chunks = chunk_document(body,
+                                    title=source.title or "",
+                                    size=int(settings["chunk_size"]),
+                                    overlap=int(settings["chunk_overlap"]))
+        if not chunks:
             raise ValueError("Source produced no text to index.")
 
         client = embedder or EmbeddingClient(
@@ -55,7 +56,7 @@ async def index_source(session, source_id: str, embedder=None) -> int:
             settings["embedding_api_key"],
             settings["embedding_model"],
         )
-        vectors = await client.embed(pieces)
+        vectors = await client.embed([c.text for c in chunks])
 
         store = make_store(session, settings["vector_driver"])
         await store.upsert([
@@ -63,20 +64,21 @@ async def index_source(session, source_id: str, embedder=None) -> int:
                 "collection_id": source.collection_id,
                 "source_id": source.id,
                 "ordinal": i,
-                "content": piece,
-                "char_count": len(piece),
+                "content": chunk.text,
+                "char_count": len(chunk.text),
+                "heading_path": chunk.heading_path,
                 "embedding_model": settings["embedding_model"],
                 "embedding": vector,
             }
-            for i, (piece, vector) in enumerate(zip(pieces, vectors))
+            for i, (chunk, vector) in enumerate(zip(chunks, vectors))
         ])
 
         source.status = "ready"
-        source.chunk_count = len(pieces)
+        source.chunk_count = len(chunks)
         source.indexed_at = datetime.utcnow()
         source.error_message = None
         await session.commit()
-        return len(pieces)
+        return len(chunks)
 
     except Exception as exc:
         await session.rollback()

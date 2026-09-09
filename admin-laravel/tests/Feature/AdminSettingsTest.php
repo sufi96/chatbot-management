@@ -13,12 +13,14 @@ class AdminSettingsTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** Idempotent, so a test that posts twice does not collide on the email. */
     private function superAdmin(): User
     {
-        return User::create([
-            'name' => 'Root', 'email' => 'root@test.com',
-            'password' => bcrypt('password'), 'global_role' => 'super_admin',
-        ]);
+        return User::firstOrCreate(
+            ['email' => 'root@test.com'],
+            ['name' => 'Root', 'password' => bcrypt('password'),
+             'global_role' => 'super_admin'],
+        );
     }
 
     private function systemAdmin(): User
@@ -41,8 +43,9 @@ class AdminSettingsTest extends TestCase
             'embedding_model' => 'nomic-embed-text',
             'embedding_dimensions' => 768,
             'vector_driver' => 'pgvector',
-            'chunk_size' => 900,
-            'chunk_overlap' => 150,
+            'chunk_size' => 1800,
+            'chunk_overlap' => 200,
+            'context_char_budget' => 6000,
         ], $overrides);
     }
 
@@ -75,6 +78,65 @@ class AdminSettingsTest extends TestCase
 
         $this->assertSame('mxbai-embed-large', AppSetting::get('embedding_model'));
         $this->assertSame('800', AppSetting::get('chunk_size'));
+    }
+
+    public function test_chunk_size_accepts_the_widened_bounds(): void
+    {
+        $this->actingAs($this->superAdmin())
+            ->put(route('admin.settings.update'), $this->payload(['chunk_size' => 400]))
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($this->superAdmin())
+            ->put(route('admin.settings.update'), $this->payload(['chunk_size' => 8000]))
+            ->assertSessionHasNoErrors();
+    }
+
+    public function test_chunk_size_rejects_values_outside_the_bounds(): void
+    {
+        $this->actingAs($this->superAdmin())
+            ->put(route('admin.settings.update'), $this->payload(['chunk_size' => 399]))
+            ->assertSessionHasErrors('chunk_size');
+
+        $this->actingAs($this->superAdmin())
+            ->put(route('admin.settings.update'), $this->payload(['chunk_size' => 8001]))
+            ->assertSessionHasErrors('chunk_size');
+    }
+
+    public function test_the_context_budget_persists_and_validates_its_range(): void
+    {
+        $this->actingAs($this->superAdmin())
+            ->put(route('admin.settings.update'), $this->payload(['context_char_budget' => 9000]))
+            ->assertSessionHasNoErrors();
+        $this->assertSame('9000', AppSetting::get('context_char_budget'));
+
+        $this->actingAs($this->superAdmin())
+            ->put(route('admin.settings.update'), $this->payload(['context_char_budget' => 999]))
+            ->assertSessionHasErrors('context_char_budget');
+    }
+
+    public function test_an_untouched_chunk_size_is_migrated_to_the_new_default(): void
+    {
+        AppSetting::put('chunk_size', '900');
+        AppSetting::put('chunk_overlap', '150');
+
+        // The migration class is anonymous, so load the file and call it directly.
+        $migration = require database_path(
+            'migrations/2026_09_10_000005_update_chunking_defaults.php');
+        $migration->up();
+
+        $this->assertSame('1800', AppSetting::get('chunk_size'));
+        $this->assertSame('200', AppSetting::get('chunk_overlap'));
+    }
+
+    public function test_a_chosen_chunk_size_survives_the_migration(): void
+    {
+        AppSetting::put('chunk_size', '1200');
+
+        $migration = require database_path(
+            'migrations/2026_09_10_000005_update_chunking_defaults.php');
+        $migration->up();
+
+        $this->assertSame('1200', AppSetting::get('chunk_size'));
     }
 
     public function test_overlap_must_be_smaller_than_chunk_size(): void

@@ -85,10 +85,20 @@ if (-not (Test-Path $EnvFile)) {
     Pop-Location
 }
 
-$SqliteFile = Join-Path $LaravelDir "database\database.sqlite"
-if (-not (Test-Path $SqliteFile)) {
-    Write-Host "      Creating SQLite database file..." -ForegroundColor Gray
-    New-Item -ItemType File -Path $SqliteFile | Out-Null
+# Only SQLite needs a file conjured into existence. On PostgreSQL the database
+# must already exist, and creating a stray .sqlite file would just be litter.
+$DbConnection = (Select-String -Path (Join-Path $LaravelDir ".env") -Pattern '^DB_CONNECTION=(.+)$' |
+                 Select-Object -First 1).Matches.Groups[1].Value
+if ($null -eq $DbConnection) { $DbConnection = 'sqlite' }
+$DbConnection = $DbConnection.Trim()
+Write-Host "      Database driver: $DbConnection" -ForegroundColor Gray
+
+if ($DbConnection -eq 'sqlite') {
+    $SqliteFile = Join-Path $LaravelDir "database\database.sqlite"
+    if (-not (Test-Path $SqliteFile)) {
+        Write-Host "      Creating SQLite database file..." -ForegroundColor Gray
+        New-Item -ItemType File -Path $SqliteFile | Out-Null
+    }
 }
 
 Push-Location $LaravelDir
@@ -96,6 +106,13 @@ Push-Location $LaravelDir
 if ($LASTEXITCODE -ne 0) {
     Pop-Location
     Write-Host "ERROR: Database migration failed. Fix the error above and re-run." -ForegroundColor Red
+    if ($DbConnection -eq 'pgsql') {
+        Write-Host "       On PostgreSQL, check the server is running and that the" -ForegroundColor Red
+        Write-Host "       database in DB_DATABASE exists with the vector extension:" -ForegroundColor Red
+        Write-Host "         CREATE DATABASE chatbot_hub;" -ForegroundColor Red
+        Write-Host "         \c chatbot_hub" -ForegroundColor Red
+        Write-Host "         CREATE EXTENSION IF NOT EXISTS vector;" -ForegroundColor Red
+    }
     exit 1
 }
 if (-not (Test-Path (Join-Path $LaravelDir "public\storage"))) {

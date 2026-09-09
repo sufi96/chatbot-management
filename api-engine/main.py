@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from config import settings
+import database
 from database import init_db
 from routers import bot, chat
 
@@ -40,7 +41,13 @@ app.include_router(chat.router)
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "fastapi-llm-engine", "version": "1.0.0"}
+    degraded = database.active_backend == "sqlite-fallback"
+    return {
+        "status": "degraded" if degraded else "ok",
+        "service": "fastapi-llm-engine",
+        "version": "1.0.0",
+        "database": database.active_backend,
+    }
 
 # Serve widget.js directly at root level
 widget_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "widget", "widget.js"))

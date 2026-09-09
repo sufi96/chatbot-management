@@ -8,7 +8,9 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/chatbot_hub"
     )
     SQLITE_FALLBACK_URL: str = f"sqlite+aiosqlite:///{os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'admin-laravel', 'database', 'database.sqlite')).replace(os.sep, '/')}"
-    USE_SQLITE_FALLBACK: bool = True
+    # Set USE_SQLITE_FALLBACK=false once PostgreSQL holds the real data, so an
+    # unreachable database fails loudly instead of quietly serving a stale file.
+    USE_SQLITE_FALLBACK: bool = os.getenv("USE_SQLITE_FALLBACK", "true").lower() not in ("0", "false", "no")
     
     API_PORT: int = int(os.getenv("PORT", "8000"))
     API_HOST: str = os.getenv("HOST", "0.0.0.0")

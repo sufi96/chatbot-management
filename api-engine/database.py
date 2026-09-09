@@ -85,8 +85,12 @@ class ChatMessage(Base):
 engine = None
 async_session_factory = None
 
+# Which backend init_db actually reached. Reported by /health so a silent
+# fallback cannot masquerade as a healthy service.
+active_backend = "uninitialised"
+
 async def init_db():
-    global engine, async_session_factory
+    global engine, async_session_factory, active_backend
     
     # Try primary PostgreSQL connection
     try:
@@ -95,11 +99,29 @@ async def init_db():
             # Test query
             await conn.run_sync(lambda _: None)
         engine = test_engine
+        active_backend = "postgresql"
         print(f"[DB] Successfully connected to PostgreSQL: {settings.DATABASE_URL.split('@')[-1]}")
     except Exception as e:
         if settings.USE_SQLITE_FALLBACK:
-            print(f"[DB] PostgreSQL unavailable ({e}). Falling back to local SQLite: {settings.SQLITE_FALLBACK_URL}")
+            # Falling back is right on a machine that never had PostgreSQL. It is
+            # dangerous once PostgreSQL holds the real data: the SQLite file is a
+            # frozen copy, so the widget would serve stale bots and new
+            # conversations would be written somewhere the admin cannot see.
+            # Hence the banner rather than one quiet line.
             engine = create_async_engine(settings.SQLITE_FALLBACK_URL, echo=False)
+            active_backend = "sqlite-fallback"
+            print("")
+            print("=" * 72)
+            print("  WARNING: PostgreSQL is unreachable. Running on the SQLite fallback.")
+            print(f"  Reason: {e}")
+            print(f"  File:   {settings.SQLITE_FALLBACK_URL}")
+            print("")
+            print("  If PostgreSQL is your real database, STOP the engine now. That")
+            print("  file is a stale copy: bot changes will not appear and new")
+            print("  conversations will be written where the admin cannot read them.")
+            print("  Set USE_SQLITE_FALLBACK=false to make this a hard failure.")
+            print("=" * 72)
+            print("")
         else:
             raise e
 

@@ -4,12 +4,15 @@ Structure decides where a chunk ends; size only stops one growing without limit.
 Every chunk carries the document title and the headings above it, so a passage
 still says where it came from once it is on its own.
 """
+import re
 from dataclasses import dataclass
 
 from kb.blocks import Block, parse_blocks
 
 BREADCRUMB_PREFIX = "Section: "
 PATH_SEPARATOR = " > "
+
+PROSE_SEPARATORS = ["\n\n", "\n", ". ", " "]
 
 # A deep heading path must never squeeze the body down to nothing.
 MIN_BODY_BUDGET = 200
@@ -81,5 +84,98 @@ def _pack(blocks: list[Block], budget: int, overlap: int) -> list[str]:
 
 
 def _split_block(block: Block, budget: int, overlap: int) -> list[str]:
-    """Break one oversized block. Filled in by the oversized-block task."""
-    return [block.text]
+    if len(block.text) <= budget:
+        return [block.text]
+    if block.kind == "table":
+        return _split_table(block.text, budget)
+    if block.kind == "fence":
+        return _split_fence(block.text, budget)
+    return _split_prose(block.text, budget, overlap)
+
+
+def _split_table(table: str, budget: int) -> list[str]:
+    """Split on rows. Every part repeats the header so it reads on its own."""
+    rows = table.split("\n")
+    if len(rows) < 3:
+        return [table]
+
+    header = rows[:2]
+    parts: list[str] = []
+    buffer: list[str] = []
+    for row in rows[2:]:
+        candidate = "\n".join([*header, *buffer, row])
+        if buffer and len(candidate) > budget:
+            parts.append("\n".join([*header, *buffer]))
+            buffer = [row]
+        else:
+            buffer.append(row)
+    if buffer:
+        parts.append("\n".join([*header, *buffer]))
+    return parts
+
+
+def _split_fence(fence: str, budget: int) -> list[str]:
+    """Split on lines, closing and reopening with the same marker."""
+    lines = fence.split("\n")
+    opener = lines[0]
+    marker = opener.strip()[:3]
+    body = lines[1:]
+    if body and body[-1].strip().startswith(marker):
+        body = body[:-1]
+
+    parts: list[str] = []
+    buffer: list[str] = []
+    for line in body:
+        candidate = "\n".join([opener, *buffer, line, marker])
+        if buffer and len(candidate) > budget:
+            parts.append("\n".join([opener, *buffer, marker]))
+            buffer = [line]
+        else:
+            buffer.append(line)
+    if buffer:
+        parts.append("\n".join([opener, *buffer, marker]))
+    return parts or [fence]
+
+
+def _split_prose(text: str, budget: int, overlap: int) -> list[str]:
+    parts: list[str] = []
+    buffer = ""
+    for piece in _fragments(text, budget):
+        candidate = buffer + piece
+        if buffer and len(candidate) > budget:
+            parts.append(buffer.strip())
+            tail = _overlap_tail(parts[-1], overlap)
+            if len(tail) + len(piece) > budget:
+                tail = ""          # the overlap would not leave room for the text
+            buffer = f"{tail} {piece.lstrip()}" if tail else piece
+        else:
+            buffer = candidate
+    if buffer.strip():
+        parts.append(buffer.strip())
+    return [p for p in parts if p]
+
+
+def _fragments(text: str, size: int) -> list[str]:
+    """Break text on the strongest boundary that keeps every piece under size."""
+    if len(text) <= size:
+        return [text]
+    for sep in PROSE_SEPARATORS:
+        if sep not in text:
+            continue
+        out: list[str] = []
+        for i, part in enumerate(text.split(sep)):
+            fragment = part if i == 0 else sep + part
+            out.extend(_fragments(fragment, size) if len(fragment) > size else [fragment])
+        return out
+    return [text[i:i + size] for i in range(0, len(text), size)]
+
+
+def _overlap_tail(text: str, overlap: int) -> str:
+    """The last `overlap` characters, advanced past any partial leading word."""
+    if overlap <= 0 or not text:
+        return ""
+    tail = text[-overlap:]
+    match = re.search(r"\s", tail)
+    if match is None:
+        return tail        # one unbroken token: a clean boundary does not exist
+    return tail[match.end():]

@@ -93,3 +93,61 @@ def test_a_fence_that_fits_is_never_split():
 def test_no_empty_chunks():
     chunks = chunk_document("## A\n\n\n\n## B\n\nbody", size=200, overlap=20)
     assert all(c.text.strip() for c in chunks)
+
+
+def test_an_oversized_table_splits_on_rows_and_repeats_the_header():
+    rows = "\n".join(f"| Item {n} | {n * 10} |" for n in range(40))
+    table = "| Item | Days |\n|---|---|\n" + rows
+    chunks = chunk_document("## Terms\n\n" + table, size=400, overlap=0)
+
+    assert len(chunks) > 1
+    for chunk in chunks:
+        assert "| Item | Days |" in chunk.text
+        assert "|---|---|" in chunk.text
+    emitted = sum(chunk.text.count("| Item 7 |") for chunk in chunks)
+    assert emitted == 1
+
+
+def test_a_table_row_wider_than_the_budget_is_emitted_whole():
+    wide = "| " + "x" * 500 + " | y |"
+    table = "| A | B |\n|---|---|\n" + wide
+    chunks = chunk_document(table, size=300, overlap=0)
+    assert any("x" * 500 in chunk.text for chunk in chunks)
+
+
+def test_an_oversized_fence_is_closed_and_reopened():
+    body = "\n".join(f"line_{n} = {n}" for n in range(60))
+    chunks = chunk_document("```python\n" + body + "\n```", size=400, overlap=0)
+
+    assert len(chunks) > 1
+    for chunk in chunks:
+        assert chunk.text.count("```") == 2
+        assert "```python" in chunk.text
+
+
+def test_overlap_never_opens_a_chunk_on_a_partial_word():
+    text = "shipping is available to most countries " * 60
+    chunks = chunk_document(text, size=400, overlap=100)
+
+    assert len(chunks) > 1
+    for chunk in chunks[1:]:
+        first_word = chunk.text.split()[0]
+        assert f" {first_word} " in f" {text} "
+
+
+def test_overlap_repeats_material_from_the_previous_chunk():
+    text = "alpha bravo charlie delta echo foxtrot golf hotel " * 30
+    chunks = chunk_document(text, size=400, overlap=100)
+    assert len(chunks) > 1
+    assert any(word in chunks[0].text for word in chunks[1].text.split()[:3])
+
+
+def test_a_single_token_longer_than_size_is_still_emitted():
+    chunks = chunk_document("z" * 1000, size=300, overlap=50)
+    assert "".join(c.text for c in chunks).count("z") >= 1000
+
+
+def test_prose_with_no_headings_never_exceeds_the_ceiling():
+    text = ("word " * 4000).strip()
+    for chunk in chunk_document(text, size=300, overlap=50):
+        assert len(chunk.text) <= 300

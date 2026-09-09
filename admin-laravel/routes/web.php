@@ -7,6 +7,7 @@ use App\Http\Controllers\SystemController;
 use App\Http\Controllers\BotProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\LogController;
+use App\Http\Controllers\KnowledgeBaseController;
 
 // Authentication Routes
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -41,6 +42,15 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     Route::put('/bots/{id}', [BotProfileController::class, 'update'])->name('bots.update');
     Route::delete('/bots/{id}', [BotProfileController::class, 'destroy'])->name('bots.destroy');
     Route::get('/bots/{id}/embed', [BotProfileController::class, 'embed'])->name('bots.embed');
+
+    // Knowledge base
+    Route::get('/knowledge', [KnowledgeBaseController::class, 'index'])->name('kb.index');
+    Route::post('/knowledge', [KnowledgeBaseController::class, 'store'])->name('kb.store');
+    Route::get('/knowledge/{id}', [KnowledgeBaseController::class, 'show'])->name('kb.show');
+    Route::delete('/knowledge/{id}', [KnowledgeBaseController::class, 'destroy'])->name('kb.destroy');
+    Route::post('/knowledge/{id}/sources', [KnowledgeBaseController::class, 'storeSource'])->name('kb.sources.store');
+    Route::post('/knowledge/sources/{sourceId}/reindex', [KnowledgeBaseController::class, 'reindexSource'])->name('kb.sources.reindex');
+    Route::delete('/knowledge/sources/{sourceId}', [KnowledgeBaseController::class, 'destroySource'])->name('kb.sources.destroy');
 
     // Conversation Logs & Transcripts
     Route::get('/logs', [LogController::class, 'index'])->name('logs.index');

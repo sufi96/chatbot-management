@@ -88,6 +88,11 @@
                 <span>Bot profiles</span>
             </a>
 
+            <a href="{{ route('kb.index') }}" class="sidebar-link {{ request()->routeIs('kb.*') ? 'active' : '' }}">
+                <i class="bi bi-journal-text"></i>
+                <span>Knowledge base</span>
+            </a>
+
             <a href="{{ route('logs.index') }}" class="sidebar-link {{ request()->routeIs('logs.*') ? 'active' : '' }}">
                 <i class="bi bi-chat-left-text"></i>
                 <span>Conversations</span>

@@ -46,6 +46,22 @@ class BotProfile(Base):
     close_size = Column(Integer, default=52)
     bot_avatar_url = Column(String(500), nullable=True)
     avatar_shape = Column(String(30), default="circle")
+
+    # Retrieval settings, edited on the bot's Brain page.
+    retrieval_enabled = Column(Boolean, default=False)
+    retrieval_mode = Column(String(20), default="hybrid")
+    retrieval_top_k = Column(Integer, default=5)
+    retrieval_candidates = Column(Integer, default=30)
+    retrieval_min_score = Column(Float, default=0.0)
+    retrieval_fallback = Column(String(20), default="say_unknown")
+
+    # Generation settings, passed through to the model endpoint.
+    top_p = Column(Float, default=1.0)
+    top_k_sampling = Column(Integer, nullable=True)
+    presence_penalty = Column(Float, default=0.0)
+    frequency_penalty = Column(Float, default=0.0)
+    thinking_level = Column(String(10), default="off")
+
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -79,6 +95,94 @@ class ChatMessage(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     conversation = relationship("ChatConversation", back_populates="messages")
+
+
+class KbCollection(Base):
+    __tablename__ = "kb_collections"
+
+    id = Column(String(36), primary_key=True)
+    system_id = Column(String(36), ForeignKey("systems.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class KbSource(Base):
+    __tablename__ = "kb_sources"
+
+    id = Column(String(36), primary_key=True)
+    collection_id = Column(String(36), ForeignKey("kb_collections.id", ondelete="CASCADE"), nullable=False)
+    type = Column(String(20), default="text")
+    title = Column(String(500), nullable=False)
+    body = Column(Text, nullable=True)
+    file_path = Column(String(500), nullable=True)
+    file_mime = Column(String(100), nullable=True)
+    file_size = Column(Integer, nullable=True)
+    status = Column(String(20), default="pending")
+    error_message = Column(Text, nullable=True)
+    chunk_count = Column(Integer, default=0)
+    indexed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class KbChunk(Base):
+    """The embedding column is deliberately not mapped.
+
+    It is vector(768) on PostgreSQL and a blob on SQLite, so each vector store
+    driver reads and writes it with raw SQL instead.
+    """
+    __tablename__ = "kb_chunks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    collection_id = Column(String(36), nullable=False, index=True)
+    source_id = Column(String(36), ForeignKey("kb_sources.id", ondelete="CASCADE"), nullable=False)
+    ordinal = Column(Integer, nullable=False)
+    content = Column(Text, nullable=False)
+    char_count = Column(Integer, default=0)
+    embedding_model = Column(String(120), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class BotKbCollection(Base):
+    __tablename__ = "bot_kb_collection"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    bot_id = Column(String(36), ForeignKey("bot_profiles.id", ondelete="CASCADE"), nullable=False)
+    collection_id = Column(String(36), ForeignKey("kb_collections.id", ondelete="CASCADE"), nullable=False)
+
+
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    key = Column(String(120), primary_key=True)
+    value = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# Kept in step with AppSetting::DEFAULTS on the Laravel side.
+SETTING_DEFAULTS = {
+    "embedding_base_url": "http://localhost:11434/v1",
+    "embedding_api_key": "",
+    "embedding_model": "nomic-embed-text",
+    "embedding_dimensions": "768",
+    "vector_driver": "pgvector",
+    "chunk_size": "900",
+    "chunk_overlap": "150",
+}
+
+
+async def get_settings(session) -> dict:
+    """Stored settings layered over the defaults, read fresh each time.
+
+    Laravel writes these; reading them from the shared table is what stops the
+    two halves of the system drifting apart.
+    """
+    result = await session.execute(select(AppSetting))
+    stored = {row.key: row.value for row in result.scalars().all() if row.value is not None}
+    return {**SETTING_DEFAULTS, **stored}
 
 
 # Engine and Session initialization

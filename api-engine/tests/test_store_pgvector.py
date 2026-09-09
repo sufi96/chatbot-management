@@ -64,10 +64,10 @@ async def test_pgvector_round_trip(pg_session):
 
     await store.upsert([
         {"collection_id": "pgtest_col", "source_id": "pgtest_src", "ordinal": 0,
-         "content": "refunds within thirty days", "char_count": 26,
+         "content": "refunds within thirty days", "char_count": 26, "heading_path": "",
          "embedding_model": "test", "embedding": a},
         {"collection_id": "pgtest_col", "source_id": "pgtest_src", "ordinal": 1,
-         "content": "office opening hours", "char_count": 20,
+         "content": "office opening hours", "char_count": 20, "heading_path": "",
          "embedding_model": "test", "embedding": b},
     ])
 
@@ -89,7 +89,8 @@ async def test_pgvector_delete_removes_chunks(pg_session):
 
     await store.upsert([
         {"collection_id": "pgtest_col", "source_id": "pgtest_src", "ordinal": 0,
-         "content": "alpha", "char_count": 5, "embedding_model": "test", "embedding": a},
+         "content": "alpha", "char_count": 5, "heading_path": "",
+         "embedding_model": "test", "embedding": a},
     ])
     assert await store.search_vector(["pgtest_col"], a, limit=5)
 

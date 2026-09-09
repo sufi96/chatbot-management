@@ -29,12 +29,12 @@ async def session():
         await store.upsert([
             {"collection_id": "col1", "source_id": "src1", "ordinal": 0,
              "content": "Refunds are issued within thirty days.", "char_count": 38,
-             "embedding_model": "test", "embedding": [1.0, 0.0]},
+             "heading_path": "", "embedding_model": "test", "embedding": [1.0, 0.0]},
         ])
         await store.upsert([
             {"collection_id": "col1", "source_id": "src2", "ordinal": 0,
              "content": "The office opens at nine.", "char_count": 25,
-             "embedding_model": "test", "embedding": [0.0, 1.0]},
+             "heading_path": "", "embedding_model": "test", "embedding": [0.0, 1.0]},
         ])
         yield s
     await engine.dispose()

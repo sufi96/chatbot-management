@@ -141,6 +141,7 @@ class KbChunk(Base):
     ordinal = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
     char_count = Column(Integer, default=0)
+    heading_path = Column(String(500), nullable=True)
     embedding_model = Column(String(120), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

@@ -40,7 +40,7 @@ async def test_preparing_the_column_leaves_sqlite_vectors_alone(session):
     from kb.store import SqliteVectorStore
     await SqliteVectorStore(session).upsert([{
         "collection_id": "col1", "source_id": "s1", "ordinal": 0,
-        "content": "alpha", "char_count": 5,
+        "content": "alpha", "char_count": 5, "heading_path": "",
         "embedding_model": "test", "embedding": [1.0, 0.0],
     }])
 

@@ -25,6 +25,7 @@ def chunk(ordinal, content, embedding, source="src1", collection="col1"):
         "ordinal": ordinal,
         "content": content,
         "char_count": len(content),
+        "heading_path": "",
         "embedding_model": "test-model",
         "embedding": embedding,
     }
@@ -113,3 +114,20 @@ async def test_vector_search_skips_chunks_from_another_embedding_model(session):
 async def test_make_store_selects_the_driver(session):
     assert type(make_store(session, "sqlite")).__name__ == "SqliteVectorStore"
     assert type(make_store(session, "pgvector")).__name__ == "PgVectorStore"
+
+
+@pytest.mark.asyncio
+async def test_heading_path_round_trips_through_the_sqlite_store(session):
+    store = SqliteVectorStore(session)
+    await store.upsert([{
+        "collection_id": "col1", "source_id": "s1", "ordinal": 0,
+        "content": "Section: Policy > Warranty\n\nTwo years on desk lamps.",
+        "char_count": 50, "heading_path": "Policy > Warranty",
+        "embedding_model": "test", "embedding": [1.0, 0.0],
+    }])
+
+    hits = await store.search_vector(["col1"], [1.0, 0.0], 5, "test")
+    assert hits[0].heading_path == "Policy > Warranty"
+
+    hits = await store.search_keyword(["col1"], "warranty", 5)
+    assert hits[0].heading_path == "Policy > Warranty"

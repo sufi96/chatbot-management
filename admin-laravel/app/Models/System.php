@@ -34,6 +34,11 @@ class System extends Model
     /**
      * Bot profiles belonging to this system.
      */
+    public function kbCollections(): HasMany
+    {
+        return $this->hasMany(KbCollection::class, 'system_id');
+    }
+
     public function botProfiles(): HasMany
     {
         return $this->hasMany(BotProfile::class, 'system_id');

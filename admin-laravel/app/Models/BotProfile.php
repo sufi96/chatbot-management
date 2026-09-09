@@ -38,6 +38,17 @@ class BotProfile extends Model
         'bot_avatar_url',
         'avatar_shape',
         'is_active',
+        'retrieval_enabled',
+        'retrieval_mode',
+        'retrieval_top_k',
+        'retrieval_candidates',
+        'retrieval_min_score',
+        'retrieval_fallback',
+        'top_p',
+        'top_k_sampling',
+        'presence_penalty',
+        'frequency_penalty',
+        'thinking_level',
     ];
 
     protected function casts(): array
@@ -48,6 +59,14 @@ class BotProfile extends Model
             'launcher_size' => 'integer',
             'close_size' => 'integer',
             'is_active' => 'boolean',
+            'retrieval_enabled' => 'boolean',
+            'retrieval_top_k' => 'integer',
+            'retrieval_candidates' => 'integer',
+            'retrieval_min_score' => 'float',
+            'top_p' => 'float',
+            'top_k_sampling' => 'integer',
+            'presence_penalty' => 'float',
+            'frequency_penalty' => 'float',
         ];
     }
 
@@ -59,5 +78,10 @@ class BotProfile extends Model
     public function conversations(): HasMany
     {
         return $this->hasMany(ChatConversation::class, 'bot_id');
+    }
+
+    public function collections(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(KbCollection::class, 'bot_kb_collection', 'bot_id', 'collection_id');
     }
 }

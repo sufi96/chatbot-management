@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     SQLITE_FALLBACK_URL: str = f"sqlite+aiosqlite:///{os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'admin-laravel', 'database', 'database.sqlite')).replace(os.sep, '/')}"
     # Set USE_SQLITE_FALLBACK=false once PostgreSQL holds the real data, so an
     # unreachable database fails loudly instead of quietly serving a stale file.
+    # Laravel stores uploads on its public disk; the engine reads them from
+    # disk rather than over HTTP, so it needs the same directory.
+    UPLOAD_ROOT: str = os.path.abspath(os.path.join(
+        os.path.dirname(__file__), "..", "admin-laravel", "storage", "app", "public"))
+
     USE_SQLITE_FALLBACK: bool = os.getenv("USE_SQLITE_FALLBACK", "true").lower() not in ("0", "false", "no")
     
     # Shared secret for the admin-plane routes. Read through Settings so the

@@ -8,6 +8,7 @@ from datetime import datetime
 from database import KbSource, get_settings
 from kb.chunking import chunk_text
 from kb.embedding import EmbeddingClient
+from kb.extract import extract_file, resolve_upload
 from kb.store import make_store
 
 
@@ -15,6 +16,10 @@ def extract_text(source: KbSource) -> str:
     """The canonical text for a source, whatever its type."""
     if source.type == "qa":
         return f"Q: {source.title}\nA: {source.body or ''}"
+    if source.type == "file":
+        if not source.file_path:
+            raise ValueError("Source is a file but has no stored path.")
+        return extract_file(resolve_upload(source.file_path))
     return (source.body or "").strip()
 
 

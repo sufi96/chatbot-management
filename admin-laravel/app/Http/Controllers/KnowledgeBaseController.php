@@ -6,6 +6,7 @@ use App\Models\KbCollection;
 use App\Models\KbSource;
 use App\Services\EngineClient;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class KnowledgeBaseController extends Controller
@@ -96,6 +97,41 @@ class KnowledgeBaseController extends Controller
             ->with('success', 'Added. Indexing runs in the background.');
     }
 
+    public function uploadSource(Request $request, string $collectionId)
+    {
+        $collection = KbCollection::findOrFail($collectionId);
+        $this->authorizeEditor($request, $collection->system_id);
+
+        $validated = $request->validate([
+            'file' => [
+                'required', 'file', 'max:20480',   // kilobytes, so 20 MB
+                'mimes:pdf,docx,pptx,xlsx,xls,csv,md,txt,html,htm',
+            ],
+        ], [
+            'file.mimes' => 'That file type is not supported. Use PDF, Word, PowerPoint, Excel, CSV, Markdown, HTML or plain text.',
+            'file.max' => 'Files must be 20 MB or smaller.',
+        ]);
+
+        $upload = $validated['file'];
+        $path = $upload->store('kb/sources', 'public');
+
+        $source = KbSource::create([
+            'id' => 'kbs_' . Str::random(12),
+            'collection_id' => $collection->id,
+            'type' => 'file',
+            'title' => $upload->getClientOriginalName(),
+            'file_path' => $path,
+            'file_mime' => $upload->getClientMimeType(),
+            'file_size' => $upload->getSize(),
+            'status' => 'pending',
+        ]);
+
+        EngineClient::indexSource($source->id);
+
+        return redirect()->route('kb.show', $collection->id)
+            ->with('success', 'Uploaded. Extraction and indexing run in the background.');
+    }
+
     public function reindexSource(Request $request, string $sourceId)
     {
         $source = KbSource::with('collection')->findOrFail($sourceId);
@@ -113,6 +149,10 @@ class KnowledgeBaseController extends Controller
         $this->authorizeEditor($request, $source->collection->system_id);
 
         EngineClient::deleteChunks($source->id);
+        // An orphaned upload would sit on disk forever otherwise.
+        if ($source->file_path) {
+            Storage::disk('public')->delete($source->file_path);
+        }
         $collectionId = $source->collection_id;
         $source->delete();
 

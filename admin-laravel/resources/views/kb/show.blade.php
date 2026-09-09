@@ -16,6 +16,9 @@
 
     @if($canEdit)
         <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#addFileModal">
+                <i class="bi bi-upload"></i> Upload file
+            </button>
             <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#addQaModal">
                 <i class="bi bi-patch-question"></i> Add Q and A
             </button>
@@ -59,11 +62,21 @@
                                     <div style="color: var(--danger); font-size: 0.75rem;">{{ $source->error_message }}</div>
                                 @else
                                     <div class="text-muted text-truncate" style="max-width: 420px; font-size: 0.75rem;">
-                                        {{ \Illuminate\Support\Str::limit($source->body, 90) }}
+                                        @if($source->type === 'file')
+                                            {{ $source->file_mime }}, {{ number_format(($source->file_size ?? 0) / 1024) }} KB
+                                        @else
+                                            {{ \Illuminate\Support\Str::limit($source->body, 90) }}
+                                        @endif
                                     </div>
                                 @endif
                             </td>
-                            <td><span class="chip">{{ $source->type === 'qa' ? 'Q and A' : 'Text' }}</span></td>
+                            <td>
+                                <span class="chip">
+                                    @if($source->type === 'qa') Q and A
+                                    @elseif($source->type === 'file') File
+                                    @else Text @endif
+                                </span>
+                            </td>
                             <td>
                                 @if($source->status === 'ready')
                                     <span class="d-inline-flex align-items-center gap-1.5" style="color: var(--ok);">
@@ -105,6 +118,36 @@
 </div>
 
 @if($canEdit)
+    <div class="modal fade" id="addFileModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h6 class="modal-title mb-0">Upload a file</h6>
+                        <span class="text-muted" style="font-size: 0.75rem;">The text is extracted, then indexed.</span>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="{{ route('kb.sources.upload', $collection->id) }}" method="POST" enctype="multipart/form-data">
+                    @csrf
+                    <div class="modal-body">
+                        <label for="kb_file" class="form-label">File <span style="color: var(--danger);">*</span></label>
+                        <input type="file" name="file" id="kb_file" class="form-control"
+                               accept=".pdf,.docx,.pptx,.xlsx,.xls,.csv,.md,.txt,.html,.htm" required>
+                        <div class="form-text">
+                            PDF, Word, PowerPoint, Excel, CSV, Markdown, HTML or plain text. Up to 20 MB.
+                            Scanned pages with no text layer extract nothing.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-brand">Upload and index</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="addTextModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">

@@ -101,3 +101,45 @@ async def test_an_empty_body_records_an_error(session):
     source = await session.get(KbSource, "src4")
     assert source.status == "error"
     assert "no text" in source.error_message.lower()
+
+
+@pytest.mark.asyncio
+async def test_indexing_a_file_source_reads_the_file(session, tmp_path, monkeypatch):
+    upload_root = tmp_path / "public"
+    (upload_root / "kb" / "sources").mkdir(parents=True)
+    (upload_root / "kb" / "sources" / "policy.txt").write_text(
+        "Refunds are issued within thirty days.", encoding="utf-8")
+
+    from config import settings
+    monkeypatch.setattr(settings, "UPLOAD_ROOT", str(upload_root))
+
+    session.add(KbSource(id="src5", collection_id="col1", type="file",
+                         title="policy.txt", file_path="kb/sources/policy.txt"))
+    await session.commit()
+
+    count = await index_source(session, "src5", embedder=StubEmbedder())
+
+    assert count == 1
+    source = await session.get(KbSource, "src5")
+    assert source.status == "ready"
+
+    stored = (await session.execute(
+        text("SELECT content FROM kb_chunks WHERE source_id='src5'"))).scalar()
+    assert "thirty days" in stored
+
+
+@pytest.mark.asyncio
+async def test_a_missing_upload_records_an_error(session, tmp_path, monkeypatch):
+    from config import settings
+    monkeypatch.setattr(settings, "UPLOAD_ROOT", str(tmp_path))
+
+    session.add(KbSource(id="src6", collection_id="col1", type="file",
+                         title="gone.pdf", file_path="kb/sources/gone.pdf"))
+    await session.commit()
+
+    count = await index_source(session, "src6", embedder=StubEmbedder())
+
+    assert count == 0
+    source = await session.get(KbSource, "src6")
+    assert source.status == "error"
+    assert "not found" in source.error_message.lower()

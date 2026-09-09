@@ -56,6 +56,7 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     Route::get('/knowledge/{id}', [KnowledgeBaseController::class, 'show'])->name('kb.show');
     Route::delete('/knowledge/{id}', [KnowledgeBaseController::class, 'destroy'])->name('kb.destroy');
     Route::post('/knowledge/{id}/sources', [KnowledgeBaseController::class, 'storeSource'])->name('kb.sources.store');
+    Route::post('/knowledge/{id}/upload', [KnowledgeBaseController::class, 'uploadSource'])->name('kb.sources.upload');
     Route::post('/knowledge/sources/{sourceId}/reindex', [KnowledgeBaseController::class, 'reindexSource'])->name('kb.sources.reindex');
     Route::delete('/knowledge/sources/{sourceId}', [KnowledgeBaseController::class, 'destroySource'])->name('kb.sources.destroy');
 

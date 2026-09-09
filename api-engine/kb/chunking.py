@@ -1,54 +1,85 @@
-"""Split text into retrieval-sized pieces.
+"""Group blocks into retrieval-sized chunks.
 
-Prefers structural boundaries, falling back to progressively weaker ones and
-finally to a hard character cut, so a chunk breaks where meaning breaks rather
-than mid-word wherever possible.
+Structure decides where a chunk ends; size only stops one growing without limit.
+Every chunk carries the document title and the headings above it, so a passage
+still says where it came from once it is on its own.
 """
+from dataclasses import dataclass
 
-SEPARATORS = ["\n## ", "\n\n", "\n", ". ", " "]
+from kb.blocks import Block, parse_blocks
+
+BREADCRUMB_PREFIX = "Section: "
+PATH_SEPARATOR = " > "
+
+# A deep heading path must never squeeze the body down to nothing.
+MIN_BODY_BUDGET = 200
 
 
-def chunk_text(text: str, size: int = 900, overlap: int = 150) -> list[str]:
-    if not text or not text.strip():
-        return []
+@dataclass(frozen=True)
+class Chunk:
+    text: str            # breadcrumb line, blank line, then the body
+    heading_path: str    # "Policy > Warranty", or "" when there is none
+
+
+def chunk_document(text: str, *, title: str = "", size: int = 1800,
+                   overlap: int = 200) -> list[Chunk]:
     if overlap >= size:
         raise ValueError("overlap must be smaller than size")
+    if not text or not text.strip():
+        return []
 
-    pieces = _split(text.strip(), size)
+    out: list[Chunk] = []
+    for headings, blocks in _group_by_heading(parse_blocks(text)):
+        path = _path_text(headings, title)
+        breadcrumb = f"{BREADCRUMB_PREFIX}{path}\n\n" if path else ""
+        budget = max(MIN_BODY_BUDGET, size - len(breadcrumb))
+        for body in _pack(blocks, budget, overlap):
+            out.append(Chunk(text=breadcrumb + body, heading_path=path))
 
-    # Re-join adjacent pieces up to the size budget, then carry an overlap tail.
-    chunks: list[str] = []
+    return [c for c in out if c.text.strip()]
+
+
+def _path_text(headings: tuple[str, ...], title: str) -> str:
+    parts: list[str] = []
+    for candidate in (title, *headings):
+        candidate = (candidate or "").strip()
+        # A document whose top heading repeats its title must not say so twice.
+        if candidate and (not parts or parts[-1] != candidate):
+            parts.append(candidate)
+    return PATH_SEPARATOR.join(parts)
+
+
+def _group_by_heading(blocks: list[Block]):
+    """Runs of consecutive blocks that share a heading path."""
+    run: list[Block] = []
+    current: tuple[str, ...] | None = None
+    for block in blocks:
+        if current is not None and block.headings != current:
+            yield current, run
+            run = []
+        current = block.headings
+        run.append(block)
+    if run and current is not None:
+        yield current, run
+
+
+def _pack(blocks: list[Block], budget: int, overlap: int) -> list[str]:
+    """Fill up to budget, then break. Blocks are joined by a blank line."""
+    bodies: list[str] = []
     buffer = ""
-    for piece in pieces:
-        candidate = piece if not buffer else f"{buffer}{piece}"
-        if len(candidate) <= size:
-            buffer = candidate
-            continue
-        if buffer.strip():
-            chunks.append(buffer.strip())
-        buffer = (chunks[-1][-overlap:] + piece) if (chunks and overlap) else piece
-        while len(buffer) > size:
-            chunks.append(buffer[:size].strip())
-            buffer = buffer[size - overlap:] if overlap else buffer[size:]
+    for block in blocks:
+        for piece in _split_block(block, budget, overlap):
+            candidate = f"{buffer}\n\n{piece}" if buffer else piece
+            if buffer and len(candidate) > budget:
+                bodies.append(buffer)
+                buffer = piece
+            else:
+                buffer = candidate
     if buffer.strip():
-        chunks.append(buffer.strip())
+        bodies.append(buffer)
+    return bodies
 
-    return [c for c in chunks if c.strip()]
 
-
-def _split(text: str, size: int) -> list[str]:
-    """Break text into fragments no larger than size, on the best boundary found."""
-    if len(text) <= size:
-        return [text]
-
-    for sep in SEPARATORS:
-        if sep not in text:
-            continue
-        parts = text.split(sep)
-        out: list[str] = []
-        for i, part in enumerate(parts):
-            fragment = part if i == 0 else sep + part
-            out.extend(_split(fragment, size) if len(fragment) > size else [fragment])
-        return out
-
-    return [text[i:i + size] for i in range(0, len(text), size)]
+def _split_block(block: Block, budget: int, overlap: int) -> list[str]:
+    """Break one oversized block. Filled in by the oversized-block task."""
+    return [block.text]

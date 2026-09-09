@@ -584,6 +584,36 @@
             padding: 0 4px;
         }
 
+        /* What an answer drew on. Titles only: a visitor never sees chunk
+           contents or internal ids. */
+        .message-sources {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 6px;
+        }
+
+        .source-chip {
+            font-size: 10.5px;
+            line-height: 1.4;
+            padding: 2px 7px;
+            border-radius: 999px;
+            border: 1px solid #E4E4E7;
+            background: #FAFAFA;
+            color: #52525B;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .sources-label {
+            font-size: 10.5px;
+            color: #A1A1AA;
+            margin-right: 2px;
+            align-self: center;
+        }
+
         /* Typing Dots */
         .typing-indicator {
             display: none;
@@ -829,6 +859,36 @@
         return bubble;
     }
 
+    /**
+     * Lists the material an answer drew on, under the bubble it belongs to.
+     * The visitor sees titles, never chunk contents or ids.
+     */
+    function attachSources(bubble, sources) {
+        if (!bubble || !sources || !sources.length) return;
+
+        var wrapper = bubble.parentNode;
+        if (!wrapper || wrapper.querySelector(".message-sources")) return;
+
+        var row = document.createElement("div");
+        row.className = "message-sources";
+
+        var label = document.createElement("span");
+        label.className = "sources-label";
+        label.textContent = "Based on";
+        row.appendChild(label);
+
+        for (var i = 0; i < sources.length; i++) {
+            var chip = document.createElement("span");
+            chip.className = "source-chip";
+            chip.textContent = sources[i].title || "Untitled";
+            chip.title = sources[i].title || "Untitled";
+            row.appendChild(chip);
+        }
+
+        // Above the timestamp, which is always the last child.
+        wrapper.insertBefore(row, wrapper.lastChild);
+    }
+
     // Load Bot Configuration from Server
     function loadConfig() {
         fetch(apiHost + "/api/v1/bot/" + encodeURIComponent(botId) + "/config")
@@ -1002,6 +1062,7 @@
 
         var partialText = "";
         var firstChunk = true;
+        var pendingSources = [];
 
         fetch(apiHost + "/api/v1/chat/stream", {
             method: "POST",
@@ -1049,18 +1110,21 @@
                                 isStreaming = false;
                                 if (partialText) {
                                     messageHistory.push({ role: "assistant", content: partialText });
+                                    attachSources(botBubble, pendingSources);
                                 }
                                 return;
                             }
                             try {
                                 var parsed = JSON.parse(dataStr);
-                                if (parsed.error) {
+                                if (parsed.type === "sources") {
+                                    pendingSources = parsed.sources || [];
+                                } else if (parsed.error) {
                                     stopThinking();
                                     if (firstChunk) {
                                         botBubble.innerHTML = "";
                                         firstChunk = false;
                                     }
-                                    partialText += "\n⚠️ " + parsed.error;
+                                    partialText += "\n" + parsed.error;
                                     botBubble.textContent = partialText;
                                 } else if (parsed.content) {
                                     if (firstChunk) {
@@ -1099,9 +1163,9 @@
             stopThinking();
             isStreaming = false;
             if (botBubble) {
-                botBubble.textContent = "⚠️ " + (err.message || "Failed to communicate with chat server.");
+                botBubble.textContent = "" + (err.message || "Failed to communicate with chat server.");
             } else {
-                appendMessage("bot", "⚠️ " + (err.message || "Failed to communicate with chat server."));
+                appendMessage("bot", "" + (err.message || "Failed to communicate with chat server."));
             }
         });
     }

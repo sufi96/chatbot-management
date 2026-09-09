@@ -110,6 +110,11 @@
                     <i class="bi bi-person-gear"></i>
                     <span>Users and roles</span>
                 </a>
+
+                <a href="{{ route('admin.settings') }}" class="sidebar-link {{ request()->routeIs('admin.settings*') ? 'active' : '' }}">
+                    <i class="bi bi-sliders2"></i>
+                    <span>Admin settings</span>
+                </a>
             @endif
         </nav>
 

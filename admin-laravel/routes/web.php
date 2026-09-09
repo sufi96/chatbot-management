@@ -9,6 +9,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\BotBrainController;
+use App\Http\Controllers\AdminSettingsController;
 
 // Authentication Routes
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -65,5 +66,10 @@ Route::middleware(['auth', 'system.access'])->group(function () {
         Route::post('/users', [UserController::class, 'store'])->name('users.store');
         Route::put('/users/{id}', [UserController::class, 'update'])->name('users.update');
         Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('users.destroy');
+
+        // Platform-wide settings: embedding, vector store, chunking
+        Route::get('/admin/settings', [AdminSettingsController::class, 'edit'])->name('admin.settings');
+        Route::put('/admin/settings', [AdminSettingsController::class, 'update'])->name('admin.settings.update');
+        Route::post('/admin/settings/test', [AdminSettingsController::class, 'test'])->name('admin.settings.test');
     });
 });

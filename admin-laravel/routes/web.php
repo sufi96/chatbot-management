@@ -57,6 +57,9 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     Route::delete('/knowledge/{id}', [KnowledgeBaseController::class, 'destroy'])->name('kb.destroy');
     Route::post('/knowledge/{id}/sources', [KnowledgeBaseController::class, 'storeSource'])->name('kb.sources.store');
     Route::post('/knowledge/{id}/upload', [KnowledgeBaseController::class, 'uploadSource'])->name('kb.sources.upload');
+    Route::get('/knowledge/sources/{sourceId}', [KnowledgeBaseController::class, 'showSource'])->name('kb.sources.show');
+    Route::put('/knowledge/sources/{sourceId}', [KnowledgeBaseController::class, 'updateSource'])->name('kb.sources.update');
+    Route::get('/knowledge/sources/{sourceId}/download', [KnowledgeBaseController::class, 'downloadSource'])->name('kb.sources.download');
     Route::post('/knowledge/sources/{sourceId}/reindex', [KnowledgeBaseController::class, 'reindexSource'])->name('kb.sources.reindex');
     Route::delete('/knowledge/sources/{sourceId}', [KnowledgeBaseController::class, 'destroySource'])->name('kb.sources.destroy');
 

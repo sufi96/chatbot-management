@@ -57,7 +57,9 @@
                     @foreach($collection->sources as $source)
                         <tr>
                             <td>
-                                <div class="fw-semibold text-truncate" style="max-width: 420px;">{{ $source->title }}</div>
+                                <div class="fw-semibold text-truncate" style="max-width: 420px;">
+                                    <a href="{{ route('kb.sources.show', $source->id) }}">{{ $source->title }}</a>
+                                </div>
                                 @if($source->status === 'error')
                                     <div style="color: var(--danger); font-size: 0.75rem;">{{ $source->error_message }}</div>
                                 @else
@@ -90,8 +92,16 @@
                             </td>
                             <td><span class="figure-mono">{{ $source->chunk_count }}</span></td>
                             <td class="text-end">
-                                @if($canEdit)
-                                    <div class="d-flex align-items-center justify-content-end gap-1.5">
+                                <div class="d-flex align-items-center justify-content-end gap-1.5">
+                                    <a href="{{ route('kb.sources.show', $source->id) }}"
+                                       class="btn btn-sm btn-outline-secondary" title="View">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{{ route('kb.sources.download', $source->id) }}"
+                                       class="btn btn-sm btn-outline-secondary" title="Download">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                    @if($canEdit)
                                         <form action="{{ route('kb.sources.reindex', $source->id) }}" method="POST" class="d-inline m-0">
                                             @csrf
                                             <button type="submit" class="btn btn-sm btn-outline-secondary" title="Index again">
@@ -106,8 +116,8 @@
                                                 <i class="bi bi-trash3"></i>
                                             </button>
                                         </form>
-                                    </div>
-                                @endif
+                                    @endif
+                                </div>
                             </td>
                         </tr>
                     @endforeach

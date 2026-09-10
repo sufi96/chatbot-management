@@ -989,3 +989,17 @@ textarea.form-control { line-height: 1.55; }
   background: var(--accent);
   cursor: pointer;
 }
+
+/* Add-content cards: a card that is also a button needs to say so. */
+button.card {
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+button.card:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+button.card:active {
+  transform: translateY(0);
+}

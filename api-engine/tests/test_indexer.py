@@ -177,3 +177,37 @@ async def test_a_qa_source_is_one_chunk_with_no_heading_path(session):
         "SELECT content, heading_path FROM kb_chunks WHERE source_id = 's10'"))).one()
     assert row.content == "Q: How do I get a refund?\nA: Within 30 days."
     assert (row.heading_path or "") == ""
+
+
+@pytest.mark.asyncio
+async def test_a_description_reaches_every_chunk(session):
+    session.add(KbSource(id="s11", collection_id="col1", type="text",
+                         title="Customer Policy",
+                         description="Retail terms for lamps.",
+                         body="## Warranty\n\nTwo years on desk lamps.",
+                         status="pending"))
+    await session.commit()
+
+    await index_source(session, "s11", embedder=StubEmbedder())
+
+    content = (await session.execute(text(
+        "SELECT content FROM kb_chunks WHERE source_id = 's11'"))).scalar()
+    assert content.startswith(
+        "Section: Customer Policy > Warranty\nAbout: Retail terms for lamps.\n\n")
+
+
+@pytest.mark.asyncio
+async def test_a_qa_source_carries_its_description_and_stays_one_chunk(session):
+    session.add(KbSource(id="s12", collection_id="col1", type="qa",
+                         title="Do you refund shipping?",
+                         description="Retail terms for lamps.",
+                         body="No.", status="pending"))
+    await session.commit()
+
+    count = await index_source(session, "s12", embedder=StubEmbedder())
+    assert count == 1
+
+    content = (await session.execute(text(
+        "SELECT content FROM kb_chunks WHERE source_id = 's12'"))).scalar()
+    assert content == ("About: Retail terms for lamps.\n\n"
+                       "Q: Do you refund shipping?\nA: No.")

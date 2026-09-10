@@ -14,20 +14,36 @@
         <p>{{ $collection->description ?: 'Everything a bot reading this collection can draw on.' }}</p>
     </div>
 
-    @if($canEdit)
-        <div class="d-flex align-items-center gap-2">
-            <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#addFileModal">
-                <i class="bi bi-upload"></i> Upload file
-            </button>
-            <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#addQaModal">
-                <i class="bi bi-patch-question"></i> Add Q and A
-            </button>
-            <button class="btn btn-brand" data-bs-toggle="modal" data-bs-target="#addTextModal">
-                <i class="bi bi-plus-lg"></i> Add text
+</div>
+
+@if($canEdit)
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-md-4">
+            <button type="button" class="card w-100 h-100 text-start p-3"
+                    data-bs-toggle="modal" data-bs-target="#addTextModal">
+                <i class="bi bi-file-text d-block mb-2" style="font-size: 1.25rem; color: var(--accent);"></i>
+                <div class="fw-semibold mb-1">Paste text</div>
+                <div class="text-muted" style="font-size: 0.78125rem;">Policies, guides, anything you can copy in</div>
             </button>
         </div>
-    @endif
-</div>
+        <div class="col-12 col-md-4">
+            <button type="button" class="card w-100 h-100 text-start p-3"
+                    data-bs-toggle="modal" data-bs-target="#addFileModal">
+                <i class="bi bi-file-earmark-arrow-up d-block mb-2" style="font-size: 1.25rem; color: var(--accent);"></i>
+                <div class="fw-semibold mb-1">Upload a file</div>
+                <div class="text-muted" style="font-size: 0.78125rem;">PDF, Word, PowerPoint, Excel, CSV or Markdown</div>
+            </button>
+        </div>
+        <div class="col-12 col-md-4">
+            <button type="button" class="card w-100 h-100 text-start p-3"
+                    data-bs-toggle="modal" data-bs-target="#addQaModal">
+                <i class="bi bi-chat-square-quote d-block mb-2" style="font-size: 1.25rem; color: var(--accent);"></i>
+                <div class="fw-semibold mb-1">Question and answer</div>
+                <div class="text-muted" style="font-size: 0.78125rem;">One question with its exact answer, kept whole</div>
+            </button>
+        </div>
+    </div>
+@endif
 
 <div class="card">
     <div class="card-header d-flex align-items-center justify-content-between gap-2">
@@ -57,7 +73,9 @@
                     @foreach($collection->sources as $source)
                         <tr>
                             <td>
-                                <div class="fw-semibold text-truncate" style="max-width: 420px;">{{ $source->title }}</div>
+                                <div class="fw-semibold text-truncate" style="max-width: 420px;">
+                                    <a href="{{ route('kb.sources.show', $source->id) }}">{{ $source->title }}</a>
+                                </div>
                                 @if($source->status === 'error')
                                     <div style="color: var(--danger); font-size: 0.75rem;">{{ $source->error_message }}</div>
                                 @else
@@ -90,8 +108,16 @@
                             </td>
                             <td><span class="figure-mono">{{ $source->chunk_count }}</span></td>
                             <td class="text-end">
-                                @if($canEdit)
-                                    <div class="d-flex align-items-center justify-content-end gap-1.5">
+                                <div class="d-flex align-items-center justify-content-end gap-1.5">
+                                    <a href="{{ route('kb.sources.show', $source->id) }}"
+                                       class="btn btn-sm btn-outline-secondary" title="View">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{{ route('kb.sources.download', $source->id) }}"
+                                       class="btn btn-sm btn-outline-secondary" title="Download">
+                                        <i class="bi bi-download"></i>
+                                    </a>
+                                    @if($canEdit)
                                         <form action="{{ route('kb.sources.reindex', $source->id) }}" method="POST" class="d-inline m-0">
                                             @csrf
                                             <button type="submit" class="btn btn-sm btn-outline-secondary" title="Index again">
@@ -106,8 +132,8 @@
                                                 <i class="bi bi-trash3"></i>
                                             </button>
                                         </form>
-                                    </div>
-                                @endif
+                                    @endif
+                                </div>
                             </td>
                         </tr>
                     @endforeach
@@ -131,12 +157,25 @@
                 <form action="{{ route('kb.sources.upload', $collection->id) }}" method="POST" enctype="multipart/form-data">
                     @csrf
                     <div class="modal-body">
-                        <label for="kb_file" class="form-label">File <span style="color: var(--danger);">*</span></label>
-                        <input type="file" name="file" id="kb_file" class="form-control"
-                               accept=".pdf,.docx,.pptx,.xlsx,.xls,.csv,.md,.txt,.html,.htm" required>
-                        <div class="form-text">
-                            PDF, Word, PowerPoint, Excel, CSV, Markdown, HTML or plain text. Up to 20 MB.
-                            Scanned pages with no text layer extract nothing.
+                        <div class="mb-3">
+                            <label for="kb_file" class="form-label">File <span style="color: var(--danger);">*</span></label>
+                            <input type="file" name="file" id="kb_file" class="form-control"
+                                   accept=".pdf,.docx,.pptx,.xlsx,.xls,.csv,.md,.txt,.html,.htm" required>
+                            <div class="form-text">
+                                PDF, Word, PowerPoint, Excel, CSV, Markdown, HTML or plain text. Up to 20 MB.
+                                Scanned pages with no text layer extract nothing.
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="file_title" class="form-label">Title</label>
+                            <input type="text" id="file_title" name="title" class="form-control"
+                                   maxlength="500" placeholder="Leave blank to use the file name">
+                        </div>
+                        <div class="mb-0">
+                            <label for="file_description" class="form-label">What is this about?</label>
+                            <input type="text" id="file_description" name="description" class="form-control"
+                                   maxlength="1000" placeholder="Returns, warranty and shipping terms for retail customers">
+                            <div class="form-text">One line. It travels with every passage, so the bot knows what document an answer came from.</div>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -164,6 +203,12 @@
                             <input type="text" id="text_title" name="title" class="form-control"
                                    placeholder="Refund policy" required>
                             <div class="form-text">Shown to the bot as the source name when it cites this.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="text_description" class="form-label">What is this about?</label>
+                            <input type="text" id="text_description" name="description" class="form-control"
+                                   maxlength="1000" placeholder="Returns, warranty and shipping terms for retail customers">
+                            <div class="form-text">One line. It travels with every passage, so the bot knows what document an answer came from.</div>
                         </div>
                         <div class="mb-0">
                             <label for="text_body" class="form-label">Content <span style="color: var(--danger);">*</span></label>
@@ -197,6 +242,12 @@
                             <label for="qa_title" class="form-label">Question <span style="color: var(--danger);">*</span></label>
                             <input type="text" id="qa_title" name="title" class="form-control"
                                    placeholder="How long do refunds take?" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="qa_description" class="form-label">What is this about?</label>
+                            <input type="text" id="qa_description" name="description" class="form-control"
+                                   maxlength="1000" placeholder="Returns, warranty and shipping terms for retail customers">
+                            <div class="form-text">One line. It travels with every passage, so the bot knows what document an answer came from.</div>
                         </div>
                         <div class="mb-0">
                             <label for="qa_body" class="form-label">Answer <span style="color: var(--danger);">*</span></label>

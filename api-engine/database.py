@@ -115,6 +115,7 @@ class KbSource(Base):
     collection_id = Column(String(36), ForeignKey("kb_collections.id", ondelete="CASCADE"), nullable=False)
     type = Column(String(20), default="text")
     title = Column(String(500), nullable=False)
+    description = Column(Text, nullable=True)
     body = Column(Text, nullable=True)
     file_path = Column(String(500), nullable=True)
     file_mime = Column(String(100), nullable=True)

@@ -109,4 +109,22 @@ class EngineClient
             return ['ok' => false, 'message' => 'Could not reach the engine: ' . $e->getMessage()];
         }
     }
+
+    public static function listEmbeddingModels(string $baseUrl, string $apiKey): array
+    {
+        try {
+            $response = self::request()->post(self::base() . '/api/v1/kb/embedding/models', [
+                'base_url' => $baseUrl,
+                'api_key' => $apiKey,
+            ]);
+
+            return $response->successful()
+                ? $response->json()
+                : ['ok' => false, 'models' => [],
+                   'message' => 'Engine returned HTTP ' . $response->status()];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'models' => [],
+                    'message' => 'Could not reach the engine: ' . $e->getMessage()];
+        }
+    }
 }

@@ -73,4 +73,17 @@ class AdminSettingsController extends Controller
             $validated['embedding_model'],
         ));
     }
+
+    public function models(Request $request)
+    {
+        $validated = $request->validate([
+            'embedding_base_url' => ['required', 'string'],
+            'embedding_api_key' => ['nullable', 'string'],
+        ]);
+
+        return response()->json(EngineClient::listEmbeddingModels(
+            $validated['embedding_base_url'],
+            $validated['embedding_api_key'] ?? '',
+        ));
+    }
 }

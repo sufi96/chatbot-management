@@ -45,6 +45,7 @@
                         Search the knowledge base before answering
                     </label>
                 </div>
+                <div class="form-text">Greetings, thanks and goodbyes never trigger a search, so a hello stays a hello.</div>
 
                 @if($collections->isEmpty())
                     <p class="text-muted mb-0" style="font-size: 0.8125rem;">
@@ -112,7 +113,7 @@
                         <input type="number" step="0.001" name="retrieval_min_score" id="retrieval_min_score"
                                class="form-control font-monospace" min="0" max="1"
                                value="{{ old('retrieval_min_score', $bot->retrieval_min_score) }}" required>
-                        <div class="form-text">Fused scores are small: a top hit scores about 0.016, and 0.033 if both branches agree. Leave at 0 to keep everything.</div>
+                        <div class="form-text">Passages scoring below this are dropped. A top hit scores about 0.016, or 0.033 when both branches agree.</div>
                     </div>
                 </div>
             </div>

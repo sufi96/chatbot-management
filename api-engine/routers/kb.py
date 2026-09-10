@@ -64,6 +64,22 @@ async def test_embedding(req: EmbeddingTestRequest):
             "message": f"Answered with {len(vectors[0])} dimensions."}
 
 
+class EmbeddingModelsRequest(BaseModel):
+    base_url: str
+    api_key: str = ""
+
+
+@router.post("/embedding/models", dependencies=[Depends(require_admin_token)])
+async def list_embedding_models(req: EmbeddingModelsRequest):
+    client = EmbeddingClient(req.base_url, req.api_key, "")
+    try:
+        models = await client.list_models()
+    except Exception as exc:
+        return {"ok": False, "models": [], "message": str(exc)[:300]}
+    return {"ok": True, "models": models,
+            "message": f"{len(models)} models available."}
+
+
 class SearchRequest(BaseModel):
     """Retrieval preview, used by the tuning tools rather than by a chat."""
     collection_ids: list[str]

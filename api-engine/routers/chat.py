@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from database import (get_db, get_settings, BotProfile, System, ChatConversation,
                       ChatMessage, BotKbCollection, KbSource)
+from kb.gating import should_retrieve
 from kb.retrieval import (augment_system_prompt, build_context_block,
                           fit_to_budget, retrieve_for_collections)
 from llm_adapter import LLMAdapter
@@ -88,7 +89,10 @@ async def chat_stream(
     # chat, so it degrades to answering without context.
     retrieved = []
     source_titles = {}
-    if bot.retrieval_enabled:
+    # A greeting is not a question. Skipping saves an embedding call and two
+    # searches, and stops five irrelevant passages reaching the model.
+    retrieval_ran = bool(bot.retrieval_enabled) and should_retrieve(req.message)
+    if retrieval_ran:
         try:
             rows = await db.execute(
                 select(BotKbCollection.collection_id).where(BotKbCollection.bot_id == bot.id))
@@ -117,8 +121,12 @@ async def chat_stream(
             retrieved = []
 
     context_block = build_context_block(retrieved, source_titles)
-    final_prompt = augment_system_prompt(
-        bot.system_prompt or "", context_block, bot.retrieval_fallback or "say_unknown")
+    fallback = bot.retrieval_fallback or "say_unknown"
+    if not retrieval_ran:
+        # A gated message must never be told the answer is missing from the
+        # material. A greeting gets a greeting.
+        fallback = "answer_anyway"
+    final_prompt = augment_system_prompt(bot.system_prompt or "", context_block, fallback)
 
     async def sse_event_stream():
         collected_response = []

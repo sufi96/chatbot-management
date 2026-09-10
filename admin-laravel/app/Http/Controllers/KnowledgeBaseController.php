@@ -6,6 +6,7 @@ use App\Models\KbCollection;
 use App\Models\KbSource;
 use App\Services\EngineClient;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -77,6 +78,7 @@ class KnowledgeBaseController extends Controller
         $validated = $request->validate([
             'type' => ['required', 'in:text,qa'],
             'title' => ['required', 'string', 'max:500'],
+            'description' => ['nullable', 'string', 'max:1000'],
             'body' => ['required', 'string'],
         ], [
             'body.required' => 'A question needs an answer.',
@@ -87,6 +89,7 @@ class KnowledgeBaseController extends Controller
             'collection_id' => $collection->id,
             'type' => $validated['type'],
             'title' => $validated['title'],
+            'description' => $validated['description'] ?? null,
             'body' => $validated['body'],
             'status' => 'pending',
         ]);
@@ -107,6 +110,8 @@ class KnowledgeBaseController extends Controller
                 'required', 'file', 'max:20480',   // kilobytes, so 20 MB
                 'mimes:pdf,docx,pptx,xlsx,xls,csv,md,txt,html,htm',
             ],
+            'title' => ['nullable', 'string', 'max:500'],
+            'description' => ['nullable', 'string', 'max:1000'],
         ], [
             'file.mimes' => 'That file type is not supported. Use PDF, Word, PowerPoint, Excel, CSV, Markdown, HTML or plain text.',
             'file.max' => 'Files must be 20 MB or smaller.',
@@ -119,7 +124,9 @@ class KnowledgeBaseController extends Controller
             'id' => 'kbs_' . Str::random(12),
             'collection_id' => $collection->id,
             'type' => 'file',
-            'title' => $upload->getClientOriginalName(),
+            // Absent, blank, or whitespace all fall back to the file name.
+            'title' => trim($validated['title'] ?? '') ?: $upload->getClientOriginalName(),
+            'description' => $validated['description'] ?? null,
             'file_path' => $path,
             'file_mime' => $upload->getClientMimeType(),
             'file_size' => $upload->getSize(),
@@ -157,6 +164,82 @@ class KnowledgeBaseController extends Controller
         $source->delete();
 
         return redirect()->route('kb.show', $collectionId)->with('success', 'Source removed.');
+    }
+
+    public function showSource(Request $request, string $sourceId)
+    {
+        $source = KbSource::with('collection')->findOrFail($sourceId);
+        $this->authorizeViewer($request, $source->collection->system_id);
+
+        // Read-only. The engine remains the only writer of this table; a
+        // listing does not justify an HTTP hop to fetch it.
+        $chunks = DB::table('kb_chunks')
+            ->where('source_id', $source->id)
+            ->orderBy('ordinal')
+            ->get(['id', 'ordinal', 'heading_path', 'char_count', 'content']);
+
+        return view('kb.source', [
+            'source' => $source,
+            'chunks' => $chunks,
+            'canEdit' => $request->user()->canManageSystem(
+                $source->collection->system_id, 'editor'),
+        ]);
+    }
+
+    public function updateSource(Request $request, string $sourceId)
+    {
+        $source = KbSource::with('collection')->findOrFail($sourceId);
+        $this->authorizeEditor($request, $source->collection->system_id);
+
+        $rules = [
+            'title' => ['required', 'string', 'max:500'],
+            'description' => ['nullable', 'string', 'max:1000'],
+        ];
+        // An uploaded file's text comes from extraction. Editing it here would
+        // create a copy that silently diverges from the downloadable original.
+        if ($source->type !== 'file') {
+            $rules['body'] = ['required', 'string'];
+        }
+        $validated = $request->validate($rules);
+
+        $source->title = $validated['title'];
+        $source->description = $validated['description'] ?? null;
+        if ($source->type !== 'file') {
+            $source->body = $validated['body'];
+        }
+        $source->status = 'pending';
+        $source->error_message = null;
+        $source->save();
+
+        EngineClient::indexSource($source->id);
+
+        return redirect()->route('kb.sources.show', $source->id)
+            ->with('success', 'Saved. Re-indexing runs in the background.');
+    }
+
+    public function downloadSource(Request $request, string $sourceId)
+    {
+        $source = KbSource::with('collection')->findOrFail($sourceId);
+        $this->authorizeViewer($request, $source->collection->system_id);
+
+        if ($source->type === 'file') {
+            abort_unless($source->file_path
+                && Storage::disk('public')->exists($source->file_path), 404);
+
+            return Storage::disk('public')->download($source->file_path, $source->title);
+        }
+
+        $markdown = "# {$source->title}\n\n";
+        if ($source->description) {
+            $markdown .= "{$source->description}\n\n";
+        }
+        $markdown .= (string) $source->body . "\n";
+
+        return response($markdown, 200, [
+            'Content-Type' => 'text/markdown; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'
+                . Str::slug($source->title) . '.md"',
+        ]);
     }
 
     public function playground(Request $request)
@@ -208,9 +291,9 @@ class KnowledgeBaseController extends Controller
         $results = array_map(function (array $result): array {
             $result['heading_path'] = $result['heading_path'] ?? '';
             $break = strpos($result['content'], "\n\n");
-            if ($result['heading_path'] !== ''
-                && str_starts_with($result['content'], 'Section: ')
-                && $break !== false) {
+            $hasHeader = str_starts_with($result['content'], 'Section: ')
+                || str_starts_with($result['content'], 'About: ');
+            if ($hasHeader && $break !== false) {
                 $result['content'] = ltrim(substr($result['content'], $break + 2));
             }
 

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from kb.blocks import Block, parse_blocks
 
 BREADCRUMB_PREFIX = "Section: "
+ABOUT_PREFIX = "About: "
 PATH_SEPARATOR = " > "
 
 PROSE_SEPARATORS = ["\n\n", "\n", ". ", " "]
@@ -24,8 +25,8 @@ class Chunk:
     heading_path: str    # "Policy > Warranty", or "" when there is none
 
 
-def chunk_document(text: str, *, title: str = "", size: int = 1800,
-                   overlap: int = 200) -> list[Chunk]:
+def chunk_document(text: str, *, title: str = "", description: str = "",
+                   size: int = 1800, overlap: int = 200) -> list[Chunk]:
     if overlap >= size:
         raise ValueError("overlap must be smaller than size")
     if not text or not text.strip():
@@ -34,10 +35,10 @@ def chunk_document(text: str, *, title: str = "", size: int = 1800,
     out: list[Chunk] = []
     for headings, blocks in _group_by_heading(parse_blocks(text)):
         path = _path_text(headings, title)
-        breadcrumb = f"{BREADCRUMB_PREFIX}{path}\n\n" if path else ""
-        budget = max(MIN_BODY_BUDGET, size - len(breadcrumb))
+        header = _header(path, description)
+        budget = max(MIN_BODY_BUDGET, size - len(header))
         for body in _pack(blocks, budget, overlap):
-            out.append(Chunk(text=breadcrumb + body, heading_path=path))
+            out.append(Chunk(text=header + body, heading_path=path))
 
     return [c for c in out if c.text.strip()]
 
@@ -50,6 +51,22 @@ def _path_text(headings: tuple[str, ...], title: str) -> str:
         if candidate and (not parts or parts[-1] != candidate):
             parts.append(candidate)
     return PATH_SEPARATOR.join(parts)
+
+
+def _header(path: str, description: str) -> str:
+    """The lines every chunk of this source carries, blank-line terminated."""
+    lines: list[str] = []
+    if path:
+        lines.append(f"{BREADCRUMB_PREFIX}{path}")
+    summary = " ".join((description or "").split())
+    if summary:
+        lines.append(f"{ABOUT_PREFIX}{summary}")
+    return "\n".join(lines) + "\n\n" if lines else ""
+
+
+def prepend_description(body: str, description: str) -> str:
+    """Attach an About line to text that bypasses chunking, such as a Q&A pair."""
+    return _header("", description) + body
 
 
 def _group_by_heading(blocks: list[Block]):

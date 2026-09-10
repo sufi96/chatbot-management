@@ -6,7 +6,7 @@ extraction onward, because the parsing libraries are Python.
 from datetime import datetime
 
 from database import KbSource, get_settings
-from kb.chunking import Chunk, chunk_document
+from kb.chunking import Chunk, chunk_document, prepend_description
 from kb.embedding import EmbeddingClient
 from kb.extract import extract_file, resolve_upload
 from kb.store import make_store
@@ -42,10 +42,12 @@ async def index_source(session, source_id: str, embedder=None) -> int:
         # A question and answer pair is one idea; splitting it would return half
         # an answer, and it has no headings to carry.
         if source.type == "qa":
-            chunks = [Chunk(text=body, heading_path="")]
+            chunks = [Chunk(text=prepend_description(body, source.description or ""),
+                            heading_path="")]
         else:
             chunks = chunk_document(body,
                                     title=source.title or "",
+                                    description=source.description or "",
                                     size=int(settings["chunk_size"]),
                                     overlap=int(settings["chunk_overlap"]))
         if not chunks:

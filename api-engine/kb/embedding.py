@@ -43,3 +43,23 @@ class EmbeddingClient:
             payload = response.json()
 
         return [normalise(row["embedding"]) for row in payload["data"]]
+
+    async def list_models(self, transport=None) -> list[str]:
+        """Model ids the provider offers, embedding-looking ones first.
+
+        The OpenAI-compatible response carries no flag marking which models can
+        embed, so the ordering is a hint. It must never be a filter: a provider
+        may name an embedding model without the word in it.
+        """
+        headers = {}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        async with httpx.AsyncClient(timeout=TIMEOUT, transport=transport) as client:
+            response = await client.get(f"{self.base_url}/models", headers=headers)
+            response.raise_for_status()
+            payload = response.json()
+
+        ids = [row["id"] for row in payload.get("data", []) if row.get("id")]
+        return sorted(ids, key=lambda name: (0 if "embed" in name.lower() else 1,
+                                             name.lower()))

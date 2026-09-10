@@ -14,20 +14,36 @@
         <p>{{ $collection->description ?: 'Everything a bot reading this collection can draw on.' }}</p>
     </div>
 
-    @if($canEdit)
-        <div class="d-flex align-items-center gap-2">
-            <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#addFileModal">
-                <i class="bi bi-upload"></i> Upload file
-            </button>
-            <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#addQaModal">
-                <i class="bi bi-patch-question"></i> Add Q and A
-            </button>
-            <button class="btn btn-brand" data-bs-toggle="modal" data-bs-target="#addTextModal">
-                <i class="bi bi-plus-lg"></i> Add text
+</div>
+
+@if($canEdit)
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-md-4">
+            <button type="button" class="card w-100 h-100 text-start p-3"
+                    data-bs-toggle="modal" data-bs-target="#addTextModal">
+                <i class="bi bi-file-text d-block mb-2" style="font-size: 1.25rem; color: var(--accent);"></i>
+                <div class="fw-semibold mb-1">Paste text</div>
+                <div class="text-muted" style="font-size: 0.78125rem;">Policies, guides, anything you can copy in</div>
             </button>
         </div>
-    @endif
-</div>
+        <div class="col-12 col-md-4">
+            <button type="button" class="card w-100 h-100 text-start p-3"
+                    data-bs-toggle="modal" data-bs-target="#addFileModal">
+                <i class="bi bi-file-earmark-arrow-up d-block mb-2" style="font-size: 1.25rem; color: var(--accent);"></i>
+                <div class="fw-semibold mb-1">Upload a file</div>
+                <div class="text-muted" style="font-size: 0.78125rem;">PDF, Word, PowerPoint, Excel, CSV or Markdown</div>
+            </button>
+        </div>
+        <div class="col-12 col-md-4">
+            <button type="button" class="card w-100 h-100 text-start p-3"
+                    data-bs-toggle="modal" data-bs-target="#addQaModal">
+                <i class="bi bi-chat-square-quote d-block mb-2" style="font-size: 1.25rem; color: var(--accent);"></i>
+                <div class="fw-semibold mb-1">Question and answer</div>
+                <div class="text-muted" style="font-size: 0.78125rem;">One question with its exact answer, kept whole</div>
+            </button>
+        </div>
+    </div>
+@endif
 
 <div class="card">
     <div class="card-header d-flex align-items-center justify-content-between gap-2">

@@ -163,4 +163,22 @@ class KbSourceDetailTest extends TestCase
             ->get(route('kb.sources.show', 'kbs_other'))
             ->assertForbidden();
     }
+
+    public function test_the_collection_page_explains_the_three_ways_to_add_content(): void
+    {
+        $this->actingAs($this->user("editor", "editor@test.com"))
+            ->get(route("kb.show", "kbc_1"))
+            ->assertOk()
+            ->assertSee("Policies, guides, anything you can copy in")
+            ->assertSee("PDF, Word, PowerPoint, Excel, CSV or Markdown")
+            ->assertSee("One question with its exact answer, kept whole");
+    }
+
+    public function test_a_viewer_is_not_offered_the_add_cards(): void
+    {
+        $this->actingAs($this->user("viewer", "viewer@test.com"))
+            ->get(route("kb.show", "kbc_1"))
+            ->assertOk()
+            ->assertDontSee("Policies, guides, anything you can copy in");
+    }
 }

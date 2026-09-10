@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', $source->title)
+@section('page-title', 'Knowledge base')
 
 @section('content')
 <div style="max-width: 1100px;">

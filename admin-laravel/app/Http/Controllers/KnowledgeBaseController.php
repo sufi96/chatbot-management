@@ -77,6 +77,7 @@ class KnowledgeBaseController extends Controller
         $validated = $request->validate([
             'type' => ['required', 'in:text,qa'],
             'title' => ['required', 'string', 'max:500'],
+            'description' => ['nullable', 'string', 'max:1000'],
             'body' => ['required', 'string'],
         ], [
             'body.required' => 'A question needs an answer.',
@@ -87,6 +88,7 @@ class KnowledgeBaseController extends Controller
             'collection_id' => $collection->id,
             'type' => $validated['type'],
             'title' => $validated['title'],
+            'description' => $validated['description'] ?? null,
             'body' => $validated['body'],
             'status' => 'pending',
         ]);
@@ -107,6 +109,8 @@ class KnowledgeBaseController extends Controller
                 'required', 'file', 'max:20480',   // kilobytes, so 20 MB
                 'mimes:pdf,docx,pptx,xlsx,xls,csv,md,txt,html,htm',
             ],
+            'title' => ['nullable', 'string', 'max:500'],
+            'description' => ['nullable', 'string', 'max:1000'],
         ], [
             'file.mimes' => 'That file type is not supported. Use PDF, Word, PowerPoint, Excel, CSV, Markdown, HTML or plain text.',
             'file.max' => 'Files must be 20 MB or smaller.',
@@ -119,7 +123,9 @@ class KnowledgeBaseController extends Controller
             'id' => 'kbs_' . Str::random(12),
             'collection_id' => $collection->id,
             'type' => 'file',
-            'title' => $upload->getClientOriginalName(),
+            // Absent, blank, or whitespace all fall back to the file name.
+            'title' => trim($validated['title'] ?? '') ?: $upload->getClientOriginalName(),
+            'description' => $validated['description'] ?? null,
             'file_path' => $path,
             'file_mime' => $upload->getClientMimeType(),
             'file_size' => $upload->getSize(),
@@ -208,9 +214,9 @@ class KnowledgeBaseController extends Controller
         $results = array_map(function (array $result): array {
             $result['heading_path'] = $result['heading_path'] ?? '';
             $break = strpos($result['content'], "\n\n");
-            if ($result['heading_path'] !== ''
-                && str_starts_with($result['content'], 'Section: ')
-                && $break !== false) {
+            $hasHeader = str_starts_with($result['content'], 'Section: ')
+                || str_starts_with($result['content'], 'About: ');
+            if ($hasHeader && $break !== false) {
                 $result['content'] = ltrim(substr($result['content'], $break + 2));
             }
 

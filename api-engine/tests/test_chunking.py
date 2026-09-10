@@ -151,3 +151,45 @@ def test_prose_with_no_headings_never_exceeds_the_ceiling():
     text = ("word " * 4000).strip()
     for chunk in chunk_document(text, size=300, overlap=50):
         assert len(chunk.text) <= 300
+
+
+def test_a_description_becomes_an_about_line_under_the_section():
+    chunks = chunk_document("## Warranty\n\nTwo years.", title="Policy",
+                            description="Retail terms.")
+    assert chunks[0].text.startswith(
+        "Section: Policy > Warranty\nAbout: Retail terms.\n\n")
+    assert chunks[0].text.endswith("Two years.")
+
+
+def test_no_description_means_no_about_line():
+    chunks = chunk_document("## Warranty\n\nTwo years.", title="Policy")
+    assert "About:" not in chunks[0].text
+
+
+def test_a_description_without_headings_still_gets_an_about_line():
+    chunks = chunk_document("plain text", description="Retail terms.")
+    assert chunks[0].text == "About: Retail terms.\n\nplain text"
+    assert chunks[0].heading_path == ""
+
+
+def test_a_description_is_flattened_onto_one_line():
+    chunks = chunk_document("body", description="Retail\nterms.")
+    assert chunks[0].text.startswith("About: Retail terms.\n\n")
+
+
+def test_the_description_counts_against_the_ceiling():
+    text = "## H\n\n" + "\n\n".join("x" * 100 for _ in range(8))
+    for chunk in chunk_document(text, size=400, overlap=0,
+                                description="d" * 120):
+        assert len(chunk.text) <= 400
+
+
+def test_prepend_description_attaches_an_about_line():
+    from kb.chunking import prepend_description
+    assert prepend_description("Q: a\nA: b", "Retail terms.") == \
+        "About: Retail terms.\n\nQ: a\nA: b"
+
+
+def test_prepend_description_leaves_text_alone_without_one():
+    from kb.chunking import prepend_description
+    assert prepend_description("Q: a\nA: b", "") == "Q: a\nA: b"

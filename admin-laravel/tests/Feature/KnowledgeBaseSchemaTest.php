@@ -112,6 +112,20 @@ class KnowledgeBaseSchemaTest extends TestCase
         $this->assertTrue(Schema::hasColumn('kb_chunks', 'heading_path'));
     }
 
+    public function test_a_source_carries_a_description(): void
+    {
+        $this->assertTrue(Schema::hasColumn('kb_sources', 'description'));
+
+        $system = $this->makeSystem();
+        KbCollection::create(['id' => 'kbc_9', 'system_id' => $system->id, 'name' => 'C']);
+        $source = KbSource::create([
+            'id' => 'kbs_9', 'collection_id' => 'kbc_9', 'type' => 'text',
+            'title' => 'Policy', 'description' => 'Retail terms.', 'body' => 'B',
+        ]);
+
+        $this->assertSame('Retail terms.', $source->fresh()->description);
+    }
+
     public function test_a_new_bot_starts_with_a_relevance_floor(): void
     {
         $system = $this->makeSystem();

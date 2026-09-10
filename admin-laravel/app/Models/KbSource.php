@@ -11,7 +11,7 @@ class KbSource extends Model
     public $incrementing = false;
 
     protected $fillable = [
-        'id', 'collection_id', 'type', 'title', 'body',
+        'id', 'collection_id', 'type', 'title', 'description', 'body',
         'file_path', 'file_mime', 'file_size',
         'status', 'error_message', 'chunk_count', 'indexed_at',
     ];

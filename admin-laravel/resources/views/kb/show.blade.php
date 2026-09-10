@@ -131,12 +131,25 @@
                 <form action="{{ route('kb.sources.upload', $collection->id) }}" method="POST" enctype="multipart/form-data">
                     @csrf
                     <div class="modal-body">
-                        <label for="kb_file" class="form-label">File <span style="color: var(--danger);">*</span></label>
-                        <input type="file" name="file" id="kb_file" class="form-control"
-                               accept=".pdf,.docx,.pptx,.xlsx,.xls,.csv,.md,.txt,.html,.htm" required>
-                        <div class="form-text">
-                            PDF, Word, PowerPoint, Excel, CSV, Markdown, HTML or plain text. Up to 20 MB.
-                            Scanned pages with no text layer extract nothing.
+                        <div class="mb-3">
+                            <label for="kb_file" class="form-label">File <span style="color: var(--danger);">*</span></label>
+                            <input type="file" name="file" id="kb_file" class="form-control"
+                                   accept=".pdf,.docx,.pptx,.xlsx,.xls,.csv,.md,.txt,.html,.htm" required>
+                            <div class="form-text">
+                                PDF, Word, PowerPoint, Excel, CSV, Markdown, HTML or plain text. Up to 20 MB.
+                                Scanned pages with no text layer extract nothing.
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="file_title" class="form-label">Title</label>
+                            <input type="text" id="file_title" name="title" class="form-control"
+                                   maxlength="500" placeholder="Leave blank to use the file name">
+                        </div>
+                        <div class="mb-0">
+                            <label for="file_description" class="form-label">What is this about?</label>
+                            <input type="text" id="file_description" name="description" class="form-control"
+                                   maxlength="1000" placeholder="Returns, warranty and shipping terms for retail customers">
+                            <div class="form-text">One line. It travels with every passage, so the bot knows what document an answer came from.</div>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -164,6 +177,12 @@
                             <input type="text" id="text_title" name="title" class="form-control"
                                    placeholder="Refund policy" required>
                             <div class="form-text">Shown to the bot as the source name when it cites this.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="text_description" class="form-label">What is this about?</label>
+                            <input type="text" id="text_description" name="description" class="form-control"
+                                   maxlength="1000" placeholder="Returns, warranty and shipping terms for retail customers">
+                            <div class="form-text">One line. It travels with every passage, so the bot knows what document an answer came from.</div>
                         </div>
                         <div class="mb-0">
                             <label for="text_body" class="form-label">Content <span style="color: var(--danger);">*</span></label>
@@ -197,6 +216,12 @@
                             <label for="qa_title" class="form-label">Question <span style="color: var(--danger);">*</span></label>
                             <input type="text" id="qa_title" name="title" class="form-control"
                                    placeholder="How long do refunds take?" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="qa_description" class="form-label">What is this about?</label>
+                            <input type="text" id="qa_description" name="description" class="form-control"
+                                   maxlength="1000" placeholder="Returns, warranty and shipping terms for retail customers">
+                            <div class="form-text">One line. It travels with every passage, so the bot knows what document an answer came from.</div>
                         </div>
                         <div class="mb-0">
                             <label for="qa_body" class="form-label">Answer <span style="color: var(--danger);">*</span></label>

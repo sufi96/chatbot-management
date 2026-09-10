@@ -8,35 +8,47 @@ Integrate customizable AI chatbots into **any website, CRM, or application** (PH
 
 ## 🏗️ System Architecture
 
-```
-                  External Host Websites (Client Portals, Stores, WordPress)
-                                      │
-                     [ Injects 1-line <script> tag ]
-                                      ▼
-                   Floating Chat Widget (Shadow DOM Isolated)
-                                      │
-                            (Real-time SSE Stream)
-                                      ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                        Chatbot Management Hub                          │
-│                                                                        │
-│   Laravel 13 Admin Portal (:8080)      FastAPI Streaming Engine (:8000)│
-│   ├── Multi-Tenant Workspaces          ├── POST /api/v1/chat/stream    │
-│   ├── Workspace RBAC User Roles        ├── GET  /api/v1/bot/:id/config │
-│   ├── Bot Profiles & Prompt Config     ├── POST /api/v1/bot/fetch-models│
-│   ├── Transparent Silhouette Fitting   ├── POST /api/v1/bot/test-conn  │
-│   ├── Live Interactive Preview Sandbox └── Serves /widget.js           │
-│   ├── Embed Code Generator (Multi-FW)                                  │
-│   └── Conversation Transcripts Audit                                   │
-│                    │                                   │               │
-│                    └───────────────┬───────────────────┘               │
-│                                    ▼                                   │
-│                     PostgreSQL / SQLite Database                       │
-│                                    │                                   │
-└────────────────────────────────────┼───────────────────────────────────┘
-                                     ▼
-                    LLM Provider (Local Ollama or Custom API)
-```
+![System architecture](docs/architecture.png)
+
+Two services over one database. Laravel owns every table's schema and all the
+human-facing screens. The engine owns chat streaming, chunking, embedding and
+retrieval. They share no code, only the table contract.
+
+Laravel calls the engine over HTTP for four things only: index a source, delete
+a source's chunks, list or test embedding models, and run a retrieval preview
+for the playground. Those routes are guarded by a shared secret that lives only
+in gitignored `.env` files.
+
+- **Editable source:** [`docs/architecture.excalidraw`](docs/architecture.excalidraw) — open it at [excalidraw.com](https://excalidraw.com)
+- **Written notes:** [`docs/architecture.md`](docs/architecture.md) — the reasoning behind each decision
+
+### The short version of the retrieval design
+
+**Chunking.** Structure decides where a chunk ends; size is only a ceiling. A
+new heading always starts a new chunk. Tables and fenced code are never split
+when they fit, and an oversized table repeats its header row on every part.
+Overlap applies only inside one long passage, never across a section boundary,
+and snaps forward so a chunk can never open on a word fragment.
+
+**Header lines.** Every chunk carries the document title, its heading path, and
+the description an operator wrote. Both lines are embedded and keyword-indexed,
+which is what makes a bare warranty table findable by the word "warranty". This
+is a deterministic substitute for contextual retrieval, which would otherwise
+need one LLM call per chunk.
+
+**Retrieval.** Two branches merged by rank, not by score. Dense catches
+paraphrase, keyword catches exact terms like product codes. Reciprocal Rank
+Fusion needs no calibration between them because it compares positions rather
+than values.
+
+**The gate.** A fixed word list, not a model call, decides whether a message
+could be a question at all. A question mark always overrides it, so "thanks, and
+shipping?" still searches. Saying hello costs nothing.
+
+**Rejected on evidence.** Semantic chunking benchmarks worse than plain
+recursive splitting, at roughly fourteen times the indexing cost. Cross-encoder
+reranking needs PyTorch for a gain that fusion largely captures at this corpus
+size.
 
 ---
 
@@ -70,7 +82,16 @@ Integrate customizable AI chatbots into **any website, CRM, or application** (PH
 - **Shadow DOM Isolation:** Host page CSS (Bootstrap, Tailwind, WordPress) cannot interfere with the chat widget styling, and widget styles cannot leak into the host.
 - **Real-Time SSE Streaming:** Low-latency typewriter token streaming.
 
-### 6. 📱 Responsive UI & Clean Action Layouts
+### 6. 📚 Knowledge Base with Retrieval Augmented Generation
+- **Three source types:** pasted text, uploaded documents (PDF, Word, PowerPoint, Excel, CSV, Markdown, HTML), and question-answer pairs kept whole.
+- **Structure-aware chunking:** headings, tables and code blocks decide where a passage ends. Size is a ceiling, not a target.
+- **Heading breadcrumbs on every passage**, so a bare table still says which section and which document it came from.
+- **Hybrid retrieval:** vector search and keyword search merged by Reciprocal Rank Fusion, so paraphrase and exact terms both land.
+- **A gate before the search.** A greeting never triggers retrieval, and never costs an embedding call.
+- **Retrieval playground:** ask what a bot would ask and see the exact passages that come back, with scores.
+- **Source detail:** read, correct, download or re-index any source, and see every passage it produced.
+
+### 7. 📱 Responsive UI & Clean Action Layouts
 - Styled with modern **Plus Jakarta Sans** typography, sleek cards, unified toolbars, and dynamic-width responsiveness across laptops, desktops, and mobile devices.
 
 ---
@@ -216,14 +237,28 @@ Once a bot profile is configured, open the **Embed Code** page (`/bots/{id}/embe
 
 ## 🗄️ Database Options
 
-### Default: SQLite (Instant Zero-Setup)
-By default, the system uses SQLite located at `admin-laravel/database/database.sqlite`. Both Laravel and FastAPI connect to it with zero configuration needed.
+### Default: PostgreSQL with pgvector
 
-### Optional: PostgreSQL (Production Setup)
-To switch to PostgreSQL:
-1. Create a database named `chatbot_management`:
+The knowledge base needs a vector store, so PostgreSQL 17.5 with pgvector 0.8.0
+is the default. Vector search uses an HNSW index with cosine distance, and
+keyword search uses a generated `tsvector` column with a GIN index.
+
+### Fallback: SQLite
+
+SQLite still works and needs no setup, so the project runs where PostgreSQL is
+absent. Vectors are stored as float32 blobs and scanned in memory, which is fine
+into the tens of thousands of passages and slows beyond that. The engine falls
+back to it automatically if PostgreSQL is unreachable, prints a banner, and
+reports `degraded` on `/health` so the fallback can never pass for healthy.
+
+Switch drivers in Admin Settings, then rebuild the index.
+
+### Setting up PostgreSQL
+1. Create the database and enable pgvector:
    ```sql
    CREATE DATABASE chatbot_management;
+   \c chatbot_management
+   CREATE EXTENSION IF NOT EXISTS vector;
    ```
 2. In `admin-laravel/.env`:
    ```env

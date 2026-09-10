@@ -14,6 +14,14 @@ class BotProfile extends Model
     protected $keyType = 'string';
     public $incrementing = false;
 
+    /**
+     * Fused retrieval scores top out near 0.016, so a zero floor admits every
+     * weak match. The column default stays 0 for older rows; new bots start here.
+     */
+    protected $attributes = [
+        'retrieval_min_score' => 0.01,
+    ];
+
     protected $fillable = [
         'id',
         'system_id',

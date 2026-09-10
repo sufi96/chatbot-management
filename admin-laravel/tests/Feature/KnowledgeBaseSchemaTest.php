@@ -112,6 +112,50 @@ class KnowledgeBaseSchemaTest extends TestCase
         $this->assertTrue(Schema::hasColumn('kb_chunks', 'heading_path'));
     }
 
+    public function test_a_new_bot_starts_with_a_relevance_floor(): void
+    {
+        $system = $this->makeSystem();
+        $bot = BotProfile::create([
+            'id' => 'test_chat_03', 'system_id' => $system->id, 'name' => 'Bot',
+        ])->fresh();
+
+        $this->assertEqualsWithDelta(0.01, $bot->retrieval_min_score, 0.0001);
+    }
+
+    public function test_an_untouched_relevance_floor_is_raised(): void
+    {
+        $system = $this->makeSystem();
+        BotProfile::create([
+            'id' => 'test_chat_04', 'system_id' => $system->id, 'name' => 'Bot',
+        ]);
+        \DB::table('bot_profiles')->where('id', 'test_chat_04')
+            ->update(['retrieval_min_score' => 0]);
+
+        $migration = require database_path(
+            'migrations/2026_09_10_000007_raise_the_relevance_floor.php');
+        $migration->up();
+
+        $this->assertEqualsWithDelta(
+            0.01, BotProfile::find('test_chat_04')->retrieval_min_score, 0.0001);
+    }
+
+    public function test_a_chosen_relevance_floor_survives_the_migration(): void
+    {
+        $system = $this->makeSystem();
+        BotProfile::create([
+            'id' => 'test_chat_05', 'system_id' => $system->id, 'name' => 'Bot',
+        ]);
+        \DB::table('bot_profiles')->where('id', 'test_chat_05')
+            ->update(['retrieval_min_score' => 0.05]);
+
+        $migration = require database_path(
+            'migrations/2026_09_10_000007_raise_the_relevance_floor.php');
+        $migration->up();
+
+        $this->assertEqualsWithDelta(
+            0.05, BotProfile::find('test_chat_05')->retrieval_min_score, 0.0001);
+    }
+
     public function test_deleting_a_collection_removes_its_sources(): void
     {
         $system = $this->makeSystem();

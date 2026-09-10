@@ -44,9 +44,18 @@
                 <div class="row g-3">
                     <div class="col-12 col-sm-8">
                         <label for="embedding_model" class="form-label">Model</label>
-                        <input type="text" name="embedding_model" id="embedding_model"
-                               class="form-control font-monospace"
-                               value="{{ old('embedding_model', $settings['embedding_model']) }}" required>
+                        <div class="input-group">
+                            <input type="text" name="embedding_model" id="embedding_model"
+                                   class="form-control font-monospace" list="embedding_model_options"
+                                   value="{{ old('embedding_model', $settings['embedding_model']) }}" required>
+                            <button type="button" class="btn btn-outline-secondary" onclick="fetchEmbeddingModels()">
+                                <i class="bi bi-arrow-clockwise"></i> Fetch models
+                            </button>
+                        </div>
+                        <datalist id="embedding_model_options"></datalist>
+                        <div class="form-text" id="embeddingModelsResult">
+                            Fetch the list from the provider, or type a name if it does not publish one.
+                        </div>
                     </div>
                     <div class="col-12 col-sm-4">
                         <label for="embedding_dimensions" class="form-label">Dimensions</label>
@@ -145,6 +154,42 @@
 
 @push('scripts')
 <script>
+    function fetchEmbeddingModels() {
+        var out = document.getElementById('embeddingModelsResult');
+        var list = document.getElementById('embedding_model_options');
+        out.className = 'form-text';
+        out.textContent = 'Fetching...';
+
+        fetch('{{ route('admin.settings.models') }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({
+                embedding_base_url: document.getElementById('embedding_base_url').value,
+                embedding_api_key: document.getElementById('embedding_api_key').value
+            })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            list.innerHTML = '';
+            (data.models || []).forEach(function (name) {
+                var option = document.createElement('option');
+                option.value = name;
+                list.appendChild(option);
+            });
+            out.className = 'form-text ' + (data.ok ? 'text-success' : 'text-danger');
+            out.textContent = data.ok
+                ? (data.models || []).length + ' found. Click the field to choose one.'
+                : (data.message || 'Could not list models.');
+        })
+        .catch(function () {
+            out.className = 'form-text text-danger';
+            out.textContent = 'Could not reach the admin portal.';
+        });
+    }
+
     function testEmbedding() {
         var out = document.getElementById('embeddingTestResult');
         out.className = 'mt-2 text-muted';

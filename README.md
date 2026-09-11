@@ -1,4 +1,4 @@
-# Chatbot Management Hub 🤖 `v1.0.0`
+# Chatbot Management Hub 🤖 `v1.0.1`
 
 A production-ready, multi-tenant AI Chatbot Management platform featuring a **Laravel 13 Admin Portal**, a **Python FastAPI Streaming Engine**, and a **Zero-Dependency Shadow DOM JS Widget**.
 
@@ -52,7 +52,7 @@ size.
 
 ---
 
-## 🌟 Key Features in `v1.0.0`
+## 🌟 Key Features in `v1.0.1`
 
 ### 1. 🏢 Multi-Tenant Workspace & RBAC Hierarchy
 - **1 System = Many Bot Profiles:** Organize chatbots by client, domain, or team.
@@ -283,5 +283,5 @@ Switch drivers in Admin Settings, then rebuild the index.
 ---
 
 ## 📄 License & Version
-- **Version:** `1.0.0`
+- **Version:** `1.0.1`
 - **License:** MIT

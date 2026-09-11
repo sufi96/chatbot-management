@@ -804,6 +804,16 @@
             white-space: nowrap;
         }
 
+        a.source-chip {
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        a.source-chip:hover {
+            border-color: #A1A1AA;
+            color: #27272A;
+        }
+
         .sources-label {
             font-size: 10.5px;
             color: #A1A1AA;
@@ -1158,10 +1168,22 @@
         row.appendChild(label);
 
         for (var i = 0; i < sources.length; i++) {
-            var chip = document.createElement("span");
+            var label = sources[i].title || "Untitled";
+            var url = sources[i].url;
+
+            // A knowledge base source has no url and stays plain text. A web
+            // result is something the visitor can and should go and check.
+            var chip = document.createElement(url ? "a" : "span");
             chip.className = "source-chip";
-            chip.textContent = sources[i].title || "Untitled";
-            chip.title = sources[i].title || "Untitled";
+            chip.textContent = label;
+            chip.title = url || label;
+
+            if (url) {
+                chip.href = url;
+                chip.target = "_blank";
+                chip.rel = "noopener noreferrer";
+            }
+
             row.appendChild(chip);
         }
 

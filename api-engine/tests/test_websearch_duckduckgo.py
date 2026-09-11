@@ -88,3 +88,17 @@ async def test_no_country_sends_no_region():
 async def test_a_page_with_no_results_gives_an_empty_list():
     handler = handler_returning("<html><body><p>nothing</p></body></html>")
     assert await search("x", 3, transport=httpx.MockTransport(handler)) == []
+
+
+@pytest.mark.asyncio
+async def test_a_rate_limit_interstitial_is_a_failure_not_an_empty_result():
+    """DuckDuckGo answers 202 with a redirect page when it is rate limiting.
+
+    That is not the same as finding nothing, and reporting it as no results
+    would hide the reason the bot stopped citing sources.
+    """
+    def handler(request):
+        return httpx.Response(202, text="<html><head></head><body></body></html>")
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await search("x", 3, transport=httpx.MockTransport(handler))

@@ -68,6 +68,15 @@ async def search(query, count, country=None, api_key="", transport=None):
         response = await client.post(ENDPOINT, data=form,
                                      headers={"User-Agent": USER_AGENT})
         response.raise_for_status()
+
+        # Rate limiting arrives as 202 carrying a redirect page rather than as
+        # an error status, so raise_for_status sails past it. Saying nothing
+        # was found would hide the real reason the bot stopped citing sources.
+        if response.status_code != 200:
+            raise httpx.HTTPStatusError(
+                f"DuckDuckGo answered {response.status_code}, which means rate limited",
+                request=response.request, response=response)
+
         html = response.text
 
     return parse(html, count)

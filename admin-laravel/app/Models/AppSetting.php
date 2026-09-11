@@ -23,6 +23,9 @@ class AppSetting extends Model
         'chunk_size' => '1800',
         'chunk_overlap' => '200',
         'context_char_budget' => '6000',
+        'web_search_provider' => 'duckduckgo',
+        'web_search_tavily_key' => '',
+        'web_search_brave_key' => '',
     ];
 
     public static function get(string $key, $default = null)

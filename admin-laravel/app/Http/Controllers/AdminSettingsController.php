@@ -12,6 +12,7 @@ class AdminSettingsController extends Controller
         'embedding_base_url', 'embedding_api_key', 'embedding_model',
         'embedding_dimensions', 'vector_driver', 'chunk_size', 'chunk_overlap',
         'context_char_budget',
+        'web_search_provider', 'web_search_tavily_key', 'web_search_brave_key',
     ];
 
     public function edit()
@@ -35,6 +36,9 @@ class AdminSettingsController extends Controller
             'chunk_size' => ['required', 'integer', 'min:400', 'max:8000'],
             'chunk_overlap' => ['required', 'integer', 'min:0', 'lt:chunk_size'],
             'context_char_budget' => ['required', 'integer', 'min:1000', 'max:20000'],
+            'web_search_provider' => ['required', 'in:duckduckgo,tavily,brave'],
+            'web_search_tavily_key' => ['nullable', 'string', 'max:200'],
+            'web_search_brave_key' => ['nullable', 'string', 'max:200'],
         ], [
             'chunk_overlap.lt' => 'Overlap must be smaller than the chunk size.',
         ]);

@@ -124,6 +124,35 @@
             </div>
         </div>
 
+        <div class="card mt-4">
+            <div class="card-header">
+                <h2 class="h6 mb-0">Web search</h2>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-6">
+                        <label for="web_search_provider" class="form-label">Provider</label>
+                        <select name="web_search_provider" id="web_search_provider" class="form-select">
+                            <option value="duckduckgo" {{ old('web_search_provider', $settings['web_search_provider']) === 'duckduckgo' ? 'selected' : '' }}>DuckDuckGo (no key)</option>
+                            <option value="tavily" {{ old('web_search_provider', $settings['web_search_provider']) === 'tavily' ? 'selected' : '' }}>Tavily</option>
+                            <option value="brave" {{ old('web_search_provider', $settings['web_search_provider']) === 'brave' ? 'selected' : '' }}>Brave</option>
+                        </select>
+                        <div class="form-text">DuckDuckGo needs no key and is rate limited, so treat it as a way to try the feature rather than something to rely on. Tavily returns page text; Brave returns snippets.</div>
+                    </div>
+                    <div class="col-6">
+                        <label for="web_search_tavily_key" class="form-label">Tavily API key</label>
+                        <input type="password" name="web_search_tavily_key" id="web_search_tavily_key" class="form-control font-monospace"
+                               autocomplete="off" value="{{ old('web_search_tavily_key', $settings['web_search_tavily_key']) }}">
+                        <label for="web_search_brave_key" class="form-label mt-3">Brave API key</label>
+                        <input type="password" name="web_search_brave_key" id="web_search_brave_key" class="form-control font-monospace"
+                               autocomplete="off" value="{{ old('web_search_brave_key', $settings['web_search_brave_key']) }}">
+                        <div class="form-text">Each key is kept when you switch provider, so you can change back without retyping it.</div>
+                    </div>
+                </div>
+                <div class="form-text mt-2">A bot only searches the web when its knowledge base returns nothing. Turn it on per bot under Brain.</div>
+            </div>
+        </div>
+
         <div class="form-actions">
             <span class="text-muted d-none d-sm-inline" style="font-size: 0.75rem;">These settings apply to every workspace.</span>
             <div class="d-flex align-items-center gap-2 ms-auto">

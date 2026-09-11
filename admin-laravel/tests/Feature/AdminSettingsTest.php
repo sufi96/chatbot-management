@@ -46,6 +46,9 @@ class AdminSettingsTest extends TestCase
             'chunk_size' => 1800,
             'chunk_overlap' => 200,
             'context_char_budget' => 6000,
+            'web_search_provider' => 'duckduckgo',
+            'web_search_tavily_key' => '',
+            'web_search_brave_key' => '',
         ], $overrides);
     }
 
@@ -194,5 +197,49 @@ class AdminSettingsTest extends TestCase
         $this->actingAs($this->systemAdmin())
             ->post(route('admin.settings.reindex'))
             ->assertForbidden();
+    }
+
+    public function test_the_provider_defaults_to_duckduckgo(): void
+    {
+        $this->assertSame('duckduckgo', AppSetting::get('web_search_provider'));
+    }
+
+    public function test_a_provider_outside_the_three_is_rejected(): void
+    {
+        $this->actingAs($this->superAdmin())
+            ->put(route('admin.settings.update'),
+                  $this->payload(['web_search_provider' => 'altavista']))
+            ->assertSessionHasErrors('web_search_provider');
+    }
+
+    public function test_each_provider_name_is_accepted(): void
+    {
+        foreach (['duckduckgo', 'tavily', 'brave'] as $provider) {
+            $this->actingAs($this->superAdmin())
+                ->put(route('admin.settings.update'),
+                      $this->payload(['web_search_provider' => $provider]))
+                ->assertSessionHasNoErrors();
+
+            $this->assertSame($provider, AppSetting::get('web_search_provider'));
+        }
+    }
+
+    public function test_a_saved_key_survives_a_provider_change(): void
+    {
+        $this->actingAs($this->superAdmin())
+            ->put(route('admin.settings.update'), $this->payload([
+                'web_search_provider' => 'tavily',
+                'web_search_tavily_key' => 'tv-key',
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($this->superAdmin())
+            ->put(route('admin.settings.update'), $this->payload([
+                'web_search_provider' => 'brave',
+                'web_search_tavily_key' => 'tv-key',
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('tv-key', AppSetting::get('web_search_tavily_key'));
     }
 }

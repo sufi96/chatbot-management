@@ -77,11 +77,20 @@ A new package `api-engine/websearch/`, organised the way `kb/` is.
 
 ```
 websearch/
-  __init__.py     search(), the registry, and the SearchResult type
+  __init__.py     search() and the provider registry
+  result.py       the SearchResult type
+  gating.py       when a search is allowed to run
+  context.py      budget trimming and the prompt block
   duckduckgo.py
   tavily.py
   brave.py
 ```
+
+`SearchResult` sits in its own module rather than in `__init__.py` so an adapter
+can import it without a circular import once the registry imports the adapters.
+Gating and context assembly are separate for the same reason `kb/gating.py` is
+separate from `kb/retrieval.py`: they are pure functions with no I/O, which is
+what makes them cheap to test.
 
 Every adapter exposes the same coroutine:
 

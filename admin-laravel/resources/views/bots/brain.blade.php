@@ -119,6 +119,41 @@
             </div>
         </div>
 
+        <div class="card mt-4">
+            <div class="card-header">
+                <h2 class="h6 mb-0">Web search</h2>
+            </div>
+            <div class="card-body">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" name="web_search_enabled" value="1"
+                           id="web_search_enabled" {{ old('web_search_enabled', $bot->web_search_enabled) ? 'checked' : '' }}>
+                    <label class="form-check-label" for="web_search_enabled">Search the web</label>
+                </div>
+                <div class="form-text">
+                    Runs only when the knowledge base returns nothing, so your own documents always win.
+                    A bot with retrieval switched off has no knowledge base, so it will search every question.
+                    The provider and its key are set in admin settings.
+                </div>
+
+                <div class="row g-3 mt-1">
+                    <div class="col-6 col-lg-4">
+                        <label for="web_search_max_results" class="form-label">Results used</label>
+                        <input type="number" name="web_search_max_results" id="web_search_max_results"
+                               class="form-control font-monospace" min="1" max="10"
+                               value="{{ old('web_search_max_results', $bot->web_search_max_results) }}" required>
+                        <div class="form-text">More results cost more and crowd the prompt.</div>
+                    </div>
+                    <div class="col-6 col-lg-4">
+                        <label for="web_search_country" class="form-label">Favour country</label>
+                        <input type="text" name="web_search_country" id="web_search_country"
+                               class="form-control font-monospace text-uppercase" maxlength="2" placeholder="MY"
+                               value="{{ old('web_search_country', $bot->web_search_country) }}">
+                        <div class="form-text">Two-letter code. Leave empty for no bias.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="card mb-3">
             <div class="card-header">Generation</div>
             <div class="p-3">

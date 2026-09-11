@@ -55,6 +55,11 @@ class BotProfile(Base):
     retrieval_min_score = Column(Float, default=0.0)
     retrieval_fallback = Column(String(20), default="say_unknown")
 
+    # The web is consulted only when the knowledge base above found nothing.
+    web_search_enabled = Column(Boolean, default=False)
+    web_search_max_results = Column(Integer, default=3)
+    web_search_country = Column(String(2), nullable=True)
+
     # Generation settings, passed through to the model endpoint.
     top_p = Column(Float, default=1.0)
     top_k_sampling = Column(Integer, nullable=True)

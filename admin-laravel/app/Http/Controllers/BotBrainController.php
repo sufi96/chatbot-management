@@ -35,6 +35,8 @@ class BotBrainController extends Controller
             'retrieval_candidates' => ['required', 'integer', 'min:5', 'max:100'],
             'retrieval_min_score' => ['required', 'numeric', 'min:0', 'max:1'],
             'retrieval_fallback' => ['required', 'in:say_unknown,answer_anyway'],
+            'web_search_max_results' => ['required', 'integer', 'min:1', 'max:10'],
+            'web_search_country' => ['nullable', 'string', 'size:2', 'alpha'],
             'top_p' => ['required', 'numeric', 'min:0', 'max:1'],
             'top_k_sampling' => ['nullable', 'integer', 'min:1', 'max:200'],
             'presence_penalty' => ['required', 'numeric', 'min:-2', 'max:2'],
@@ -45,6 +47,12 @@ class BotBrainController extends Controller
         ]);
 
         $validated['retrieval_enabled'] = $request->boolean('retrieval_enabled');
+        $validated['web_search_enabled'] = $request->boolean('web_search_enabled');
+
+        // So that my and MY are the same setting rather than two.
+        if (!empty($validated['web_search_country'])) {
+            $validated['web_search_country'] = strtoupper($validated['web_search_country']);
+        }
         unset($validated['collections']);
         $bot->update($validated);
 

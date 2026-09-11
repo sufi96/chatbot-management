@@ -54,6 +54,7 @@ class BotBrainTest extends TestCase
             'presence_penalty' => 0,
             'frequency_penalty' => 0,
             'thinking_level' => 'off',
+            'web_search_max_results' => 3,
         ], $overrides);
     }
 

@@ -13,7 +13,20 @@ from kb.gating import should_retrieve
 from kb.retrieval import (augment_system_prompt, build_context_block,
                           fit_to_budget, retrieve_for_collections)
 from llm_adapter import LLMAdapter
+import websearch
+from websearch.context import build_web_context_block, fit_results_to_budget
+from websearch.gating import web_search_runs
 from reasoning import TranscriptCollector
+
+
+def key_for(settings: dict) -> str:
+    """The API key belonging to whichever provider is configured.
+
+    DuckDuckGo has no key setting, so this returns an empty string for it,
+    which is exactly what the adapter expects.
+    """
+    provider = settings.get("web_search_provider", "duckduckgo")
+    return settings.get(f"web_search_{provider}_key", "")
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
 
@@ -92,7 +105,13 @@ async def chat_stream(
     source_titles = {}
     # A greeting is not a question. Skipping saves an embedding call and two
     # searches, and stops five irrelevant passages reaching the model.
-    retrieval_ran = bool(bot.retrieval_enabled) and should_retrieve(req.message)
+    # Needed on its own, because a bot with retrieval off still has to know
+    # whether the message was a question before the web is consulted.
+    message_is_a_question = should_retrieve(req.message)
+    retrieval_ran = bool(bot.retrieval_enabled) and message_is_a_question
+
+    engine_settings = await get_settings(db)
+
     if retrieval_ran:
         try:
             rows = await db.execute(
@@ -108,7 +127,6 @@ async def chat_stream(
             )
             # Bigger chunks mean a bigger prompt. Trim before the titles are
             # looked up so the citations match what the model actually saw.
-            engine_settings = await get_settings(db)
             retrieved = fit_to_budget(
                 retrieved, int(engine_settings["context_char_budget"]))
 
@@ -121,7 +139,24 @@ async def chat_stream(
             print(f"[Retrieval] Skipped, answering without context: {retrieval_error}")
             retrieved = []
 
+    # The web is the fallback, so it is consulted only once the bot's own
+    # material has had its turn and come back with nothing.
+    web_results = []
+    if web_search_runs(bot.web_search_enabled, message_is_a_question, len(retrieved)):
+        web_results = await websearch.search(
+            provider=engine_settings["web_search_provider"],
+            query=req.message,
+            count=int(bot.web_search_max_results or 3),
+            country=bot.web_search_country,
+            api_key=key_for(engine_settings),
+        )
+        web_results = fit_results_to_budget(
+            web_results, int(engine_settings["context_char_budget"]))
+
     context_block = build_context_block(retrieved, source_titles)
+    if not context_block:
+        context_block = build_web_context_block(web_results)
+
     fallback = bot.retrieval_fallback or "say_unknown"
     if not retrieval_ran:
         # A gated message must never be told the answer is missing from the
@@ -138,6 +173,14 @@ async def chat_stream(
                 {"n": i + 1, "title": source_titles.get(r.source_id, "Untitled"),
                  "source_id": r.source_id}
                 for i, r in enumerate(retrieved)
+            ]}
+            yield f"data: {json.dumps(sources_payload)}\n\n"
+        elif web_results:
+            # Web sources carry a url, which the widget turns into a link the
+            # visitor can follow and check for themselves.
+            sources_payload = {"type": "sources", "sources": [
+                {"n": i + 1, "title": item.title, "url": item.url}
+                for i, item in enumerate(web_results)
             ]}
             yield f"data: {json.dumps(sources_payload)}\n\n"
         try:

@@ -19,6 +19,12 @@ class EngineClient
         return rtrim(env('ENGINE_BASE_URL', 'http://localhost:8000'), '/');
     }
 
+    /** Where the browser should fetch engine-served assets from. */
+    public static function baseUrl(): string
+    {
+        return self::base();
+    }
+
     private static function request()
     {
         return Http::timeout(15)

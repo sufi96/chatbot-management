@@ -13,6 +13,7 @@ from kb.gating import should_retrieve
 from kb.retrieval import (augment_system_prompt, build_context_block,
                           fit_to_budget, retrieve_for_collections)
 from llm_adapter import LLMAdapter
+from reasoning import TranscriptCollector
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
 
@@ -129,7 +130,7 @@ async def chat_stream(
     final_prompt = augment_system_prompt(bot.system_prompt or "", context_block, fallback)
 
     async def sse_event_stream():
-        collected_response = []
+        transcript = TranscriptCollector()
         if retrieved:
             # Sent before the tokens so the widget can name its sources. An
             # older widget ignores an event type it does not know.
@@ -160,16 +161,14 @@ async def chat_stream(
                     raw = chunk[6:].strip()
                     if raw != "[DONE]":
                         try:
-                            parsed = json.loads(raw)
-                            if "content" in parsed:
-                                collected_response.append(parsed["content"])
+                            transcript.observe(json.loads(raw))
                         except Exception:
                             pass
                 yield chunk
 
         finally:
             # Persist assistant response after stream completes
-            full_text = "".join(collected_response).strip()
+            full_text = transcript.answer
             if full_text:
                 try:
                     # Use a new session since streaming happens outside original request context
@@ -179,7 +178,9 @@ async def chat_stream(
                             id=str(uuid.uuid4()),
                             conversation_id=conv_id,
                             sender="assistant",
-                            content=full_text
+                            content=full_text,
+                            reasoning=transcript.thinking,
+                            tokens_used=transcript.tokens
                         )
                         post_session.add(bot_msg)
                         await post_session.commit()

@@ -2,6 +2,8 @@ import json
 import httpx
 from typing import AsyncGenerator, List, Dict, Any
 
+from reasoning import ReasoningSplitter
+
 class LLMAdapter:
     @staticmethod
     def _normalize_endpoint(base_url: str) -> str:
@@ -27,7 +29,8 @@ class LLMAdapter:
         top_k_sampling: int = None,
         presence_penalty: float = 0.0,
         frequency_penalty: float = 0.0,
-        thinking_level: str = "off"
+        thinking_level: str = "off",
+        transport=None
     ) -> AsyncGenerator[str, None]:
         endpoint = cls._normalize_endpoint(base_url)
         headers = {
@@ -52,6 +55,9 @@ class LLMAdapter:
             "model": model_name,
             "messages": messages,
             "stream": True,
+            # The final chunk then carries prompt and completion counts.
+            # Endpoints that do not know the key are handled on the retry below.
+            "stream_options": {"include_usage": True},
             "temperature": float(temperature or 0.7),
             "max_tokens": int(max_tokens or 1024)
         }
@@ -66,39 +72,80 @@ class LLMAdapter:
             payload["presence_penalty"] = float(presence_penalty)
         if frequency_penalty:
             payload["frequency_penalty"] = float(frequency_penalty)
-        if thinking_level and thinking_level != "off":
-            # Understood by OpenAI-compatible reasoning models; harmlessly
-            # ignored by endpoints that do not implement it.
+        # Hybrid reasoning models such as Qwen3 read this chat template switch,
+        # and it is the only thing that genuinely stops them thinking. An
+        # endpoint that does not template its prompt ignores the key.
+        thinking_on = bool(thinking_level) and thinking_level != "off"
+        payload["chat_template_kwargs"] = {"enable_thinking": thinking_on}
+        if thinking_on:
+            # A depth hint for providers that grade reasoning effort. Qwen on
+            # vLLM has no depth control, so there this only means "think".
             payload["reasoning_effort"] = thinking_level
+
+        # Catches thinking however it arrives: its own delta field when the
+        # server runs a reasoning parser, inline <think> tags when it does not.
+        splitter = ReasoningSplitter(enabled=thinking_on)
 
         client_timeout = httpx.Timeout(connect=10.0, read=60.0, write=10.0, pool=10.0)
         try:
-            async with httpx.AsyncClient(timeout=client_timeout) as client:
-                async with client.stream("POST", endpoint, headers=headers, json=payload) as response:
-                    if response.status_code != 200:
-                        error_body = await response.aread()
-                        err_text = error_body.decode(errors="replace")
-                        yield f"data: {json.dumps({'error': f'LLM Provider returned error ({response.status_code}): {err_text[:200]}'})}\n\n"
-                        yield "data: [DONE]\n\n"
-                        return
+            async with httpx.AsyncClient(timeout=client_timeout, transport=transport) as client:
+                while True:
+                    reported_model = None
+                    usage = None
 
-                    async for line in response.aiter_lines():
-                        if not line:
-                            continue
-                        if line.startswith("data: "):
-                            raw_data = line[6:].strip()
-                            if raw_data == "[DONE]":
-                                break
-                            try:
-                                chunk = json.loads(raw_data)
-                                choices = chunk.get("choices", [])
-                                if choices:
-                                    delta = choices[0].get("delta", {})
-                                    content = delta.get("content", "")
-                                    if content:
-                                        yield f"data: {json.dumps({'content': content})}\n\n"
-                            except Exception:
+                    async with client.stream("POST", endpoint, headers=headers, json=payload) as response:
+                        if response.status_code != 200:
+                            error_body = await response.aread()
+                            err_text = error_body.decode(errors="replace")
+                            # A strict OpenAI-compatible endpoint rejects a body
+                            # key it does not know. Every optional key here is a
+                            # nicety, so drop whichever one it named and ask again
+                            # rather than failing the chat over it.
+                            refused = [key for key in ("chat_template_kwargs", "stream_options")
+                                       if key in payload and key in err_text]
+                            if response.status_code == 400 and refused:
+                                for key in refused:
+                                    payload.pop(key)
                                 continue
+                            yield f"data: {json.dumps({'error': f'LLM Provider returned error ({response.status_code}): {err_text[:200]}'})}\n\n"
+                            yield "data: [DONE]\n\n"
+                            return
+
+                        async for line in response.aiter_lines():
+                            if not line:
+                                continue
+                            if line.startswith("data: "):
+                                raw_data = line[6:].strip()
+                                if raw_data == "[DONE]":
+                                    break
+                                try:
+                                    chunk = json.loads(raw_data)
+                                    if chunk.get("model"):
+                                        reported_model = chunk["model"]
+                                    if chunk.get("usage"):
+                                        usage = chunk["usage"]
+                                    choices = chunk.get("choices", [])
+                                    if choices:
+                                        delta = choices[0].get("delta", {})
+                                        for kind, text in splitter.feed(delta):
+                                            yield f"data: {json.dumps({kind: text})}\n\n"
+                                except Exception:
+                                    continue
+
+                        for kind, text in splitter.flush():
+                            yield f"data: {json.dumps({kind: text})}\n\n"
+
+                        # What the answer cost, for the widget to show on
+                        # request. Token counts are left out rather than sent
+                        # as zeros when the endpoint reported none.
+                        meta = {"model": reported_model or model_name}
+                        if usage:
+                            if usage.get("prompt_tokens") is not None:
+                                meta["tokens_in"] = usage["prompt_tokens"]
+                            if usage.get("completion_tokens") is not None:
+                                meta["tokens_out"] = usage["completion_tokens"]
+                        yield f"data: {json.dumps({'meta': meta})}\n\n"
+                        break
 
             yield "data: [DONE]\n\n"
 

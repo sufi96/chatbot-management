@@ -91,6 +91,8 @@ class ChatMessage(Base):
     conversation_id = Column(String(36), ForeignKey("chat_conversations.id", ondelete="CASCADE"), nullable=False)
     sender = Column(String(20), nullable=False)  # 'user', 'assistant', 'system'
     content = Column(Text, nullable=False)
+    # What a reasoning model narrated before answering, kept out of content.
+    reasoning = Column(Text, nullable=True)
     tokens_used = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 

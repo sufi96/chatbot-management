@@ -18,6 +18,7 @@ class ChatMessage extends Model
         'conversation_id',
         'sender',
         'content',
+        'reasoning',
         'tokens_used',
     ];
 

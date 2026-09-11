@@ -296,7 +296,9 @@
             pointer-events: none;
             transform: translateY(20px) scale(0.96);
             transform-origin: bottom right;
-            transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+                        width 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                        height 0.28s cubic-bezier(0.16, 1, 0.3, 1);
             border: 1px solid rgba(0,0,0,0.08);
         }
 
@@ -311,6 +313,45 @@
             pointer-events: all;
             transform: translateY(0) scale(1);
         }
+
+        /* Expanded reading mode. The panel is pinned to its corner, so
+           growing it extends away from that corner: left and up on the
+           default bottom-right placement, right and up on bottom-left.
+           The caps keep a margin on every side, so the page behind stays
+           visible rather than the panel going full screen. */
+        .widget-wrapper.expanded .chat-panel {
+            width: 75vw;
+            min-width: 380px;
+            height: calc(100vh - 124px);
+            max-width: calc(100vw - 48px);
+            max-height: calc(100vh - 124px);
+        }
+
+        /* Dims and blurs whatever is behind an expanded panel. It lives in
+           the widget's shadow root, so the host page's own markup is never
+           touched, and it sits behind the panel via a negative z-index
+           inside the wrapper's own stacking context. */
+        .chat-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background: rgba(15, 23, 42, 0.18);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.28s ease;
+        }
+
+        .widget-wrapper.expanded .chat-backdrop {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* One button, two glyphs: outward arrows to expand, inward to collapse. */
+        #btn-expand .icon-collapse { display: none; }
+        .widget-wrapper.expanded #btn-expand .icon-expand { display: none; }
+        .widget-wrapper.expanded #btn-expand .icon-collapse { display: block; }
 
         /* Header */
         .chat-header {
@@ -577,11 +618,167 @@
             border: 1px solid #E4E4E7;
         }
 
+        /* Formatted answers. A support reply arrives as Markdown, so the
+           bubble has to carry lists, code and tables without bursting the
+           width of the chat panel. */
+        .message-bubble.rendered {
+            white-space: normal;
+        }
+
+        .message-bubble.rendered > *:first-child { margin-top: 0; }
+        .message-bubble.rendered > *:last-child { margin-bottom: 0; }
+
+        .message-bubble.rendered p { margin: 0 0 8px; }
+
+        .message-bubble.rendered ul,
+        .message-bubble.rendered ol {
+            margin: 0 0 8px;
+            padding-left: 20px;
+        }
+
+        .message-bubble.rendered li { margin: 2px 0; }
+
+        .message-bubble.rendered li > ul,
+        .message-bubble.rendered li > ol { margin: 2px 0 0; }
+
+        .message-bubble.rendered h1,
+        .message-bubble.rendered h2,
+        .message-bubble.rendered h3,
+        .message-bubble.rendered h4,
+        .message-bubble.rendered h5,
+        .message-bubble.rendered h6 {
+            margin: 10px 0 6px;
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.35;
+        }
+
+        .message-bubble.rendered a {
+            color: var(--primary-color, #1f2937);
+            text-decoration: underline;
+        }
+
+        .message-row.user .message-bubble.rendered a { color: #ffffff; }
+
+        .message-bubble.rendered code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 12px;
+            background: #F4F4F5;
+            border: 1px solid #E4E4E7;
+            border-radius: 4px;
+            padding: 1px 4px;
+        }
+
+        .message-bubble.rendered pre {
+            margin: 0 0 8px;
+            padding: 9px 11px;
+            background: #18181B;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+
+        .message-bubble.rendered pre code {
+            background: none;
+            border: 0;
+            padding: 0;
+            color: #F4F4F5;
+            font-size: 12px;
+            line-height: 1.5;
+            white-space: pre;
+        }
+
+        .message-bubble.rendered blockquote {
+            margin: 0 0 8px;
+            padding: 2px 0 2px 10px;
+            border-left: 3px solid #E4E4E7;
+            color: #52525B;
+        }
+
+        .message-bubble.rendered hr {
+            border: 0;
+            border-top: 1px solid #E4E4E7;
+            margin: 10px 0;
+        }
+
+        /* A wide table scrolls inside the bubble instead of widening it. */
+        .message-bubble.rendered .md-table {
+            margin: 0 0 8px;
+            overflow-x: auto;
+            max-width: 100%;
+        }
+
+        .message-bubble.rendered table {
+            border-collapse: collapse;
+            font-size: 12px;
+            width: 100%;
+            table-layout: auto;
+        }
+
+        /* Cells wrap. A comparison table should get taller, not force the
+           reader sideways. The scroll container is still there for a table
+           too wide to fit even once wrapped. */
+        .message-bubble.rendered th,
+        .message-bubble.rendered td {
+            border: 1px solid #E4E4E7;
+            padding: 5px 8px;
+            text-align: left;
+            vertical-align: top;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            min-width: 84px;
+        }
+
+        .message-bubble.rendered th {
+            background: #FAFAFA;
+            font-weight: 600;
+        }
+
         .message-time {
             font-size: 11px;
             color: #A1A1AA;
             margin-top: 3px;
             padding: 0 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* What an answer cost, tucked beside its timestamp. */
+        .meta-info {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            color: #A1A1AA;
+            cursor: help;
+        }
+
+        .meta-info:hover,
+        .meta-info:focus-visible { color: #71717A; }
+
+        .meta-tip {
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 0;
+            background: #27272A;
+            color: #FAFAFA;
+            font-size: 11px;
+            line-height: 1.55;
+            white-space: nowrap;
+            padding: 6px 9px;
+            border-radius: 7px;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(3px);
+            transition: opacity 0.15s ease, transform 0.15s ease;
+            z-index: 5;
+        }
+
+        .meta-tip .meta-row { display: block; }
+
+        .meta-info:hover .meta-tip,
+        .meta-info:focus-visible .meta-tip {
+            opacity: 1;
+            transform: translateY(0);
         }
 
         /* What an answer drew on. Titles only: a visitor never sees chunk
@@ -612,6 +809,64 @@
             color: #A1A1AA;
             margin-right: 2px;
             align-self: center;
+        }
+
+        /* A reasoning model's narration, folded above the answer it produced.
+           It sits open while thinking is all there is to see, then folds away
+           the moment the answer starts, so the answer is what leads. */
+        .message-thinking {
+            margin-bottom: 6px;
+            max-width: 100%;
+            border: 1px solid #E4E4E7;
+            border-radius: 10px;
+            background: #FAFAFA;
+            overflow: hidden;
+        }
+
+        .thinking-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            width: 100%;
+            padding: 6px 10px;
+            border: 0;
+            background: transparent;
+            font-family: inherit;
+            font-size: 11px;
+            color: #71717A;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .thinking-toggle:hover {
+            color: #3F3F46;
+        }
+
+        .thinking-chevron {
+            flex: none;
+            width: 10px;
+            height: 10px;
+            transition: transform 0.15s ease;
+        }
+
+        .message-thinking.open .thinking-chevron {
+            transform: rotate(90deg);
+        }
+
+        .thinking-body {
+            display: none;
+            padding: 0 10px 8px;
+            font-size: 11.5px;
+            line-height: 1.55;
+            color: #52525B;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+
+        .message-thinking.open .thinking-body {
+            display: block;
         }
 
         /* Typing Dots */
@@ -739,6 +994,7 @@
     wrapper.className = "widget-wrapper";
 
     wrapper.innerHTML = `
+        <div class="chat-backdrop" id="chat-backdrop"></div>
         <div class="chat-panel" id="chat-panel">
             <div class="chat-header">
                 <div class="header-info">
@@ -753,6 +1009,10 @@
                 <div class="header-actions">
                     <button class="action-icon-btn" id="btn-clear" title="Clear conversation">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path></svg>
+                    </button>
+                    <button class="action-icon-btn" id="btn-expand" title="Expand chat" aria-label="Expand chat" aria-expanded="false">
+                        <svg class="icon-expand" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                        <svg class="icon-collapse" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
                     </button>
                     <button class="action-icon-btn" id="btn-close-header" title="Close chat">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -803,6 +1063,8 @@
     var headerAvatar = shadowRoot.getElementById("header-avatar");
     var btnCloseHeader = shadowRoot.getElementById("btn-close-header");
     var btnClear = shadowRoot.getElementById("btn-clear");
+    var btnExpand = shadowRoot.getElementById("btn-expand");
+    var chatBackdrop = shadowRoot.getElementById("chat-backdrop");
     var chatMessages = shadowRoot.getElementById("chat-messages");
     var chatInput = shadowRoot.getElementById("chat-input");
     var sendBtn = shadowRoot.getElementById("send-btn");
@@ -812,6 +1074,23 @@
     function updateColors(hex) {
         if (!hex) return;
         wrapper.style.setProperty("--primary-color", hex);
+    }
+
+    // The renderer is served in the same script as this widget. Should it
+    // ever be missing, answers still arrive, just without formatting.
+    var markdown = (typeof window !== "undefined" && window.__ChatbotMarkdown) || null;
+
+    /**
+     * Bot text is Markdown and becomes formatted HTML. Anything a visitor
+     * typed stays literal, so their own words can never turn into markup.
+     */
+    function setBotText(bubble, text) {
+        if (!markdown) {
+            bubble.textContent = text;
+            return;
+        }
+        bubble.innerHTML = markdown.render(text);
+        bubble.classList.add("rendered");
     }
 
     function appendMessage(sender, text) {
@@ -841,7 +1120,8 @@
         var bubble = document.createElement("div");
         bubble.className = "message-bubble";
         if (text) {
-            bubble.textContent = text;
+            if (sender === "bot") { setBotText(bubble, text); }
+            else { bubble.textContent = text; }
         }
 
         var time = document.createElement("div");
@@ -887,6 +1167,88 @@
 
         // Above the timestamp, which is always the last child.
         wrapper.insertBefore(row, wrapper.lastChild);
+    }
+
+    /**
+     * The narration group above a bubble, created on first use. Returns the
+     * existing one afterwards so a stream keeps appending to one place.
+     */
+    function ensureThinkingGroup(bubble) {
+        var wrapper = bubble.parentNode;
+        var existing = wrapper.querySelector(".message-thinking");
+        if (existing) return existing;
+
+        var group = document.createElement("div");
+        group.className = "message-thinking open";
+
+        var toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "thinking-toggle";
+        toggle.innerHTML = '<svg class="thinking-chevron" viewBox="0 0 24 24" fill="none" ' +
+            'stroke="currentColor" stroke-width="3" stroke-linecap="round" ' +
+            'stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+
+        var label = document.createElement("span");
+        label.className = "thinking-label";
+        label.textContent = "Thinking...";
+        toggle.appendChild(label);
+
+        var body = document.createElement("div");
+        body.className = "thinking-body";
+
+        toggle.addEventListener("click", function () {
+            group.classList.toggle("open");
+        });
+
+        group.appendChild(toggle);
+        group.appendChild(body);
+        wrapper.insertBefore(group, bubble);
+        return group;
+    }
+
+    function formatDuration(ms) {
+        if (ms < 1000) return Math.round(ms) + " ms";
+        if (ms < 60000) return (Math.round(ms / 100) / 10) + " s";
+        var minutes = Math.floor(ms / 60000);
+        return minutes + " min " + Math.round((ms % 60000) / 1000) + " s";
+    }
+
+    /**
+     * A quiet marker beside the timestamp saying what the answer cost.
+     * Counts an endpoint did not report are left out rather than shown as
+     * zeros, which would read as a real measurement.
+     */
+    function attachMeta(bubble, meta) {
+        if (!bubble || !meta || !bubble.parentNode) return;
+
+        var time = bubble.parentNode.querySelector(".message-time");
+        if (!time || time.querySelector(".meta-info")) return;
+
+        var lines = [];
+        if (meta.elapsed_ms != null) lines.push("Time taken: " + formatDuration(meta.elapsed_ms));
+        if (meta.tokens_in != null) lines.push("Tokens in: " + meta.tokens_in);
+        if (meta.tokens_out != null) lines.push("Tokens out: " + meta.tokens_out);
+        if (meta.model) lines.push("Model: " + meta.model);
+        if (!lines.length) return;
+
+        var holder = document.createElement("span");
+        holder.className = "meta-info";
+        holder.setAttribute("tabindex", "0");
+        holder.setAttribute("aria-label", lines.join(", "));
+        holder.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" ' +
+            'stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"></circle>' +
+            '<line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+
+        var tip = document.createElement("span");
+        tip.className = "meta-tip";
+        lines.forEach(function (line) {
+            var row = document.createElement("span");
+            row.className = "meta-row";
+            row.textContent = line;
+            tip.appendChild(row);
+        });
+        holder.appendChild(tip);
+        time.appendChild(holder);
     }
 
     // Load Bot Configuration from Server
@@ -971,8 +1333,29 @@
             setTimeout(function () { chatInput.focus(); }, 150);
         } else {
             wrapper.classList.remove("widget-open");
+            // Reopening should always give the familiar size back.
+            setExpanded(false);
         }
     }
+
+    var isExpanded = false;
+
+    function setExpanded(expanded) {
+        isExpanded = expanded;
+        wrapper.classList.toggle("expanded", expanded);
+        btnExpand.title = expanded ? "Collapse chat" : "Expand chat";
+        btnExpand.setAttribute("aria-label", btnExpand.title);
+        btnExpand.setAttribute("aria-expanded", expanded ? "true" : "false");
+    }
+
+    btnExpand.addEventListener("click", function () { setExpanded(!isExpanded); });
+
+    // Anywhere outside the panel is the backdrop, so this is the click-away.
+    chatBackdrop.addEventListener("click", function () { setExpanded(false); });
+
+    document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && isExpanded) { setExpanded(false); }
+    });
 
     launcherBtn.addEventListener("click", function () { toggleChat(); });
     btnCloseHeader.addEventListener("click", function () { toggleChat(false); });
@@ -1063,6 +1446,31 @@
         var partialText = "";
         var firstChunk = true;
         var pendingSources = [];
+        var thinkGroup = null;
+        var thinkStartedAt = Date.now();
+        var startedAt = Date.now();
+        var pendingMeta = null;
+
+        // The visitor's wait is measured here rather than on the server,
+        // because the wait is what they actually experienced.
+        function finishMeta() {
+            if (!pendingMeta) return;
+            pendingMeta.elapsed_ms = Date.now() - startedAt;
+            attachMeta(botBubble, pendingMeta);
+            pendingMeta = null;
+        }
+
+        function openThinkingGroup() {
+            if (!thinkGroup) thinkGroup = ensureThinkingGroup(botBubble);
+            return thinkGroup.querySelector(".thinking-body");
+        }
+
+        function foldThinking() {
+            if (!thinkGroup) return;
+            var seconds = Math.max(1, Math.round((Date.now() - thinkStartedAt) / 1000));
+            thinkGroup.querySelector(".thinking-label").textContent = "Thought for " + seconds + "s";
+            thinkGroup.classList.remove("open");
+        }
 
         fetch(apiHost + "/api/v1/chat/stream", {
             method: "POST",
@@ -1091,6 +1499,7 @@
                     if (result.done) {
                         stopThinking();
                         isStreaming = false;
+                        finishMeta();
                         if (partialText) {
                             messageHistory.push({ role: "assistant", content: partialText });
                         }
@@ -1107,7 +1516,9 @@
                             var dataStr = line.substring(6).trim();
                             if (dataStr === "[DONE]") {
                                 stopThinking();
+                                foldThinking();
                                 isStreaming = false;
+                                finishMeta();
                                 if (partialText) {
                                     messageHistory.push({ role: "assistant", content: partialText });
                                     attachSources(botBubble, pendingSources);
@@ -1118,6 +1529,8 @@
                                 var parsed = JSON.parse(dataStr);
                                 if (parsed.type === "sources") {
                                     pendingSources = parsed.sources || [];
+                                } else if (parsed.meta) {
+                                    pendingMeta = parsed.meta;
                                 } else if (parsed.error) {
                                     stopThinking();
                                     if (firstChunk) {
@@ -1125,15 +1538,31 @@
                                         firstChunk = false;
                                     }
                                     partialText += "\n" + parsed.error;
-                                    botBubble.textContent = partialText;
+                                    setBotText(botBubble, partialText);
+                                } else if (parsed.reasoning) {
+                                    var thinkBody = openThinkingGroup();
+                                    thinkBody.textContent += parsed.reasoning;
+                                    thinkBody.scrollTop = thinkBody.scrollHeight;
+                                } else if (parsed.reclassify === "reasoning") {
+                                    // A late closing tag revealed that what has
+                                    // streamed into the bubble so far was the
+                                    // model thinking aloud. Move it, and let the
+                                    // real answer start the bubble over.
+                                    var lateBody = openThinkingGroup();
+                                    lateBody.textContent += partialText;
+                                    lateBody.scrollTop = lateBody.scrollHeight;
+                                    partialText = "";
+                                    botBubble.textContent = "";
+                                    firstChunk = true;
                                 } else if (parsed.content) {
                                     if (firstChunk) {
                                         stopThinking();
+                                        foldThinking();
                                         botBubble.innerHTML = "";
                                         firstChunk = false;
                                     }
                                     partialText += parsed.content;
-                                    botBubble.textContent = partialText;
+                                    setBotText(botBubble, partialText);
                                 }
                                 chatMessages.scrollTop = chatMessages.scrollHeight;
                             } catch (e) {
@@ -1152,7 +1581,8 @@
                             botBubble.innerHTML = "";
                             firstChunk = false;
                         }
-                        botBubble.textContent += "\n[Connection interrupted]";
+                        partialText += "\n[Connection interrupted]";
+                        setBotText(botBubble, partialText);
                     }
                 });
             }

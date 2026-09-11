@@ -159,7 +159,10 @@
                         <option value="high" {{ old('thinking_level', $bot->thinking_level) === 'high' ? 'selected' : '' }}>High</option>
                     </select>
                     <div class="form-text">
-                        Only reaches models that accept a reasoning effort setting. Endpoints that do not support it ignore this.
+                        Off stops a hybrid reasoning model such as Qwen3 from thinking at all, which keeps replies
+                        short and inside the token limit. Any other level lets it think, and the thinking appears
+                        folded above each answer. Only providers that grade reasoning effort tell low, medium and
+                        high apart; on a local vLLM server all three simply mean on.
                     </div>
                 </div>
             </div>

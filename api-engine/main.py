@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 
 from config import settings
 import database
@@ -51,17 +51,45 @@ async def health_check():
     }
 
 # Serve widget.js directly at root level
-widget_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "widget", "widget.js"))
+widget_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "widget"))
+widget_path = os.path.join(widget_dir, "widget.js")
+markdown_path = os.path.join(widget_dir, "markdown.js")
+
+SCRIPT_HEADERS = {"Cache-Control": "no-cache, must-revalidate"}
+
 
 @app.get("/widget.js")
 async def get_widget_script():
-    if os.path.exists(widget_path):
+    """The widget and its Markdown renderer, served as one script.
+
+    They are separate files so the renderer can be unit tested on its own,
+    and joined here so embedding stays a single tag and a single request.
+    """
+    if not (os.path.exists(widget_path) and os.path.exists(markdown_path)):
+        return {"error": "widget.js not found"}
+
+    with open(markdown_path, encoding="utf-8") as f:
+        renderer = f.read()
+    with open(widget_path, encoding="utf-8") as f:
+        widget = f.read()
+
+    return Response(
+        content=renderer + "\n;\n" + widget,
+        media_type="application/javascript",
+        headers=SCRIPT_HEADERS,
+    )
+
+
+@app.get("/widget-markdown.js")
+async def get_markdown_script():
+    """The renderer alone, so the admin portal can format transcripts too."""
+    if os.path.exists(markdown_path):
         return FileResponse(
-            widget_path, 
+            markdown_path,
             media_type="application/javascript",
-            headers={"Cache-Control": "no-cache, must-revalidate"}
+            headers=SCRIPT_HEADERS,
         )
-    return {"error": "widget.js not found"}
+    return {"error": "markdown.js not found"}
 
 if __name__ == "__main__":
     import uvicorn

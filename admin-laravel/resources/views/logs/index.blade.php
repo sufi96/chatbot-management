@@ -112,6 +112,23 @@
 @endsection
 
 @push('scripts')
+{{-- The same renderer the widget uses, so a transcript reads the way the
+     visitor saw it rather than as raw Markdown. --}}
+<script src="{{ \App\Services\EngineClient::baseUrl() }}/widget-markdown.js"></script>
+<style>
+    .transcript-md > *:first-child { margin-top: 0; }
+    .transcript-md > *:last-child { margin-bottom: 0; }
+    .transcript-md p { margin: 0 0 0.5rem; }
+    .transcript-md ul, .transcript-md ol { margin: 0 0 0.5rem; padding-left: 1.25rem; }
+    .transcript-md li { margin: 0.1rem 0; }
+    .transcript-md code { font-size: 0.75rem; background: var(--surface-2, #f4f4f5); border: 1px solid var(--border); border-radius: 4px; padding: 0 3px; }
+    .transcript-md pre { margin: 0 0 0.5rem; padding: 0.5rem 0.65rem; background: #18181B; border-radius: 6px; overflow-x: auto; }
+    .transcript-md pre code { background: none; border: 0; padding: 0; color: #F4F4F5; }
+    .transcript-md .md-table { overflow-x: auto; margin: 0 0 0.5rem; }
+    .transcript-md table { border-collapse: collapse; font-size: 0.75rem; width: 100%; }
+    .transcript-md th, .transcript-md td { border: 1px solid var(--border); padding: 0.25rem 0.4rem; vertical-align: top; overflow-wrap: anywhere; min-width: 84px; }
+    .transcript-md blockquote { margin: 0 0 0.5rem; padding-left: 0.6rem; border-left: 3px solid var(--border); }
+</style>
 <script>
     function transcriptSkeleton() {
         var rows = '';
@@ -163,7 +180,44 @@
                         ? 'var(--r-md) var(--r-md) var(--r-xs) var(--r-md)'
                         : 'var(--r-md) var(--r-md) var(--r-md) var(--r-xs)';
                     if (isUser) { bubble.style.borderColor = 'var(--accent-line)'; }
-                    bubble.textContent = msg.content;
+                    // A visitor's own words stay literal; only the bot's
+                    // Markdown is turned into markup.
+                    var renderer = window.__ChatbotMarkdown;
+                    if (!isUser && renderer) {
+                        bubble.innerHTML = renderer.render(msg.content);
+                        bubble.classList.add('transcript-md');
+                    } else {
+                        bubble.style.whiteSpace = 'pre-wrap';
+                        bubble.textContent = msg.content;
+                    }
+
+                    if (!isUser && msg.reasoning) {
+                        var think = document.createElement('details');
+                        think.style.maxWidth = '78%';
+                        think.style.marginBottom = '0.35rem';
+                        think.style.fontSize = '0.75rem';
+                        think.style.border = '1px solid var(--border)';
+                        think.style.borderRadius = 'var(--r-sm, 6px)';
+                        think.style.background = 'var(--surface-2, var(--surface))';
+                        think.style.padding = '0.35rem 0.6rem';
+
+                        var summary = document.createElement('summary');
+                        summary.className = 'text-muted';
+                        summary.style.cursor = 'pointer';
+                        summary.textContent = 'Thinking';
+                        think.appendChild(summary);
+
+                        var thought = document.createElement('div');
+                        thought.className = 'text-muted mt-2';
+                        thought.style.whiteSpace = 'pre-wrap';
+                        thought.style.lineHeight = '1.55';
+                        thought.style.maxHeight = '220px';
+                        thought.style.overflowY = 'auto';
+                        thought.textContent = msg.reasoning;
+                        think.appendChild(thought);
+
+                        wrapper.appendChild(think);
+                    }
 
                     var meta = document.createElement('span');
                     meta.className = 'text-muted figure-mono mt-1';

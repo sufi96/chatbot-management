@@ -133,7 +133,9 @@ class KnowledgeBaseSchemaTest extends TestCase
             'id' => 'test_chat_03', 'system_id' => $system->id, 'name' => 'Bot',
         ])->fresh();
 
-        $this->assertEqualsWithDelta(0.01, $bot->retrieval_min_score, 0.0001);
+        // Raised from 0.01, which sat below the 0.0164 an unrelated top hit
+        // scores, so weak matches were admitted on every question.
+        $this->assertEqualsWithDelta(0.02, $bot->retrieval_min_score, 0.0001);
     }
 
     public function test_an_untouched_relevance_floor_is_raised(): void

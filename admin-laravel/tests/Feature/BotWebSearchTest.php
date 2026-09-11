@@ -53,4 +53,22 @@ class BotWebSearchTest extends TestCase
         $this->assertSame(5, (int) $fresh->web_search_max_results);
         $this->assertSame('MY', $fresh->web_search_country);
     }
+
+    /**
+     * A single retrieval branch scores an unrelated top hit at about 0.016,
+     * and only rises to about 0.033 when both branches agree. A floor below
+     * that noise level lets irrelevant chunks through, which does two kinds
+     * of harm: the model is handed passages about the wrong subject, and the
+     * knowledge base never looks empty, so web search never runs.
+     */
+    public function test_the_relevance_floor_starts_above_the_noise_level(): void
+    {
+        $bot = $this->makeBot()->fresh();
+
+        $this->assertGreaterThan(
+            0.0164,
+            (float) $bot->retrieval_min_score,
+            'An unrelated top hit scores about 0.0164, so the floor must sit above it'
+        );
+    }
 }

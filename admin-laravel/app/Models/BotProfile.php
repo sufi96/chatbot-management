@@ -15,11 +15,14 @@ class BotProfile extends Model
     public $incrementing = false;
 
     /**
-     * Fused retrieval scores top out near 0.016, so a zero floor admits every
-     * weak match. The column default stays 0 for older rows; new bots start here.
+     * An unrelated top hit scores about 0.0164 from one retrieval branch, and
+     * only reaches about 0.033 when both branches agree. A floor below 0.0164
+     * therefore admits passages about the wrong subject on every question, and
+     * leaves the knowledge base looking occupied so the web fallback never
+     * runs. 0.02 sits clearly between the two levels.
      */
     protected $attributes = [
-        'retrieval_min_score' => 0.01,
+        'retrieval_min_score' => 0.02,
     ];
 
     protected $fillable = [

@@ -113,7 +113,7 @@
                         <input type="number" step="0.001" name="retrieval_min_score" id="retrieval_min_score"
                                class="form-control font-monospace" min="0" max="1"
                                value="{{ old('retrieval_min_score', $bot->retrieval_min_score) }}" required>
-                        <div class="form-text">Passages scoring below this are dropped. A top hit scores about 0.016, or 0.033 when both branches agree.</div>
+                        <div class="form-text">Passages scoring below this are dropped. An unrelated top hit scores about 0.016, and a genuine one about 0.033 when both branches agree, so keep this above 0.017. Set it lower and every question looks answered, which also stops web search ever running.</div>
                     </div>
                 </div>
             </div>

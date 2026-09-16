@@ -1,0 +1,110 @@
+# Node B: every model except the answer model. See docs/sparks-setup.md.
+#
+# On the node, from the repository root:
+#   docker compose --env-file deploy/sparks/.env -f deploy/sparks/node-b.compose.yaml up -d
+#
+# Memory shares, of all 128 GB of unified memory:
+#   intent + SQL 0.34, embedding 0.10, rerank 0.04, guard 0.09, vision 0.15
+#   = 0.72, leaving about 36 GB for the system and for image generation later.
+
+name: chatbot-spark-b
+
+x-vllm: &vllm
+  image: ${VLLM_IMAGE:?Set VLLM_IMAGE in deploy/sparks/.env}
+  restart: unless-stopped
+  ipc: host
+  gpus: all
+  entrypoint: ["vllm", "serve"]
+  environment:
+    HF_TOKEN: ${HF_TOKEN:-}
+    HF_HOME: /models/huggingface
+  volumes:
+    - ${MODEL_CACHE:-/srv/models}:/models
+
+x-health: &health
+  interval: 30s
+  timeout: 5s
+  retries: 3
+  start_period: 15m
+
+services:
+  # Intent and SQL share one model: both are short, structured, low-latency calls.
+  intent-sql:
+    <<: *vllm
+    command: >-
+      ${INTENT_SQL_MODEL:?Set INTENT_SQL_MODEL}
+      --served-model-name ${INTENT_SQL_SERVED_NAME:?Set INTENT_SQL_SERVED_NAME}
+      --host 0.0.0.0 --port 8001
+      --api-key ${VLLM_API_KEY:?Set VLLM_API_KEY}
+      --gpu-memory-utilization 0.34
+      --max-model-len 16384
+      --enable-prefix-caching
+      ${INTENT_SQL_EXTRA_ARGS:-}
+    ports:
+      - "8001:8001"
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8001/health || exit 1"]
+
+  embedding:
+    <<: *vllm
+    command: >-
+      ${EMBEDDING_MODEL:?Set EMBEDDING_MODEL}
+      --served-model-name ${EMBEDDING_SERVED_NAME:?Set EMBEDDING_SERVED_NAME}
+      --host 0.0.0.0 --port 8002
+      --api-key ${VLLM_API_KEY}
+      --gpu-memory-utilization 0.10
+      --max-model-len 8192
+      ${EMBEDDING_EXTRA_ARGS:-}
+    ports:
+      - "8002:8002"
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8002/health || exit 1"]
+
+  rerank:
+    <<: *vllm
+    command: >-
+      ${RERANK_MODEL:?Set RERANK_MODEL}
+      --served-model-name ${RERANK_SERVED_NAME:?Set RERANK_SERVED_NAME}
+      --host 0.0.0.0 --port 8003
+      --api-key ${VLLM_API_KEY}
+      --gpu-memory-utilization 0.04
+      --max-model-len 8192
+      ${RERANK_EXTRA_ARGS:-}
+    ports:
+      - "8003:8003"
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8003/health || exit 1"]
+
+  guard:
+    <<: *vllm
+    command: >-
+      ${GUARD_MODEL:?Set GUARD_MODEL}
+      --served-model-name ${GUARD_SERVED_NAME:?Set GUARD_SERVED_NAME}
+      --host 0.0.0.0 --port 8004
+      --api-key ${VLLM_API_KEY}
+      --gpu-memory-utilization 0.09
+      --max-model-len 8192
+      ${GUARD_EXTRA_ARGS:-}
+    ports:
+      - "8004:8004"
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8004/health || exit 1"]
+
+  vision:
+    <<: *vllm
+    command: >-
+      ${VISION_MODEL:?Set VISION_MODEL}
+      --served-model-name ${VISION_SERVED_NAME:?Set VISION_SERVED_NAME}
+      --host 0.0.0.0 --port 8005
+      --api-key ${VLLM_API_KEY}
+      --gpu-memory-utilization 0.15
+      ${VISION_EXTRA_ARGS:-}
+    ports:
+      - "8005:8005"
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8005/health || exit 1"]

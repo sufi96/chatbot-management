@@ -1,0 +1,41 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class ChatMessage extends Model
+{
+    use HasFactory;
+
+    protected $keyType = 'string';
+    public $incrementing = false;
+
+    protected $fillable = [
+        'id',
+        'conversation_id',
+        'sender',
+        'content',
+        'reasoning',
+        'tokens_used',
+        // The statement that answered, when live data did. Null on every
+        // message the database did not answer.
+        'db_sql',
+        'db_row_count',
+        // Which model did each job, as JSON. Null on messages written before
+        // the column existed, and on visitor messages.
+        'model_trace',
+        // What the intent step decided, on the visitor's own row.
+        'intent',
+        'intent_query',
+        // What the guard named, when it refused a message or flagged an answer.
+        'guard_flag',
+    ];
+
+    public function conversation(): BelongsTo
+    {
+        return $this->belongsTo(ChatConversation::class, 'conversation_id');
+    }
+}

@@ -1,0 +1,156 @@
+{
+  "name": "kedai-aina",
+  "bot_id": "bot_kedai_demo",
+  "cases": [
+    {
+      "id": "warm-up",
+      "message": "Hello!",
+      "expect": {"source": "none", "max_total_seconds": 90}
+    },
+    {
+      "id": "kb-warranty-x200",
+      "message": "How long is the warranty on the X200 air fryer?",
+      "expect": {
+        "source": "documents",
+        "cites": ["Warranty"],
+        "must_include_any": ["24 months", "24-month", "2 years", "two years", "2-year", "two-year"],
+        "max_total_seconds": 90
+      },
+      "reference": "The X200 air fryer has a 24-month warranty covering the heating element, fan and control panel."
+    },
+    {
+      "id": "kb-sabah-delivery",
+      "message": "How much is delivery to Sabah, and how long does it take?",
+      "expect": {
+        "source": "documents",
+        "cites": ["Shipping"],
+        "must_include_any": ["RM 25", "RM25"],
+        "max_total_seconds": 90
+      },
+      "reference": "Delivery to Sabah costs RM 25, free for orders above RM 500, and takes 5 to 9 working days."
+    },
+    {
+      "id": "kb-refund-time",
+      "message": "Once my return is approved, how long until I get my money back?",
+      "expect": {
+        "source": "documents",
+        "must_include_any": ["7 working days", "seven working days"],
+        "max_total_seconds": 90
+      },
+      "reference": "Approved refunds are paid to the original payment method within 7 working days."
+    },
+    {
+      "id": "kb-jb-tuesday",
+      "message": "Is your Johor Bahru showroom open on Tuesday?",
+      "expect": {
+        "source": "documents",
+        "must_include_any": ["closed"],
+        "max_total_seconds": 90
+      },
+      "reference": "No. The Johor Bahru showroom is closed on Tuesdays; on other days it opens 10am to 8pm."
+    },
+    {
+      "id": "kb-cancel-after-shipping",
+      "message": "Can I still cancel an order after it has shipped?",
+      "expect": {
+        "source": "documents",
+        "must_include_any": ["cannot be cancelled", "can't be cancelled", "can’t be cancelled", "cannot cancel", "can't cancel", "can’t cancel", "not possible", "no longer"],
+        "max_total_seconds": 90
+      },
+      "reference": "No. Once an order has shipped it cannot be cancelled, but it can be returned under the returns policy."
+    },
+    {
+      "id": "kb-ansuran-malay",
+      "message": "Boleh saya bayar secara ansuran?",
+      "expect": {
+        "source": "documents",
+        "must_include_any": ["ansuran", "0%"],
+        "max_total_seconds": 90
+      },
+      "reference": "Ya. Pesanan melebihi RM 500 boleh dibayar secara ansuran 0% selama 6 atau 12 bulan."
+    },
+    {
+      "id": "db-order-status",
+      "message": "What is the status of order KA-1003?",
+      "expect": {
+        "source": "database",
+        "must_include_any": ["shipped"],
+        "max_total_seconds": 90
+      },
+      "reference": "Order KA-1003 has been shipped."
+    },
+    {
+      "id": "db-out-of-stock",
+      "message": "Is the X100 Compact Air Fryer in stock?",
+      "expect": {
+        "source": "database",
+        "must_include_any": ["out of stock", "not in stock", "no stock", "0 units", "zero", "not available", "unavailable"],
+        "max_total_seconds": 90
+      },
+      "reference": "No, the X100 Compact Air Fryer is out of stock, with 0 units available."
+    },
+    {
+      "id": "db-price",
+      "message": "How much does the V9 Cordless Vacuum cost?",
+      "expect": {
+        "source": "database",
+        "must_include_any": ["899"],
+        "max_total_seconds": 90
+      },
+      "reference": "The V9 Cordless Vacuum costs RM 899."
+    },
+    {
+      "id": "db-shipped-count",
+      "message": "How many orders are shipped but not yet delivered?",
+      "expect": {
+        "source": "database",
+        "must_include_any": ["3 orders", "three orders", "3 order", "are 3", "is 3", ": 3", "three"],
+        "max_total_seconds": 90
+      },
+      "reference": "Three orders are shipped but not yet delivered: KA-1003, KA-1007 and KA-1010."
+    },
+    {
+      "id": "db-customer-orders",
+      "message": "How many orders has Aina Rahman placed?",
+      "expect": {
+        "source": "database",
+        "must_include_any": ["3 orders", "three orders", "3 order", "placed 3", "placed three", "three"],
+        "max_total_seconds": 90
+      },
+      "reference": "Aina Rahman has placed 3 orders: KA-1001, KA-1006 and KA-1012."
+    },
+    {
+      "id": "db-best-seller",
+      "message": "Which product has sold the most units?",
+      "expect": {
+        "source": "database",
+        "must_include_any": ["X200"],
+        "max_total_seconds": 90
+      },
+      "reference": "The X200 Air Fryer, with 4 units sold."
+    },
+    {
+      "id": "followup-order-date",
+      "history": [
+        {"role": "user", "content": "What is the status of order KA-1007?"},
+        {"role": "assistant", "content": "Order KA-1007 has been shipped."}
+      ],
+      "message": "When was it placed?",
+      "expect": {
+        "source": "database",
+        "must_include_any": ["2026-09-01", "1 September", "September 1", "1st September", "01/09/2026", "1/9/2026"],
+        "max_total_seconds": 90
+      },
+      "reference": "Order KA-1007 was placed on 1 September 2026."
+    },
+    {
+      "id": "not-in-material",
+      "message": "Do you sell smartphones?",
+      "expect": {
+        "must_not_include": ["yes, we sell smartphones", "yes we sell smartphones"],
+        "max_total_seconds": 90
+      },
+      "reference": "The shop's information does not mention smartphones; it sells home appliances, so the assistant should not claim to sell them."
+    }
+  ]
+}

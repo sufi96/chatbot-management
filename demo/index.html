@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Portal - External Host System Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Host System Navbar -->
+    <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center text-slate-950 font-black text-sm">
+                    CP
+                </div>
+                <span class="font-bold text-base tracking-tight text-white">Client Portal & Store</span>
+                <span class="ml-2 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    External Host System
+                </span>
+            </div>
+            <nav class="hidden md:flex items-center gap-6 text-sm text-slate-300">
+                <a href="#" class="hover:text-white transition-colors">Products</a>
+                <a href="#" class="hover:text-white transition-colors">Documentation</a>
+                <a href="#" class="hover:text-white transition-colors">Billing</a>
+                <a href="http://localhost:8080" target="_blank" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 border border-slate-700">
+                    <span>Admin Hub</span> ↗
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Host System Content -->
+    <main class="flex-1 max-w-7xl mx-auto px-6 py-16 flex flex-col items-center justify-center text-center">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold mb-6">
+            <span>✨ Zero Backend Modification Required</span>
+        </div>
+
+        <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight text-white max-w-3xl leading-tight">
+            Seamless AI Chatbot Integration for Any Website
+        </h1>
+
+        <p class="text-slate-400 text-base md:text-lg max-w-2xl mt-5 leading-relaxed">
+            This demo page simulates an existing production system (PHP, WordPress, React, or static HTML). 
+            Notice how the floating AI chatbot at the bottom-right was injected with <strong class="text-white">a single line of embed code</strong>.
+        </p>
+
+        <!-- Code Callout -->
+        <div class="mt-10 p-5 rounded-2xl bg-slate-950 border border-slate-800 text-left max-w-xl w-full shadow-2xl">
+            <div class="flex items-center justify-between text-xs text-slate-400 pb-3 border-b border-slate-800">
+                <span class="font-mono text-slate-300">Target Website HTML Header</span>
+                <span class="text-emerald-400 font-semibold">1-line embed snippet</span>
+            </div>
+            <pre class="mt-3 text-xs font-mono text-indigo-300 overflow-x-auto leading-relaxed"><code>&lt;!-- Chatbot Management Hub Embed --&gt;
+&lt;script 
+  src="http://localhost:8000/widget.js" 
+  data-bot-id="bot_demo_default" 
+  data-api-host="http://localhost:8000" 
+  defer&gt;
+&lt;/script&gt;</code></pre>
+        </div>
+
+        <div class="mt-8 flex flex-col sm:flex-row items-center gap-4">
+            <a href="http://localhost:8080" target="_blank" class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-all shadow-lg shadow-indigo-600/30">
+                Open PHP Admin Portal (:8080)
+            </a>
+            <div class="text-xs text-slate-400 flex items-center gap-1.5">
+                <span>👉 Click the floating chat bubble at bottom-right to test!</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 py-6 text-center text-xs text-slate-500">
+        Chatbot Management Hub &copy; 2026. All rights reserved.
+    </footer>
+
+    <!-- ========================================== -->
+    <!-- THE 1-LINE EMBED CODE INSERTED BELOW       -->
+    <!-- ========================================== -->
+    <script 
+        src="http://localhost:8000/widget.js" 
+        data-bot-id="bot_demo_default" 
+        data-api-host="http://localhost:8000" 
+        defer>
+    </script>
+</body>
+</html>

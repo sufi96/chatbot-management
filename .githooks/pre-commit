@@ -1,0 +1,4 @@
+#!/bin/sh
+# Blocks a commit that would publish a secret. Enabled by core.hooksPath, which
+# `git config core.hooksPath .githooks` sets; see docs/security.md.
+exec python "$(dirname "$0")/scan_secrets.py"

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,6 +12,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * Bots link to one rather than copying it, so changing the laptop's address
  * here moves every bot standing on it.
+ *
+ * A row with no workspace is a platform provider: Admin Settings links model
+ * jobs to it, and no bot can point at it.
  */
 class AiProvider extends Model
 {
@@ -18,6 +22,11 @@ class AiProvider extends Model
     public $incrementing = false;
 
     protected $fillable = ['id', 'system_id', 'name', 'base_url', 'api_key'];
+
+    public function scopePlatform(Builder $query): Builder
+    {
+        return $query->whereNull('system_id');
+    }
 
     public function system(): BelongsTo
     {

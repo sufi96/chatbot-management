@@ -2,15 +2,53 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiProvider;
 use App\Models\AppSetting;
 use App\Services\EngineClient;
 use App\Support\Brand;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Exists;
 
 class AdminSettingsController extends Controller
 {
+    /**
+     * The categories, in the order the sidebar lists them under Admin
+     * Settings. Each is a page of its own; the form behind them is one.
+     */
+    public const SECTIONS = [
+        'providers' => [
+            'label' => 'Providers', 'icon' => 'bi-hdd-network',
+            'description' => 'The endpoints model jobs run on. Save a machine or a hosted key once, then pick it for any job. Bots keep their own providers, per workspace.',
+        ],
+        'models' => [
+            'label' => 'Models', 'icon' => 'bi-boxes',
+            'description' => 'Which model does each job. Pick a provider, then search it for the model: a list that comes back also proves the provider answers.',
+        ],
+        'chunking' => [
+            'label' => 'Chunking', 'icon' => 'bi-scissors',
+            'description' => 'How sources are cut into passages, and how much of them reaches the model.',
+        ],
+        'web-search' => [
+            'label' => 'Web search', 'icon' => 'bi-globe2',
+            'description' => "Where a bot looks when its answer source order reaches the web.",
+        ],
+        'branding' => [
+            'label' => 'Branding', 'icon' => 'bi-palette',
+            'description' => 'Your own mark, in place of the one the console ships with.',
+        ],
+        'maintenance' => [
+            'label' => 'Maintenance', 'icon' => 'bi-tools',
+            'description' => 'Work to run after changing how content is embedded.',
+        ],
+    ];
+
+    /** Where Ollama listens on this machine: what a blank embedding link means. */
+    public const DEFAULT_EMBEDDING_URL = 'http://localhost:11434/v1';
+
     private const KEYS = [
-        'embedding_base_url', 'embedding_api_key', 'embedding_model',
+        'embedding_provider_id', 'embedding_model',
         'embedding_dimensions', 'chunk_size', 'chunk_overlap',
         'context_char_budget',
         'web_search_provider', 'web_search_tavily_key', 'web_search_brave_key',
@@ -54,16 +92,79 @@ class AdminSettingsController extends Controller
         ],
     ];
 
-    /** The stored keys, each role's three fields included. */
+    /** The stored keys, each role's provider link and model included. */
     private static function keys(): array
     {
         $keys = self::KEYS;
 
         foreach (array_keys(self::MODEL_ROLES) as $role) {
-            array_push($keys, "{$role}_model_base_url", "{$role}_model_api_key", "{$role}_model_name");
+            array_push($keys, "{$role}_model_provider_id", "{$role}_model_name");
         }
 
         return $keys;
+    }
+
+    /**
+     * Every setting that links a platform provider, with the job it names.
+     * What a refused delete lists, so the operator knows what to move first.
+     */
+    public static function providerLinks(): array
+    {
+        $links = ['embedding_provider_id' => 'Embedding'];
+
+        foreach (self::MODEL_ROLES as $role => $meta) {
+            $links["{$role}_model_provider_id"] = $meta['label'];
+        }
+
+        return $links;
+    }
+
+    /** The jobs whose saved setting runs on this provider. */
+    public static function usageOf(string $providerId): array
+    {
+        $jobs = [];
+
+        foreach (self::providerLinks() as $key => $label) {
+            if (AppSetting::get($key) === $providerId) {
+                $jobs[] = $label;
+            }
+        }
+
+        return $jobs;
+    }
+
+    /**
+     * The categories holding a field that failed validation, in sidebar order.
+     * Takes the view's error bag or a validator's; both answer keys().
+     */
+    public static function sectionsWithErrors($errors): array
+    {
+        $failed = [];
+
+        foreach ($errors->keys() as $field) {
+            $failed[self::sectionFor($field)] = true;
+        }
+
+        return array_values(array_filter(array_keys(self::SECTIONS), fn ($key) => isset($failed[$key])));
+    }
+
+    private static function sectionFor(string $field): string
+    {
+        return match (true) {
+            str_starts_with($field, 'embedding_'), str_contains($field, '_model_') => 'models',
+            str_starts_with($field, 'web_search_') => 'web-search',
+            str_starts_with($field, 'brand_') => 'branding',
+            default => 'chunking',
+        };
+    }
+
+    /**
+     * A provider Admin Settings may link: platform rows only. A workspace's
+     * provider carries that workspace's key, and is not ours to spend.
+     */
+    private static function platformProviderRule(): Exists
+    {
+        return Rule::exists('ai_providers', 'id')->whereNull('system_id');
     }
 
     private static function modelRoleRules(): array
@@ -71,15 +172,30 @@ class AdminSettingsController extends Controller
         $rules = [];
 
         foreach (array_keys(self::MODEL_ROLES) as $role) {
-            $rules["{$role}_model_base_url"] = ['nullable', 'string', 'max:500'];
-            $rules["{$role}_model_api_key"] = ['nullable', 'string', 'max:500'];
-            $rules["{$role}_model_name"] = ['nullable', 'string', 'max:255'];
+            // Both halves, or neither: the engine calls nothing with only one.
+            $rules["{$role}_model_provider_id"] = ['nullable', 'string',
+                "required_with:{$role}_model_name", self::platformProviderRule()];
+            $rules["{$role}_model_name"] = ['nullable', 'string', 'max:255',
+                "required_with:{$role}_model_provider_id"];
         }
 
         return $rules;
     }
 
-    public function edit()
+    private static function modelRoleMessages(): array
+    {
+        $messages = [];
+
+        foreach (self::MODEL_ROLES as $role => $meta) {
+            $messages["{$role}_model_provider_id.required_with"] = "{$meta['label']} needs a provider to run its model on.";
+            $messages["{$role}_model_provider_id.exists"] = "Choose one of the providers listed for {$meta['label']}.";
+            $messages["{$role}_model_name.required_with"] = "{$meta['label']} needs a model as well as a provider.";
+        }
+
+        return $messages;
+    }
+
+    public function edit(string $section = 'providers')
     {
         $settings = [];
         foreach (self::keys() as $key) {
@@ -87,8 +203,14 @@ class AdminSettingsController extends Controller
         }
 
         return view('admin.settings', [
+            'section' => $section,
+            'sections' => self::SECTIONS,
             'settings' => $settings,
+            'providers' => AiProvider::platform()->orderBy('name')->get()
+                ->map(fn (AiProvider $provider) => self::providerJson($provider))
+                ->values(),
             'modelRoles' => self::MODEL_ROLES,
+            'defaultEmbeddingUrl' => self::DEFAULT_EMBEDDING_URL,
             // Resolved here rather than in the view, so the card and the
             // sidebar cannot disagree about which mark is in use.
             'logoUrl' => Brand::logoUrl(),
@@ -100,9 +222,11 @@ class AdminSettingsController extends Controller
 
     public function update(Request $request)
     {
-        $validated = $request->validate(array_merge([
-            'embedding_base_url' => ['required', 'string', 'max:500'],
-            'embedding_api_key' => ['nullable', 'string', 'max:500'],
+        $section = array_key_exists((string) $request->input('section'), self::SECTIONS)
+            ? $request->input('section') : 'providers';
+
+        $validator = Validator::make($request->all(), array_merge([
+            'embedding_provider_id' => ['nullable', 'string', self::platformProviderRule()],
             'embedding_model' => ['required', 'string', 'max:120'],
             'embedding_dimensions' => ['required', 'integer', 'min:64', 'max:4096'],
             'chunk_size' => ['required', 'integer', 'min:400', 'max:8000'],
@@ -116,11 +240,24 @@ class AdminSettingsController extends Controller
             // good enough reason to leave that open.
             'brand_logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:1024'],
             'brand_icon' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:1024'],
-        ], self::modelRoleRules()), [
+        ], self::modelRoleRules()), array_merge([
+            'embedding_provider_id.exists' => 'Choose one of the providers listed for Embedding.',
+            'embedding_model.required' => 'Embedding needs a model.',
             'chunk_overlap.lt' => 'Overlap must be smaller than the chunk size.',
             'brand_logo.mimes' => 'The logo must be a PNG, JPG or WebP image.',
             'brand_icon.mimes' => 'The icon must be a PNG, JPG or WebP image.',
-        ]);
+        ], self::modelRoleMessages()));
+
+        // Back to the first category with a problem, not the one Save was
+        // pressed on: an error on a page nobody is looking at gets no fix.
+        if ($validator->fails()) {
+            $first = self::sectionsWithErrors($validator->errors())[0] ?? $section;
+
+            return redirect()->route('admin.settings', $first)
+                ->withErrors($validator)->withInput();
+        }
+
+        $validated = $validator->validated();
 
         foreach (self::keys() as $key) {
             AppSetting::put($key, $validated[$key] ?? '');
@@ -132,7 +269,7 @@ class AdminSettingsController extends Controller
         $this->storeMark($request, 'brand_logo', 'brand_logo_path');
         $this->storeMark($request, 'brand_icon', 'brand_icon_path');
 
-        return redirect()->route('admin.settings')->with('success', 'Settings saved.');
+        return redirect()->route('admin.settings', $section)->with('success', 'Settings saved.');
     }
 
     /**
@@ -173,28 +310,66 @@ class AdminSettingsController extends Controller
     public function test(Request $request)
     {
         $validated = $request->validate([
-            'embedding_base_url' => ['required', 'string'],
-            'embedding_api_key' => ['nullable', 'string'],
+            'provider_id' => ['nullable', 'string', self::platformProviderRule()],
             'embedding_model' => ['required', 'string'],
         ]);
 
-        return response()->json(EngineClient::testEmbedding(
-            $validated['embedding_base_url'],
-            $validated['embedding_api_key'] ?? '',
-            $validated['embedding_model'],
-        ));
+        [$baseUrl, $apiKey] = self::embeddingEndpoint($validated['provider_id'] ?? null);
+
+        return response()->json(EngineClient::testEmbedding($baseUrl, $apiKey, $validated['embedding_model']));
     }
 
+    /**
+     * What a provider publishes, for the model picker.
+     *
+     * A saved provider is looked up here, so the picker sends only its id. The
+     * provider modal lists a draft instead, which is how Test proves an
+     * endpoint answers before anyone saves it.
+     */
     public function models(Request $request)
     {
         $validated = $request->validate([
-            'embedding_base_url' => ['required', 'string'],
-            'embedding_api_key' => ['nullable', 'string'],
+            'provider_id' => ['nullable', 'required_without:base_url', 'string', self::platformProviderRule()],
+            'base_url' => ['nullable', 'required_without:provider_id', 'string', 'max:500'],
+            'api_key' => ['nullable', 'string', 'max:500'],
+        ], [
+            'provider_id.required_without' => 'Choose a provider first.',
+            'provider_id.exists' => 'That provider no longer exists. Reload the page.',
+            'base_url.required_without' => 'Enter a base URL first.',
         ]);
 
-        return response()->json(EngineClient::listEmbeddingModels(
-            $validated['embedding_base_url'],
-            $validated['embedding_api_key'] ?? '',
-        ));
+        if (!empty($validated['provider_id'])) {
+            $provider = AiProvider::platform()->findOrFail($validated['provider_id']);
+            [$baseUrl, $apiKey] = [$provider->base_url, (string) $provider->api_key];
+        } else {
+            [$baseUrl, $apiKey] = [$validated['base_url'], (string) ($validated['api_key'] ?? '')];
+        }
+
+        return response()->json(EngineClient::listModels($baseUrl, $apiKey));
+    }
+
+    /** @return array{0: string, 1: string} */
+    private static function embeddingEndpoint(?string $providerId): array
+    {
+        if (!$providerId) {
+            return [self::DEFAULT_EMBEDDING_URL, ''];
+        }
+
+        $provider = AiProvider::platform()->findOrFail($providerId);
+
+        return [$provider->base_url, (string) $provider->api_key];
+    }
+
+    /** What the providers list, the pickers and the modal all read. */
+    public static function providerJson(AiProvider $provider): array
+    {
+        return [
+            'id' => $provider->id,
+            'name' => $provider->name,
+            'base_url' => $provider->base_url,
+            'api_key' => $provider->api_key,
+            'label' => $provider->label(),
+            'used_by' => self::usageOf($provider->id),
+        ];
     }
 }

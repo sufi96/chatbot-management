@@ -3,319 +3,282 @@
 @section('page-title', 'Admin settings')
 
 @section('content')
-<div style="max-width: 1200px;">
+<div style="max-width: 920px;" data-section-current="{{ $section }}">
 
     <div class="page-head mb-4">
         <div>
-            <h1>Admin settings</h1>
-            <p>How content is turned into vectors and where those vectors live. These apply to every workspace, so only super admins can change them.</p>
+            <h1>{{ $sections[$section]['label'] }}</h1>
+            <p>{{ $sections[$section]['description'] }} These apply to every workspace, so only super admins can change them.</p>
         </div>
     </div>
 
-    <form action="{{ route('admin.settings.update') }}" method="POST"
-          enctype="multipart/form-data">
-        @csrf
-        @method('PUT')
+    {{-- On a phone the sidebar keeps only the open category, so the others
+         are one select away instead. --}}
+    <select class="form-select d-md-none mb-3" aria-label="Settings category"
+            onchange="window.location.href = this.value">
+        @foreach($sections as $key => $meta)
+            <option value="{{ route('admin.settings', $key) }}" @selected($key === $section)>{{ $meta['label'] }}</option>
+        @endforeach
+    </select>
 
-        {{-- Two columns once there is room for them, grouped so related
-             settings stay together rather than pairing by accident. --}}
-        <div class="row g-3">
-            <div class="col-12 col-xl-6">
+    {{-- Providers --------------------------------------------------------
+         Outside the form: each change saves through the modal at once. --}}
+    @if($section === 'providers')
         <div class="card mb-3">
             <div class="card-header d-flex align-items-center justify-content-between gap-2">
-                <span>Embedding</span>
-                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="testEmbedding()">
-                    <i class="bi bi-plug"></i> Test connection
+                <span>Saved providers</span>
+                <button type="button" class="btn btn-sm btn-brand" data-provider-new>
+                    <i class="bi bi-plus-lg"></i> Add provider
                 </button>
             </div>
-            <div class="p-3">
-                <div class="row g-3 mb-3">
-                    <div class="col-12 col-sm-6">
-                        <label for="embedding_base_url" class="form-label">Base URL</label>
-                        <input type="text" name="embedding_base_url" id="embedding_base_url"
-                               class="form-control font-monospace"
-                               value="{{ old('embedding_base_url', $settings['embedding_base_url']) }}" required>
-                        <div class="form-text">OpenAI-compatible. Local Ollama serves this at /v1.</div>
-                    </div>
-                    <div class="col-12 col-sm-6">
-                        <label for="embedding_api_key" class="form-label">API key</label>
-                        <input type="password" name="embedding_api_key" id="embedding_api_key"
-                               class="form-control font-monospace"
-                               value="{{ old('embedding_api_key', $settings['embedding_api_key']) }}"
-                               placeholder="Not needed for local Ollama">
-                    </div>
-                </div>
+            <div id="providerList"></div>
+            <div id="providerListStatus" class="px-3 pb-3 small fw-medium" aria-live="polite"></div>
+        </div>
+    @endif
 
-                <div class="row g-3">
-                    <div class="col-12 col-sm-8">
-                        <label for="embedding_model" class="form-label">Model</label>
-                        <div class="input-group">
-                            <input type="text" name="embedding_model" id="embedding_model"
-                                   class="form-control font-monospace" list="embedding_model_options"
-                                   value="{{ old('embedding_model', $settings['embedding_model']) }}" required>
-                            <button type="button" class="btn btn-outline-secondary" onclick="fetchEmbeddingModels()">
-                                <i class="bi bi-arrow-clockwise"></i> Fetch models
-                            </button>
+    {{-- One form behind every category that has fields. Only the open one is
+         shown, but all of them post, so a save never blanks a category
+         nobody opened. novalidate, because a required field on a hidden
+         category would stop the browser submitting without saying why; the
+         server validates and opens the category that failed. --}}
+    <form action="{{ route('admin.settings.update') }}" method="POST"
+          enctype="multipart/form-data" novalidate>
+        @csrf
+        @method('PUT')
+        <input type="hidden" name="section" value="{{ $section }}">
+
+        {{-- Models ---------------------------------------------------------- --}}
+        <div @class(['d-none' => $section !== 'models'])>
+            <div class="card mb-3">
+                <div class="card-header d-flex align-items-center justify-content-between gap-2">
+                    <span>Embedding</span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnTestEmbedding">
+                        <i class="bi bi-plug"></i> Test connection
+                    </button>
+                </div>
+                <div class="p-3">
+                    <p class="text-muted" style="font-size: 0.8rem;">
+                        Turns passages and questions into vectors. None uses Ollama on this machine,
+                        at <span class="font-monospace">{{ $defaultEmbeddingUrl }}</span>.
+                    </p>
+
+                    @include('admin._model-picker', [
+                        'providerField' => 'embedding_provider_id',
+                        'modelField' => 'embedding_model',
+                        'blank' => 'Ollama on this machine',
+                        'placeholder' => 'nomic-embed-text',
+                    ])
+
+                    <div class="row g-3 mt-0">
+                        <div class="col-12 col-sm-4">
+                            <label for="embedding_dimensions" class="form-label">Dimensions</label>
+                            <input type="number" name="embedding_dimensions" id="embedding_dimensions"
+                                   class="form-control font-monospace @error('embedding_dimensions') is-invalid @enderror"
+                                   min="64" max="4096"
+                                   value="{{ old('embedding_dimensions', $settings['embedding_dimensions']) }}">
+                            @error('embedding_dimensions')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <div class="form-text">Test connection fills this in.</div>
                         </div>
-                        <datalist id="embedding_model_options"></datalist>
-                        <div class="form-text" id="embeddingModelsResult">
-                            Fetch the list from the provider, or type a name if it does not publish one.
+                    </div>
+
+                    <div id="embeddingTestResult" class="mt-2" style="font-size: 0.8125rem;" aria-live="polite"></div>
+
+                    <div class="alert alert-warning mt-3 mb-0">
+                        <div class="mb-2">
+                            Changing the model or the dimensions invalidates every vector already stored.
+                            Existing collections keep working on keyword search alone until they are indexed again.
+                        </div>
+                        <div class="text-muted" style="font-size: 0.75rem;">
+                            Save your changes first, then re-index from
+                            <a href="{{ route('admin.settings', 'maintenance') }}">Maintenance</a>. On PostgreSQL a
+                            dimension change also alters the column, which clears the old vectors before rebuilding them.
                         </div>
                     </div>
-                    <div class="col-12 col-sm-4">
-                        <label for="embedding_dimensions" class="form-label">Dimensions</label>
-                        <input type="number" name="embedding_dimensions" id="embedding_dimensions"
-                               class="form-control font-monospace" min="64" max="4096"
-                               value="{{ old('embedding_dimensions', $settings['embedding_dimensions']) }}" required>
-                    </div>
                 </div>
+            </div>
 
-                <div id="embeddingTestResult" class="mt-2" style="font-size: 0.8125rem;"></div>
+            <div class="card mb-3">
+                <div class="card-header">Model jobs</div>
+                <div class="p-3">
+                    <p class="text-muted" style="font-size: 0.8rem;">
+                        Every job a model does besides answering. A job set to None falls back as
+                        described beside it.
+                    </p>
 
-                <div class="alert alert-warning mt-3 mb-0">
-                    <div class="mb-2">
-                        Changing the model or the dimensions invalidates every vector already stored.
-                        Existing collections keep working on keyword search alone until they are indexed again.
-                    </div>
-                    <div class="text-muted" style="font-size: 0.75rem;">
-                        Save your changes first, then re-index. On PostgreSQL a dimension change also
-                        alters the column, which clears the old vectors before rebuilding them.
-                    </div>
+                    @foreach ($modelRoles as $role => $meta)
+                        @include('admin._model-picker', [
+                            'providerField' => "{$role}_model_provider_id",
+                            'modelField' => "{$role}_model_name",
+                            'label' => $meta['label'],
+                            'job' => $meta['job'],
+                            'blank' => $meta['blank'],
+                            'placeholder' => $meta['placeholder'],
+                        ])
+                    @endforeach
                 </div>
             </div>
         </div>
 
-        <div class="card mb-3">
-            <div class="card-header">Chunking</div>
-            <div class="p-3">
-                <div class="row g-3">
-                    <div class="col-6">
-                        <label for="chunk_size" class="form-label">Chunk size</label>
-                        <input type="number" name="chunk_size" id="chunk_size" class="form-control font-monospace"
-                               min="400" max="8000" value="{{ old('chunk_size', $settings['chunk_size']) }}" required>
-                        <div class="form-text">A ceiling, not a target. Headings, tables and code blocks decide where a passage ends; this only stops one growing without limit.</div>
-                    </div>
-                    <div class="col-6">
-                        <label for="chunk_overlap" class="form-label">Overlap</label>
-                        <input type="number" name="chunk_overlap" id="chunk_overlap" class="form-control font-monospace"
-                               min="0" value="{{ old('chunk_overlap', $settings['chunk_overlap']) }}" required>
-                        <div class="form-text">Characters repeated when one long passage has to be cut. Sections never overlap, because the boundary between them already means something.</div>
-                    </div>
-                    <div class="col-6">
-                        <label for="context_char_budget" class="form-label">Context budget</label>
-                        <input type="number" name="context_char_budget" id="context_char_budget" class="form-control font-monospace"
-                               min="1000" max="20000" value="{{ old('context_char_budget', $settings['context_char_budget']) }}" required>
-                        <div class="form-text">Characters of retrieved material sent to the model. Lower it if answers wander on a small model.</div>
-                    </div>
-                </div>
-                <div class="form-text mt-2">Chunking applies to sources indexed from now on. Existing chunks keep the boundaries they were made with until you rebuild the index.</div>
-            </div>
-        </div>
-
-        <div class="card mb-3">
-            <div class="card-header">Branding</div>
-            <div class="p-3">
-                <p class="text-muted" style="font-size: 0.8rem;">
-                    Your own mark, in place of the one the console ships with. PNG, JPG
-                    or WebP. Not SVG: one served from this site runs its own script for
-                    anyone who opens it directly.
-                </p>
-
-                <div class="mb-3">
-                    <label for="brand_logo" class="form-label">Wordmark</label>
-                    <div class="brand-preview brand-preview-wide mb-2">
-                        <img src="{{ $logoUrl }}" alt="The wordmark in use">
-                    </div>
-                    <input type="file" name="brand_logo" id="brand_logo"
-                           class="form-control @error('brand_logo') is-invalid @enderror"
-                           accept="image/png,image/jpeg,image/webp">
-                    @error('brand_logo')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    <div class="form-text">Shown in the sidebar and on the sign-in screen, about 28px tall. A wide image works best.</div>
-                    @if($logoIsCustom)
-                        <div class="form-check mt-2">
-                            <input class="form-check-input" type="checkbox" value="1"
-                                   name="brand_logo_revert" id="brand_logo_revert">
-                            <label class="form-check-label" for="brand_logo_revert">
-                                Use the built-in one
-                            </label>
+        {{-- Chunking -------------------------------------------------------- --}}
+        <div @class(['d-none' => $section !== 'chunking'])>
+            <div class="card mb-3">
+                <div class="card-header">Chunking</div>
+                <div class="p-3">
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <label for="chunk_size" class="form-label">Chunk size</label>
+                            <input type="number" name="chunk_size" id="chunk_size"
+                                   class="form-control font-monospace @error('chunk_size') is-invalid @enderror"
+                                   min="400" max="8000" value="{{ old('chunk_size', $settings['chunk_size']) }}">
+                            @error('chunk_size')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <div class="form-text">A ceiling, not a target. Headings, tables and code blocks decide where a passage ends; this only stops one growing without limit.</div>
                         </div>
-                    @else
-                        <div class="form-text">Currently the mark the console ships with.</div>
-                    @endif
-                </div>
-
-                <div class="mb-3">
-                    <label for="brand_icon" class="form-label">Browser tab icon</label>
-                    <div class="brand-preview brand-preview-square mb-2">
-                        <img src="{{ $iconUrl }}" alt="The browser tab icon in use">
-                    </div>
-                    <input type="file" name="brand_icon" id="brand_icon"
-                           class="form-control @error('brand_icon') is-invalid @enderror"
-                           accept="image/png,image/jpeg,image/webp">
-                    @error('brand_icon')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                    <div class="form-text">Shown on the browser tab, in bookmarks and on a phone home screen. Square, at least 128px.</div>
-                    @if($iconIsCustom)
-                        <div class="form-check mt-2">
-                            <input class="form-check-input" type="checkbox" value="1"
-                                   name="brand_icon_revert" id="brand_icon_revert">
-                            <label class="form-check-label" for="brand_icon_revert">
-                                Use the built-in one
-                            </label>
+                        <div class="col-sm-6">
+                            <label for="chunk_overlap" class="form-label">Overlap</label>
+                            <input type="number" name="chunk_overlap" id="chunk_overlap"
+                                   class="form-control font-monospace @error('chunk_overlap') is-invalid @enderror"
+                                   min="0" value="{{ old('chunk_overlap', $settings['chunk_overlap']) }}">
+                            @error('chunk_overlap')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <div class="form-text">Characters repeated when one long passage has to be cut. Sections never overlap, because the boundary between them already means something.</div>
                         </div>
-                    @else
-                        <div class="form-text">Currently the mark the console ships with.</div>
-                    @endif
+                        <div class="col-sm-6">
+                            <label for="context_char_budget" class="form-label">Context budget</label>
+                            <input type="number" name="context_char_budget" id="context_char_budget"
+                                   class="form-control font-monospace @error('context_char_budget') is-invalid @enderror"
+                                   min="1000" max="20000" value="{{ old('context_char_budget', $settings['context_char_budget']) }}">
+                            @error('context_char_budget')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <div class="form-text">Characters of retrieved material sent to the model. Lower it if answers wander on a small model.</div>
+                        </div>
+                    </div>
+                    <div class="form-text mt-2">Chunking applies to sources indexed from now on. Existing chunks keep the boundaries they were made with until you rebuild the index.</div>
                 </div>
             </div>
         </div>
-            </div>
 
-            <div class="col-12 col-xl-6">
-        <div class="card mb-3">
-            <div class="card-header">
-                <h2 class="h6 mb-0">Web search</h2>
-            </div>
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-6">
-                        <label for="web_search_provider" class="form-label">Provider</label>
-                        <select name="web_search_provider" id="web_search_provider" class="form-select">
-                            <option value="duckduckgo" {{ old('web_search_provider', $settings['web_search_provider']) === 'duckduckgo' ? 'selected' : '' }}>DuckDuckGo (no key)</option>
-                            <option value="tavily" {{ old('web_search_provider', $settings['web_search_provider']) === 'tavily' ? 'selected' : '' }}>Tavily</option>
-                            <option value="brave" {{ old('web_search_provider', $settings['web_search_provider']) === 'brave' ? 'selected' : '' }}>Brave</option>
-                        </select>
-                        <div class="form-text">DuckDuckGo needs no key and is rate limited, so treat it as a way to try the feature rather than something to rely on. Tavily returns page text; Brave returns snippets.</div>
+        {{-- Web search ------------------------------------------------------ --}}
+        <div @class(['d-none' => $section !== 'web-search'])>
+            <div class="card mb-3">
+                <div class="card-header">Web search</div>
+                <div class="p-3">
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <label for="web_search_provider" class="form-label">Provider</label>
+                            <select name="web_search_provider" id="web_search_provider"
+                                    class="form-select @error('web_search_provider') is-invalid @enderror">
+                                <option value="duckduckgo" @selected(old('web_search_provider', $settings['web_search_provider']) === 'duckduckgo')>DuckDuckGo (no key)</option>
+                                <option value="tavily" @selected(old('web_search_provider', $settings['web_search_provider']) === 'tavily')>Tavily</option>
+                                <option value="brave" @selected(old('web_search_provider', $settings['web_search_provider']) === 'brave')>Brave</option>
+                            </select>
+                            @error('web_search_provider')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <div class="form-text">DuckDuckGo needs no key and is rate limited, so treat it as a way to try the feature rather than something to rely on. Tavily returns page text; Brave returns snippets.</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <label for="web_search_tavily_key" class="form-label">Tavily API key</label>
+                            <input type="password" name="web_search_tavily_key" id="web_search_tavily_key"
+                                   class="form-control font-monospace @error('web_search_tavily_key') is-invalid @enderror"
+                                   autocomplete="off" value="{{ old('web_search_tavily_key', $settings['web_search_tavily_key']) }}">
+                            @error('web_search_tavily_key')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <label for="web_search_brave_key" class="form-label mt-3">Brave API key</label>
+                            <input type="password" name="web_search_brave_key" id="web_search_brave_key"
+                                   class="form-control font-monospace @error('web_search_brave_key') is-invalid @enderror"
+                                   autocomplete="off" value="{{ old('web_search_brave_key', $settings['web_search_brave_key']) }}">
+                            @error('web_search_brave_key')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <div class="form-text">Each key is kept when you switch provider, so you can change back without retyping it.</div>
+                        </div>
                     </div>
-                    <div class="col-6">
-                        <label for="web_search_tavily_key" class="form-label">Tavily API key</label>
-                        <input type="password" name="web_search_tavily_key" id="web_search_tavily_key" class="form-control font-monospace"
-                               autocomplete="off" value="{{ old('web_search_tavily_key', $settings['web_search_tavily_key']) }}">
-                        <label for="web_search_brave_key" class="form-label mt-3">Brave API key</label>
-                        <input type="password" name="web_search_brave_key" id="web_search_brave_key" class="form-control font-monospace"
-                               autocomplete="off" value="{{ old('web_search_brave_key', $settings['web_search_brave_key']) }}">
-                        <div class="form-text">Each key is kept when you switch provider, so you can change back without retyping it.</div>
+                    <div class="form-text mt-2">Where the web sits in a bot's answer source order decides when it runs. Set that, and turn it on, per bot under Brain.</div>
+                </div>
+            </div>
+        </div>
+
+        {{-- Branding -------------------------------------------------------- --}}
+        <div @class(['d-none' => $section !== 'branding'])>
+            <div class="card mb-3">
+                <div class="card-header">Branding</div>
+                <div class="p-3">
+                    <p class="text-muted" style="font-size: 0.8rem;">
+                        PNG, JPG or WebP. Not SVG: one served from this site runs its own script for
+                        anyone who opens it directly.
+                    </p>
+
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label for="brand_logo" class="form-label">Wordmark</label>
+                            <div class="brand-preview brand-preview-wide mb-2">
+                                <img src="{{ $logoUrl }}" alt="The wordmark in use">
+                            </div>
+                            <input type="file" name="brand_logo" id="brand_logo"
+                                   class="form-control @error('brand_logo') is-invalid @enderror"
+                                   accept="image/png,image/jpeg,image/webp">
+                            @error('brand_logo')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <div class="form-text">Shown in the sidebar and on the sign-in screen, about 28px tall. A wide image works best.</div>
+                            @if($logoIsCustom)
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" value="1"
+                                           name="brand_logo_revert" id="brand_logo_revert">
+                                    <label class="form-check-label" for="brand_logo_revert">Use the built-in one</label>
+                                </div>
+                            @else
+                                <div class="form-text">Currently the mark the console ships with.</div>
+                            @endif
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="brand_icon" class="form-label">Browser tab icon</label>
+                            <div class="brand-preview brand-preview-square mb-2">
+                                <img src="{{ $iconUrl }}" alt="The browser tab icon in use">
+                            </div>
+                            <input type="file" name="brand_icon" id="brand_icon"
+                                   class="form-control @error('brand_icon') is-invalid @enderror"
+                                   accept="image/png,image/jpeg,image/webp">
+                            @error('brand_icon')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                            <div class="form-text">Shown on the browser tab, in bookmarks and on a phone home screen. Square, at least 128px.</div>
+                            @if($iconIsCustom)
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" value="1"
+                                           name="brand_icon_revert" id="brand_icon_revert">
+                                    <label class="form-check-label" for="brand_icon_revert">Use the built-in one</label>
+                                </div>
+                            @else
+                                <div class="form-text">Currently the mark the console ships with.</div>
+                            @endif
+                        </div>
                     </div>
                 </div>
-                <div class="form-text mt-2">Where the web sits in a bot's answer source order decides when it runs. Set that, and turn it on, per bot under Brain.</div>
             </div>
         </div>
 
-        <div class="card mb-3">
-            <div class="card-header">Models</div>
-            <div class="p-3">
-                <p class="text-muted" style="font-size: 0.8rem;">
-                    Which model does each job besides answering. Each takes an
-                    OpenAI-compatible endpoint, so a job moves from this machine
-                    to a server by changing its address. A job left blank falls
-                    back as described beside it.
-                </p>
-
-                @foreach ($modelRoles as $role => $meta)
-                    @include('admin._model-role', ['role' => $role, 'meta' => $meta, 'settings' => $settings])
-                    @unless ($loop->last)
-                        <hr class="my-3">
-                    @endunless
-                @endforeach
+        @if(in_array($section, ['models', 'chunking', 'web-search', 'branding'], true))
+            <div class="form-actions">
+                <span class="text-muted d-none d-sm-inline" style="font-size: 0.75rem;">Saves every category, and applies to every workspace.</span>
+                <div class="d-flex align-items-center gap-2 ms-auto">
+                    <button type="submit" class="btn btn-brand">Save settings</button>
+                </div>
             </div>
-        </div>
-            </div>
-        </div>
-
-        <div class="form-actions">
-            <span class="text-muted d-none d-sm-inline" style="font-size: 0.75rem;">These settings apply to every workspace.</span>
-            <div class="d-flex align-items-center gap-2 ms-auto">
-                <button type="submit" class="btn btn-brand">Save settings</button>
-            </div>
-        </div>
+        @endif
     </form>
 
-    <div class="card mt-3">
-        <div class="card-header">Rebuild the index</div>
-        <div class="p-3 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3">
-            <p class="text-muted mb-0" style="font-size: 0.8125rem;">
-                Re-embeds every source in every workspace with the settings above. Run this after
-                changing the model or the dimensions. It runs in the background.
-            </p>
-            <form action="{{ route('admin.settings.reindex') }}" method="POST" class="flex-shrink-0 m-0"
-                  onsubmit="return confirm('Re-embed every source in every workspace?');">
-                @csrf
-                <button type="submit" class="btn btn-outline-primary">
-                    <i class="bi bi-arrow-repeat"></i> Re-index everything
-                </button>
-            </form>
+    {{-- Maintenance ----------------------------------------------------- --}}
+    @if($section === 'maintenance')
+        <div class="card mb-3">
+            <div class="card-header">Rebuild the index</div>
+            <div class="p-3 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3">
+                <p class="text-muted mb-0" style="font-size: 0.8125rem;">
+                    Re-embeds every source in every workspace with the saved embedding settings. Run this after
+                    changing the model or the dimensions. It runs in the background.
+                </p>
+                <form action="{{ route('admin.settings.reindex') }}" method="POST" class="flex-shrink-0 m-0"
+                      onsubmit="return confirm('Re-embed every source in every workspace?');">
+                    @csrf
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-repeat"></i> Re-index everything
+                    </button>
+                </form>
+            </div>
         </div>
-    </div>
+    @endif
 
 </div>
+
+@include('admin._provider-modal')
 @endsection
-
-@push('scripts')
-<script>
-    function fetchEmbeddingModels() {
-        var out = document.getElementById('embeddingModelsResult');
-        var list = document.getElementById('embedding_model_options');
-        out.className = 'form-text';
-        out.textContent = 'Fetching...';
-
-        fetch('{{ route('admin.settings.models') }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            },
-            body: JSON.stringify({
-                embedding_base_url: document.getElementById('embedding_base_url').value,
-                embedding_api_key: document.getElementById('embedding_api_key').value
-            })
-        })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-            list.innerHTML = '';
-            (data.models || []).forEach(function (name) {
-                var option = document.createElement('option');
-                option.value = name;
-                list.appendChild(option);
-            });
-            out.className = 'form-text ' + (data.ok ? 'text-success' : 'text-danger');
-            out.textContent = data.ok
-                ? (data.models || []).length + ' found. Click the field to choose one.'
-                : (data.message || 'Could not list models.');
-        })
-        .catch(function () {
-            out.className = 'form-text text-danger';
-            out.textContent = 'Could not reach the admin portal.';
-        });
-    }
-
-    function testEmbedding() {
-        var out = document.getElementById('embeddingTestResult');
-        out.className = 'mt-2 text-muted';
-        out.textContent = 'Testing...';
-
-        fetch('{{ route('admin.settings.test') }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            },
-            body: JSON.stringify({
-                embedding_base_url: document.getElementById('embedding_base_url').value,
-                embedding_api_key: document.getElementById('embedding_api_key').value,
-                embedding_model: document.getElementById('embedding_model').value
-            })
-        })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-            out.className = 'mt-2 ' + (data.ok ? 'text-success' : 'text-danger');
-            out.textContent = data.message || (data.ok ? 'Connected.' : 'Failed.');
-            if (data.ok && data.dimensions) {
-                document.getElementById('embedding_dimensions').value = data.dimensions;
-            }
-        })
-        .catch(function () {
-            out.className = 'mt-2 text-danger';
-            out.textContent = 'Could not reach the admin portal.';
-        });
-    }
-</script>
-@endpush

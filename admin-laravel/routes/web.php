@@ -11,6 +11,7 @@ use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\BotBrainController;
 use App\Http\Controllers\AdminSettingsController;
 use App\Http\Controllers\AiProviderController;
+use App\Http\Controllers\AdminProviderController;
 use App\Http\Controllers\DbConnectionController;
 use App\Http\Controllers\DbPlaygroundController;
 use App\Http\Controllers\DbSchemaController;
@@ -111,11 +112,21 @@ Route::middleware(['auth', 'system.access'])->group(function () {
         Route::put('/users/{id}', [UserController::class, 'update'])->name('users.update');
         Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('users.destroy');
 
-        // Platform-wide settings: embedding, vector store, chunking
-        Route::get('/admin/settings', [AdminSettingsController::class, 'edit'])->name('admin.settings');
+        // Platform-wide settings, one page per category. The POST routes
+        // below share the prefix, which is safe because this one answers GET
+        // only, and only for a known category.
+        Route::get('/admin/settings/{section?}', [AdminSettingsController::class, 'edit'])
+            ->whereIn('section', array_keys(AdminSettingsController::SECTIONS))
+            ->name('admin.settings');
         Route::put('/admin/settings', [AdminSettingsController::class, 'update'])->name('admin.settings.update');
         Route::post('/admin/settings/test', [AdminSettingsController::class, 'test'])->name('admin.settings.test');
         Route::post('/admin/settings/models', [AdminSettingsController::class, 'models'])->name('admin.settings.models');
         Route::post('/admin/settings/reindex', [AdminSettingsController::class, 'reindex'])->name('admin.settings.reindex');
+
+        // Platform providers: the endpoints model jobs link to. JSON, like the
+        // workspace ones, because the modal sits over an unsaved form.
+        Route::post('/admin/providers', [AdminProviderController::class, 'store'])->name('admin.providers.store');
+        Route::put('/admin/providers/{id}', [AdminProviderController::class, 'update'])->name('admin.providers.update');
+        Route::delete('/admin/providers/{id}', [AdminProviderController::class, 'destroy'])->name('admin.providers.destroy');
     });
 });

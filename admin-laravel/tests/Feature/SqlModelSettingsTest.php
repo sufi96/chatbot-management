@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AiProvider;
 use App\Models\AppSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,12 +20,11 @@ class SqlModelSettingsTest extends TestCase
         ]);
     }
 
-    public function test_the_three_keys_default_to_blank(): void
+    public function test_the_keys_default_to_blank(): void
     {
         // Blank is the supported default: each bot uses its own model, and the
         // feature works with nothing configured.
-        $this->assertSame('', AppSetting::DEFAULTS['sql_model_base_url']);
-        $this->assertSame('', AppSetting::DEFAULTS['sql_model_api_key']);
+        $this->assertSame('', AppSetting::DEFAULTS['sql_model_provider_id']);
         $this->assertSame('', AppSetting::DEFAULTS['sql_model_name']);
     }
 
@@ -33,23 +33,28 @@ class SqlModelSettingsTest extends TestCase
         $this->actingAs($this->superAdmin())
             ->get(route('admin.settings'))
             ->assertOk()
-            ->assertSee('sql_model_base_url');
+            ->assertSee('sql_model_provider_id');
     }
 
     public function test_they_can_be_saved(): void
     {
+        AiProvider::create([
+            'id' => 'aip_local', 'system_id' => null, 'name' => 'Local Ollama',
+            'base_url' => 'http://localhost:11434/v1', 'api_key' => 'sk-test',
+        ]);
+
         $this->actingAs($this->superAdmin())
             ->put(route('admin.settings.update'), array_merge(
                 AppSetting::DEFAULTS,
                 [
-                    'sql_model_base_url' => 'http://localhost:11434/v1',
+                    'sql_model_provider_id' => 'aip_local',
                     'sql_model_name' => 'qwen2.5-coder',
-                    'sql_model_api_key' => 'sk-test',
                 ]))
-            ->assertRedirect();
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
 
         $this->assertSame('qwen2.5-coder', AppSetting::get('sql_model_name'));
-        $this->assertSame('http://localhost:11434/v1', AppSetting::get('sql_model_base_url'));
+        $this->assertSame('aip_local', AppSetting::get('sql_model_provider_id'));
     }
 
     public function test_leaving_them_blank_is_accepted(): void
@@ -57,7 +62,7 @@ class SqlModelSettingsTest extends TestCase
         $this->actingAs($this->superAdmin())
             ->put(route('admin.settings.update'), array_merge(
                 AppSetting::DEFAULTS,
-                ['sql_model_base_url' => '', 'sql_model_name' => '', 'sql_model_api_key' => '']))
+                ['sql_model_provider_id' => '', 'sql_model_name' => '']))
             ->assertRedirect()
             ->assertSessionHasNoErrors();
     }

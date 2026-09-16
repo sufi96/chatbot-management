@@ -129,7 +129,7 @@ class EngineClient
         }
     }
 
-    public static function listEmbeddingModels(string $baseUrl, string $apiKey): array
+    public static function listModels(string $baseUrl, string $apiKey): array
     {
         try {
             $response = self::request()->post(self::base() . '/api/v1/kb/embedding/models', [

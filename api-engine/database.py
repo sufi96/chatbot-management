@@ -30,7 +30,9 @@ class AiProvider(Base):
     __tablename__ = "ai_providers"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    system_id = Column(String(36), ForeignKey("systems.id", ondelete="CASCADE"), nullable=False)
+    # Null for a platform provider: one Admin Settings links a model job to,
+    # owned by no workspace and never offered to a bot.
+    system_id = Column(String(36), ForeignKey("systems.id", ondelete="CASCADE"), nullable=True)
     name = Column(String(255), nullable=False)
     base_url = Column(String(500), nullable=False)
     api_key = Column(String(500), default="")
@@ -278,6 +280,10 @@ class AppSetting(Base):
 
 # Kept in step with AppSetting::DEFAULTS on the Laravel side.
 SETTING_DEFAULTS = {
+    # Admin Settings stores the provider link; get_settings expands it into the
+    # URL and key below, which is all the embedding client reads. Blank keeps
+    # the local default.
+    "embedding_provider_id": "",
     "embedding_base_url": "http://localhost:11434/v1",
     "embedding_api_key": "",
     "embedding_model": "nomic-embed-text",
@@ -291,20 +297,25 @@ SETTING_DEFAULTS = {
     # Blank means each bot uses its own endpoint and model. Small models are
     # markedly weaker at SQL than at conversation, so an install can point
     # query work somewhere stronger without making every chat cost more.
+    "sql_model_provider_id": "",
     "sql_model_base_url": "",
     "sql_model_api_key": "",
     "sql_model_name": "",
     # The same shape for every other job a model does. roles.py decides what
     # blank falls back to; see there.
+    "intent_model_provider_id": "",
     "intent_model_base_url": "",
     "intent_model_api_key": "",
     "intent_model_name": "",
+    "rerank_model_provider_id": "",
     "rerank_model_base_url": "",
     "rerank_model_api_key": "",
     "rerank_model_name": "",
+    "guard_model_provider_id": "",
     "guard_model_base_url": "",
     "guard_model_api_key": "",
     "guard_model_name": "",
+    "vision_model_provider_id": "",
     "vision_model_base_url": "",
     "vision_model_api_key": "",
     "vision_model_name": "",
@@ -319,7 +330,40 @@ async def get_settings(session) -> dict:
     """
     result = await session.execute(select(AppSetting))
     stored = {row.key: row.value for row in result.scalars().all() if row.value is not None}
-    return {**SETTING_DEFAULTS, **stored}
+    return await _expand_provider_links(session, {**SETTING_DEFAULTS, **stored})
+
+
+PROVIDER_LINK_SUFFIX = "provider_id"
+
+
+async def _expand_provider_links(session, settings: dict) -> dict:
+    """Turn each `<job>_provider_id` into the `<job>_base_url` and
+    `<job>_api_key` it stands for.
+
+    Admin Settings links a job to a platform provider, so an endpoint edited
+    once moves every job on it. Callers keep reading URL and key, which is why
+    roles.py and the embedding client did not have to learn about providers.
+
+    A link to a provider that no longer exists expands to nothing. Falling back
+    to a default would hide the break behind a model that answers differently.
+    """
+    links = {key[: -len(PROVIDER_LINK_SUFFIX)]: value
+             for key, value in settings.items()
+             if key.endswith(PROVIDER_LINK_SUFFIX) and value}
+
+    if not links:
+        return settings
+
+    result = await session.execute(
+        select(AiProvider).where(AiProvider.id.in_(set(links.values()))))
+    providers = {row.id: row for row in result.scalars().all()}
+
+    for prefix, provider_id in links.items():
+        provider = providers.get(provider_id)
+        settings[prefix + "base_url"] = provider.base_url if provider else ""
+        settings[prefix + "api_key"] = (provider.api_key or "") if provider else ""
+
+    return settings
 
 
 # Engine and Session initialization

@@ -44,7 +44,7 @@ class AdminSettingsController extends Controller
         ],
         'maintenance' => [
             'label' => 'Maintenance', 'icon' => 'bi-tools',
-            'description' => 'Work to run after changing how content is embedded.',
+            'description' => 'How the system fits together, and work to run after changing how content is embedded.',
         ],
     ];
 

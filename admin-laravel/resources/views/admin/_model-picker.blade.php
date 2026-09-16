@@ -5,32 +5,25 @@
      $providerField, $modelField  setting keys
      $blank                       what None means for this job
      $placeholder                 an example model name
-     $label, $job                 optional heading and description --}}
+     $inline                      provider and model side by side (default: stacked) --}}
 @php
     $providerValue = (string) old($providerField, $settings[$providerField] ?? '');
     $modelValue = (string) old($modelField, $settings[$modelField] ?? '');
+    $inline = $inline ?? false;
 @endphp
 
-<div class="model-job" data-picker>
-    @isset($label)
-        <div class="d-flex flex-wrap align-items-baseline justify-content-between gap-2 mb-1">
-            <span class="fw-semibold" style="font-size: 0.875rem;">{{ $label }}</span>
-            <span class="text-muted" style="font-size: 0.75rem;">None: {{ $blank }}</span>
-        </div>
-        <p class="text-muted mb-2" style="font-size: 0.78rem;">{{ $job }}</p>
-    @endisset
-
-    <div class="row g-3">
-        <div class="col-md-6">
-            <label for="{{ $providerField }}" class="form-label">Provider</label>
-            <div class="input-group has-validation">
+<div class="model-picker" data-picker>
+    <div class="row g-2">
+        <div class="{{ $inline ? 'col-md-6' : 'col-12' }}">
+            <div class="input-group input-group-sm has-validation">
+                <label for="{{ $providerField }}" class="input-group-text picker-label">Provider</label>
                 <select name="{{ $providerField }}" id="{{ $providerField }}"
                         class="form-select @error($providerField) is-invalid @enderror"
-                        data-picker-provider data-blank="None ({{ $blank }})">
-                    <option value="">None ({{ $blank }})</option>
+                        data-picker-provider data-blank="{{ $blank }}" title="No provider: {{ $blank }}">
+                    <option value="">{{ $blank }}</option>
                     @foreach($providers as $provider)
                         <option value="{{ $provider['id'] }}" @selected($providerValue === $provider['id'])>
-                            {{ $provider['label'] }}
+                            {{ $provider['name'] }}
                         </option>
                     @endforeach
                     {{-- A value the list no longer holds stays visible, so a
@@ -47,9 +40,9 @@
             </div>
         </div>
 
-        <div class="col-md-6">
-            <label for="{{ $modelField }}" class="form-label">Model</label>
-            <div class="input-group has-validation">
+        <div class="{{ $inline ? 'col-md-6' : 'col-12' }}">
+            <div class="input-group input-group-sm has-validation">
+                <label for="{{ $modelField }}" class="input-group-text picker-label">Model</label>
                 <input type="text" name="{{ $modelField }}" id="{{ $modelField }}"
                        class="form-control font-monospace @error($modelField) is-invalid @enderror"
                        value="{{ $modelValue }}" placeholder="{{ $placeholder }}"
@@ -69,7 +62,7 @@
                 </div>
                 @error($modelField)<div class="invalid-feedback">{{ $message }}</div>@enderror
             </div>
-            <div class="form-text model-status" data-picker-status aria-live="polite"></div>
         </div>
     </div>
+    <div class="form-text model-status" data-picker-status aria-live="polite"></div>
 </div>

@@ -143,6 +143,21 @@
                         <textarea name="guard_refusal" id="guard_refusal" rows="2" maxlength="500" class="form-control"
                                   placeholder="Sorry, I can't help with that. Is there something else I can help you with?">{{ old('guard_refusal', $bot->guard_refusal) }}</textarea>
                         <div class="form-text">Leave blank for the default. Write it in the language your visitors use.</div>
+
+                        <label for="guard_topics" class="form-label mt-3">Also block these topics</label>
+                        <textarea name="guard_topics" id="guard_topics" rows="3" maxlength="2000"
+                                  class="form-control @error('guard_topics') is-invalid @enderror"
+                                  placeholder="competitor pricing&#10;legal advice">{{ old('guard_topics', $bot->guard_topics) }}</textarea>
+                        @error('guard_topics')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">
+                            One per line, in plain words. Added to the categories and topics every guarded bot blocks,
+                            which are set
+                            @if(auth()->user()->isSuperAdmin())
+                                under <a href="{{ route('admin.settings', 'guard') }}">Guard in admin settings</a>.
+                            @else
+                                by a super admin in admin settings.
+                            @endif
+                        </div>
                     </div>
                 </div>
 

@@ -97,6 +97,8 @@ class BotProfile(Base):
     # Whether what comes in and what goes out is checked. See guard.py.
     guard_enabled = Column(Boolean, default=False)
     guard_refusal = Column(Text, nullable=True)
+    # Topics this bot also refuses, on top of the platform's. One per line.
+    guard_topics = Column(Text, nullable=True)
 
     # Generation settings, passed through to the model endpoint.
     top_p = Column(Float, default=1.0)
@@ -311,6 +313,11 @@ SETTING_DEFAULTS = {
     "rerank_model_base_url": "",
     "rerank_model_api_key": "",
     "rerank_model_name": "",
+    # What the guard blocks. guard.py holds the category keys; every one is on
+    # by default, which is what the guard did before it had settings.
+    "guard_categories": "violence,illegal,sexual,self_harm,hate,personal_data,jailbreak,political,copyright",
+    "guard_topics": "",
+    "guard_borderline": "allow",
     "guard_model_provider_id": "",
     "guard_model_base_url": "",
     "guard_model_api_key": "",

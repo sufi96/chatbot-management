@@ -133,4 +133,35 @@ class BotGuardSettingsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('messages.0.guard_flag', 'Violent');
     }
+
+    public function test_a_bot_adds_its_own_blocked_topics(): void
+    {
+        $bot = $this->bot();
+        $editor = $this->editor();
+
+        $this->actingAs($editor)
+            ->get(route('bots.brain', $bot->id))
+            ->assertSee('name="guard_topics"', false);
+
+        $this->actingAs($editor)
+            ->put(route('bots.brain.update', $bot->id), $this->brainPayload([
+                'guard_enabled' => '1',
+                'guard_topics' => "competitor pricing
+legal advice",
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame("competitor pricing
+legal advice", $bot->fresh()->guard_topics);
+    }
+
+    public function test_overlong_topics_are_refused(): void
+    {
+        $bot = $this->bot();
+
+        $this->actingAs($this->editor())
+            ->put(route('bots.brain.update', $bot->id),
+                $this->brainPayload(['guard_topics' => str_repeat('x', 2001)]))
+            ->assertSessionHasErrors('guard_topics');
+    }
 }

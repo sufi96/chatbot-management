@@ -238,3 +238,64 @@ async def test_other_documents_are_read_as_before(tmp_path):
     text = await vision.read_file(path, SETTING_DEFAULTS, make_client=no_client_expected)
 
     assert text == "Refunds within thirty days."
+
+
+class FakeProvider:
+    base_url = "http://laptop:11434/v1"
+    api_key = ""
+
+
+class FakeBot:
+    name = "Helpdesk"
+    model_name = "qwen3-vl:8b"
+    provider = FakeProvider()
+
+
+def test_a_blank_role_borrows_the_main_model_of_the_bot_given():
+    client = vision.client_for(SETTING_DEFAULTS, FakeBot())
+
+    assert client.model == "qwen3-vl:8b"
+    assert client.base_url == "http://laptop:11434/v1"
+    assert client.borrowed_from == "Helpdesk"
+
+
+def test_a_configured_role_is_not_marked_as_borrowed():
+    client = vision.client_for({**SETTING_DEFAULTS,
+                                "vision_model_base_url": "http://spark-b:8005/v1",
+                                "vision_model_name": "qwen3-vl-8b"}, FakeBot())
+
+    assert client.model == "qwen3-vl-8b"
+    assert client.borrowed_from is None
+
+
+class FailingVision:
+    model = "llama3.2"
+    base_url = "http://laptop:11434/v1"
+
+    def __init__(self, borrowed_from):
+        self.borrowed_from = borrowed_from
+
+    async def transcribe(self, png, transport=None):
+        raise RuntimeError("image input is not supported")
+
+
+@pytest.mark.asyncio
+async def test_a_borrowed_model_that_cannot_read_images_says_what_to_do(tmp_path):
+    path = tmp_path / "menu.png"
+    Image.new("RGB", (80, 80), "white").save(path, "PNG")
+
+    with pytest.raises(ValueError) as raised:
+        await vision.read_file(path, SETTING_DEFAULTS,
+                               make_client=lambda settings: FailingVision("Helpdesk"))
+
+    message = str(raised.value)
+    assert "Helpdesk" in message and "llama3.2" in message
+    assert "image input is not supported" in message
+    assert "Vision model" in message
+
+
+@pytest.mark.asyncio
+async def test_a_configured_model_failing_raises_as_before(tmp_path):
+    with pytest.raises(RuntimeError):
+        await vision.read_file(scanned_pdf(tmp_path / "scan.pdf"), SETTING_DEFAULTS,
+                               make_client=lambda settings: FailingVision(None))

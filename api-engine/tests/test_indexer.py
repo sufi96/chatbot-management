@@ -279,3 +279,50 @@ async def test_an_uploaded_image_is_indexed(session, tmp_path, monkeypatch):
                                make_vision=lambda settings: FakeVision("Nasi lemak RM 8."))
 
     assert count == 1
+
+
+@pytest.mark.asyncio
+async def test_a_scan_is_read_by_the_main_model_of_a_bot_using_the_collection(
+        session, tmp_path, monkeypatch):
+    from database import AiProvider, BotKbCollection, BotProfile
+    from kb import vision
+
+    seen = []
+
+    async def transcribe(self, png, transport=None):
+        seen.append((self.base_url, self.model, self.borrowed_from))
+        return "## Warranty\n\nTwo years."
+
+    monkeypatch.setattr(vision.VisionClient, "transcribe", transcribe)
+
+    session.add(AiProvider(id="aip_laptop", system_id="sys1", name="Laptop",
+                           base_url="http://laptop:11434/v1", api_key=""))
+    session.add(BotProfile(id="bot_off", system_id="sys1", name="Old", provider_id="aip_laptop",
+                           model_name="old-model", is_active=False))
+    session.add(BotProfile(id="bot_on", system_id="sys1", name="Helpdesk", provider_id="aip_laptop",
+                           model_name="qwen3-vl:8b", is_active=True))
+    session.add(BotKbCollection(bot_id="bot_off", collection_id="col1"))
+    session.add(BotKbCollection(bot_id="bot_on", collection_id="col1"))
+    path = scanned_upload(tmp_path, monkeypatch)
+    session.add(KbSource(id="scan3", collection_id="col1", type="file",
+                         title="Warranty card", file_path=path))
+    await session.commit()
+
+    count = await index_source(session, "scan3", embedder=StubEmbedder())
+
+    assert count == 1
+    assert seen == [("http://laptop:11434/v1", "qwen3-vl:8b", "Helpdesk")]
+
+
+@pytest.mark.asyncio
+async def test_a_scan_in_a_collection_no_bot_reads_explains_itself(session, tmp_path, monkeypatch):
+    path = scanned_upload(tmp_path, monkeypatch)
+    session.add(KbSource(id="scan4", collection_id="col1", type="file",
+                         title="Warranty card", file_path=path))
+    await session.commit()
+
+    await index_source(session, "scan4", embedder=StubEmbedder())
+
+    source = await session.get(KbSource, "scan4")
+    assert source.status == "error"
+    assert "vision model" in source.error_message

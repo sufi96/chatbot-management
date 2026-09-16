@@ -8,12 +8,13 @@ moving a job is a settings change, never a code change.
 A role configured in Admin Settings is used as configured. A role left blank
 falls back, and how depends on the kind of job:
 
-- A generative job (sql, intent, guard) borrows the bot's own provider and
-  model. A weaker verdict from a small model beats no verdict.
-- A specialist job (rerank, vision) has no stand-in, because a chat model
-  does not speak the rerank protocol or may not read images. Blank makes it
-  unavailable and its stage is skipped, which is exactly what the system did
-  before the stage existed.
+- A generative job (sql, intent, guard, vision) borrows the bot's main
+  provider and model. A weaker verdict from a small model beats no verdict.
+  Vision runs while indexing, which belongs to no bot, so the indexer passes a
+  bot that reads the collection; with no such bot there is nothing to borrow.
+- A specialist job (rerank) has no stand-in, because a chat model does not
+  speak the rerank protocol. Blank makes it unavailable and its stage is
+  skipped, which is exactly what the system did before the stage existed.
 
 The portal lists the same roles in AdminSettingsController::MODEL_ROLES. Keep
 the two in step.
@@ -23,8 +24,8 @@ from dataclasses import dataclass
 
 from database import provider_endpoint
 
-GENERATIVE = ("sql", "intent", "guard")
-SPECIALIST = ("rerank", "vision")
+GENERATIVE = ("sql", "intent", "guard", "vision")
+SPECIALIST = ("rerank",)
 ROLES = GENERATIVE + SPECIALIST
 
 
@@ -61,7 +62,7 @@ def endpoint_for(role: str, bot, settings: dict) -> Endpoint:
         return Endpoint(role, base_url, settings.get(api_key_key) or "", model,
                         configured=True)
 
-    if role in SPECIALIST:
+    if role in SPECIALIST or bot is None:
         return Endpoint(role)
 
     bot_url, bot_key = provider_endpoint(bot)

@@ -120,7 +120,7 @@
 
             select.textContent = '';
             select.appendChild(new Option(select.dataset.blank, ''));
-            providers.forEach(function (p) { select.appendChild(new Option(p.label, p.id)); });
+            providers.forEach(function (p) { select.appendChild(new Option(p.name, p.id)); });
             if (missing) select.appendChild(new Option('Missing provider (' + current + ')', current));
             select.value = current;
         });
@@ -132,46 +132,85 @@
 
         list.textContent = '';
 
-        if (!providers.length) {
-            var empty = el('div', 'empty');
-            empty.appendChild(el('i', 'bi bi-hdd-network'));
-            empty.appendChild(el('h6', '', 'No providers yet'));
-            empty.appendChild(el('p', '', 'Add the machine or hosted API your model jobs should run on. Until then, embedding uses Ollama on this machine and every other job falls back.'));
-            list.appendChild(empty);
-            return;
+        function iconButton(className, icon, label, onClick) {
+            var button = el('button', 'btn btn-sm ' + className);
+            button.type = 'button';
+            button.title = label;
+            button.setAttribute('aria-label', label);
+            button.appendChild(el('i', 'bi ' + icon));
+            button.addEventListener('click', onClick);
+            return button;
         }
 
         providers.forEach(function (p) {
-            var row = el('div', 'provider-row');
+            var col = el('div', 'col');
+            var card = el('div', 'card h-100 provider-card');
+            var body = el('div', 'p-3 d-flex flex-column gap-2 h-100');
+
+            var top = el('div', 'd-flex align-items-start justify-content-between gap-2');
             var info = el('div', 'min-w-0');
-            var title = el('div', 'd-flex flex-wrap align-items-center gap-2');
-            title.appendChild(el('span', 'fw-semibold', p.name));
-            title.appendChild(el('span', 'chip', p.used_by.length ? 'Used by ' + p.used_by.join(', ') : 'Not used yet'));
-            info.appendChild(title);
+            var name = el('div', 'd-flex align-items-center gap-2 fw-semibold');
+            name.appendChild(el('i', 'bi bi-hdd-network provider-icon'));
+            name.appendChild(el('span', 'text-truncate', p.name));
+            info.appendChild(name);
             info.appendChild(el('div', 'provider-url', p.base_url));
-            row.appendChild(info);
+            top.appendChild(info);
 
-            var actions = el('div', 'd-flex gap-2');
-            var edit = el('button', 'btn btn-sm btn-outline-secondary');
-            edit.type = 'button';
-            edit.title = 'Edit ' + p.name;
-            edit.setAttribute('aria-label', 'Edit ' + p.name);
-            edit.appendChild(el('i', 'bi bi-pencil'));
-            edit.addEventListener('click', function () { openModal(p); });
+            var actions = el('div', 'd-flex gap-1 flex-shrink-0');
+            actions.appendChild(iconButton('btn-outline-secondary', 'bi-pencil', 'Edit ' + p.name,
+                function () { openModal(p); }));
+            actions.appendChild(iconButton('btn-outline-danger', 'bi-trash', 'Delete ' + p.name,
+                function () { deleteProvider(p); }));
+            top.appendChild(actions);
+            body.appendChild(top);
 
-            var del = el('button', 'btn btn-sm btn-outline-danger');
-            del.type = 'button';
-            del.title = 'Delete ' + p.name;
-            del.setAttribute('aria-label', 'Delete ' + p.name);
-            del.appendChild(el('i', 'bi bi-trash'));
-            del.addEventListener('click', function () { deleteProvider(p); });
+            var chips = el('div', 'd-flex flex-wrap gap-1 mt-auto');
+            chips.appendChild(el('span', 'chip', p.api_key ? 'Key saved' : 'No key'));
+            if (p.used_by.length) {
+                p.used_by.forEach(function (job) { chips.appendChild(el('span', 'chip chip-accent', job)); });
+            } else {
+                chips.appendChild(el('span', 'chip', 'Not used yet'));
+            }
+            body.appendChild(chips);
 
-            actions.appendChild(edit);
-            actions.appendChild(del);
-            row.appendChild(actions);
-            list.appendChild(row);
+            card.appendChild(body);
+            col.appendChild(card);
+            list.appendChild(col);
         });
+
+        // The last tile adds one, so the grid never ends in an empty page.
+        var addCol = el('div', 'col');
+        var add = el('button', 'provider-add h-100');
+        add.type = 'button';
+        add.setAttribute('data-provider-new', '');
+        add.appendChild(el('i', 'bi bi-plus-lg'));
+        add.appendChild(el('span', 'fw-semibold', 'Add provider'));
+        add.appendChild(el('span', 'small text-muted', providers.length
+            ? 'Another machine or hosted API'
+            : 'Until you do, embedding uses Ollama on this machine and every other job falls back.'));
+        addCol.appendChild(add);
+        list.appendChild(addCol);
     }
+
+    // ---- Guard categories --------------------------------------------------
+
+    var guardBoxes = document.querySelectorAll('input[name="guard_categories[]"]');
+
+    function countGuard() {
+        var count = document.getElementById('guardCount');
+        if (!count) return;
+        var on = Array.prototype.filter.call(guardBoxes, function (box) { return box.checked; }).length;
+        count.textContent = on + ' of ' + guardBoxes.length + ' on';
+    }
+
+    guardBoxes.forEach(function (box) { box.addEventListener('change', countGuard); });
+    document.querySelectorAll('[data-guard-all]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            guardBoxes.forEach(function (box) { box.checked = button.dataset.guardAll === '1'; });
+            countGuard();
+        });
+    });
+    countGuard();
 
     // ---- The modal ---------------------------------------------------------
 

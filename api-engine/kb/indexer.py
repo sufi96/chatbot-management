@@ -5,7 +5,10 @@ extraction onward, because the parsing libraries are Python.
 """
 from datetime import datetime
 
-from database import KbSource, get_settings
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
+from database import BotKbCollection, BotProfile, KbSource, get_settings
 from kb.chunking import Chunk, chunk_document, prepend_description
 from kb.embedding import client_for
 from kb.extract import extract_file, resolve_upload
@@ -38,6 +41,20 @@ async def read_source(source: KbSource, settings: dict, make_vision=None) -> str
     return extract_text(source)
 
 
+async def reading_bot(session, collection_id: str):
+    """A bot that reads this collection, whose main model stands in for a blank
+    vision role. An active bot first, the oldest of them, so the choice holds
+    still from one re-index to the next."""
+    result = await session.execute(
+        select(BotProfile)
+        .join(BotKbCollection, BotKbCollection.bot_id == BotProfile.id)
+        .where(BotKbCollection.collection_id == collection_id)
+        .options(selectinload(BotProfile.provider))
+        .order_by(BotProfile.is_active.desc(), BotProfile.created_at, BotProfile.id)
+        .limit(1))
+    return result.scalars().first()
+
+
 async def index_source(session, source_id: str, embedder=None, make_vision=None) -> int:
     source = await session.get(KbSource, source_id)
     if source is None:
@@ -50,6 +67,10 @@ async def index_source(session, source_id: str, embedder=None, make_vision=None)
     await session.commit()
 
     try:
+        if make_vision is None and source.type == "file":
+            bot = await reading_bot(session, source.collection_id)
+            make_vision = lambda s: vision.client_for(s, bot)  # noqa: E731
+
         body = await read_source(source, settings, make_vision)
         if not body.strip():
             raise ValueError("Source has no text to index.")

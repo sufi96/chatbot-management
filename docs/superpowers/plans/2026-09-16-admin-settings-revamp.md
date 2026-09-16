@@ -122,14 +122,14 @@ async def test_a_blank_embedding_link_keeps_the_local_default(session): ...
 
 **Files:**
 - Modify: `admin-laravel/resources/views/layouts/app.blade.php`, `admin-laravel/resources/views/admin/settings.blade.php`, `admin-laravel/public/css/console.css`
-- Create: `admin-laravel/resources/views/admin/_model-picker.blade.php`, `admin-laravel/resources/views/admin/_provider-modal.blade.php`, `admin-laravel/public/js/admin-settings.js`
+- Create: `admin-laravel/resources/views/admin/_model-picker.blade.php`, `admin-laravel/resources/views/admin/_provider-modal.blade.php` (modal plus the page script, pushed inline as every other page does)
 - Delete: `admin-laravel/resources/views/admin/_model-role.blade.php`
 - Test: `AdminSettingsSectionsTest` (sidebar shows "Admin Settings" and every section label for super admin, not for system admin; error dot class `sidebar-error-dot` on errored section)
 
 **Interfaces:**
 - Consumes: `SECTIONS`, `sectionsWithErrors`, view vars `section`, `providers` (JSON list), `settings`, `modelRoles`.
 - Picker partial params: `providerField`, `modelField`, `label`, `job`, `blank`, `placeholder`, `required` (bool).
-- JS (`admin-settings.js`) reads `window.AdminSettings = {routes: {models, store, base}, providers: [...]}` and binds `[data-picker]` elements.
+- The script in `_provider-modal.blade.php` reads routes and providers via `@json` and binds `[data-picker]` elements.
 
 - [ ] **Step 1: Write failing view tests.**
 - [ ] **Step 2: Run** — expect FAIL.

@@ -12,6 +12,9 @@ use Illuminate\Support\Str;
  *
  * Every action answers JSON rather than redirecting: the modal sits on top of
  * a half-filled bot form, and a redirect would throw that away.
+ *
+ * Platform providers (no workspace) are Admin Settings' own, and are not
+ * found from here.
  */
 class AiProviderController extends Controller
 {
@@ -34,7 +37,7 @@ class AiProviderController extends Controller
 
     public function update(Request $request, string $id): JsonResponse
     {
-        $provider = AiProvider::findOrFail($id);
+        $provider = AiProvider::whereNotNull('system_id')->findOrFail($id);
         $this->authorizeEditor($request, $provider->system_id);
 
         $provider->update($this->validated($request));
@@ -55,7 +58,7 @@ class AiProviderController extends Controller
      */
     public function destroy(Request $request, string $id): JsonResponse
     {
-        $provider = AiProvider::findOrFail($id);
+        $provider = AiProvider::whereNotNull('system_id')->findOrFail($id);
         $this->authorizeEditor($request, $provider->system_id);
 
         $inUse = $provider->bots()->orderBy('name')->pluck('name');

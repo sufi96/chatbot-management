@@ -15,8 +15,9 @@ class AppSetting extends Model
 
     /** Defaults live here so a fresh install needs no seeding. */
     public const DEFAULTS = [
-        'embedding_base_url' => 'http://localhost:11434/v1',
-        'embedding_api_key' => '',
+        // A platform provider's id. Blank means Ollama on this machine, at
+        // http://localhost:11434/v1, which is what a fresh install has.
+        'embedding_provider_id' => '',
         'embedding_model' => 'nomic-embed-text',
         'embedding_dimensions' => '768',
         'chunk_size' => '1800',
@@ -25,25 +26,20 @@ class AppSetting extends Model
         'web_search_provider' => 'duckduckgo',
         'web_search_tavily_key' => '',
         'web_search_brave_key' => '',
-        // Query work can go to a stronger endpoint than a bot's chat model.
+        // Query work can go to a stronger provider than a bot's chat model.
         // Blank means each bot uses its own, which is the supported default.
-        'sql_model_base_url' => '',
-        'sql_model_api_key' => '',
+        'sql_model_provider_id' => '',
         'sql_model_name' => '',
         // The same shape for every other job a model does. Blank borrows each
         // bot's own model, except the reranker, which has no stand-in and is
         // skipped. api-engine/roles.py holds that rule.
-        'intent_model_base_url' => '',
-        'intent_model_api_key' => '',
+        'intent_model_provider_id' => '',
         'intent_model_name' => '',
-        'rerank_model_base_url' => '',
-        'rerank_model_api_key' => '',
+        'rerank_model_provider_id' => '',
         'rerank_model_name' => '',
-        'guard_model_base_url' => '',
-        'guard_model_api_key' => '',
+        'guard_model_provider_id' => '',
         'guard_model_name' => '',
-        'vision_model_base_url' => '',
-        'vision_model_api_key' => '',
+        'vision_model_provider_id' => '',
         'vision_model_name' => '',
         // Empty means the mark shipped with the console. Deliberately outside
         // the settings form's write-every-key loop, so an unrelated save

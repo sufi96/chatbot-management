@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\AdminSettingsController;
+use App\Models\AiProvider;
 use App\Models\AppSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -12,13 +13,21 @@ class ModelRoleSettingsTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const SUFFIXES = ['base_url', 'api_key', 'name'];
+    private const SUFFIXES = ['provider_id', 'name'];
 
     private function superAdmin(): User
     {
         return User::create([
             'name' => 'Root', 'email' => 'root@example.test',
             'password' => 'password', 'global_role' => 'super_admin',
+        ]);
+    }
+
+    private function platformProvider(): AiProvider
+    {
+        return AiProvider::create([
+            'id' => 'aip_spark', 'system_id' => null, 'name' => 'Spark',
+            'base_url' => 'http://spark:8000/v1', 'api_key' => '',
         ]);
     }
 
@@ -50,24 +59,26 @@ class ModelRoleSettingsTest extends TestCase
             ->assertSee('Models');
 
         foreach (array_keys(AdminSettingsController::MODEL_ROLES) as $role) {
-            $response->assertSee("{$role}_model_base_url");
+            $response->assertSee("{$role}_model_provider_id");
             $response->assertSee("{$role}_model_name");
         }
     }
 
     public function test_a_role_can_be_saved(): void
     {
+        $provider = $this->platformProvider();
+
         $this->actingAs($this->superAdmin())
             ->put(route('admin.settings.update'), array_merge(
                 AppSetting::DEFAULTS,
                 [
-                    'rerank_model_base_url' => 'http://localhost:8012/v1',
+                    'rerank_model_provider_id' => $provider->id,
                     'rerank_model_name' => 'bge-reranker-v2-m3',
                 ]))
             ->assertRedirect()
             ->assertSessionHasNoErrors();
 
-        $this->assertSame('http://localhost:8012/v1', AppSetting::get('rerank_model_base_url'));
+        $this->assertSame($provider->id, AppSetting::get('rerank_model_provider_id'));
         $this->assertSame('bge-reranker-v2-m3', AppSetting::get('rerank_model_name'));
     }
 
@@ -83,7 +94,10 @@ class ModelRoleSettingsTest extends TestCase
     {
         $this->actingAs($this->superAdmin())
             ->put(route('admin.settings.update'), array_merge(
-                AppSetting::DEFAULTS, ['guard_model_name' => str_repeat('x', 256)]))
+                AppSetting::DEFAULTS, [
+                    'guard_model_provider_id' => $this->platformProvider()->id,
+                    'guard_model_name' => str_repeat('x', 256),
+                ]))
             ->assertSessionHasErrors('guard_model_name');
     }
 }

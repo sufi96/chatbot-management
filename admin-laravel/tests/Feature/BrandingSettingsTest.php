@@ -35,8 +35,7 @@ class BrandingSettingsTest extends TestCase
     private function payload(array $overrides = []): array
     {
         return array_merge([
-            'embedding_base_url' => 'http://localhost:11434/v1',
-            'embedding_api_key' => '',
+            'embedding_provider_id' => '',
             'embedding_model' => 'nomic-embed-text',
             'embedding_dimensions' => 768,
             'chunk_size' => 1800,
@@ -45,8 +44,7 @@ class BrandingSettingsTest extends TestCase
             'web_search_provider' => 'duckduckgo',
             'web_search_tavily_key' => '',
             'web_search_brave_key' => '',
-            'sql_model_base_url' => '',
-            'sql_model_api_key' => '',
+            'sql_model_provider_id' => '',
             'sql_model_name' => '',
         ], $overrides);
     }

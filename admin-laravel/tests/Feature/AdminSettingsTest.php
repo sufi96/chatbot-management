@@ -38,8 +38,7 @@ class AdminSettingsTest extends TestCase
     private function payload(array $overrides = []): array
     {
         return array_merge([
-            'embedding_base_url' => 'http://localhost:11434/v1',
-            'embedding_api_key' => '',
+            'embedding_provider_id' => '',
             'embedding_model' => 'nomic-embed-text',
             'embedding_dimensions' => 768,
             'chunk_size' => 1800,
@@ -170,8 +169,6 @@ class AdminSettingsTest extends TestCase
 
         $this->actingAs($this->superAdmin())
             ->post(route('admin.settings.test'), [
-                'embedding_base_url' => 'http://localhost:11434/v1',
-                'embedding_api_key' => '',
                 'embedding_model' => 'nomic-embed-text',
             ])
             ->assertOk()

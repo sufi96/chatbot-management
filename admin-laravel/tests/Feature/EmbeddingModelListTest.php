@@ -30,8 +30,8 @@ class EmbeddingModelListTest extends TestCase
 
         $this->actingAs($this->superAdmin())
             ->postJson(route('admin.settings.models'), [
-                'embedding_base_url' => 'http://localhost:11434/v1',
-                'embedding_api_key' => '',
+                'base_url' => 'http://localhost:11434/v1',
+                'api_key' => '',
             ])
             ->assertOk()
             ->assertJson(['ok' => true, 'models' => ['nomic-embed-text', 'llama3.2:1b']]);
@@ -43,8 +43,8 @@ class EmbeddingModelListTest extends TestCase
 
         $this->actingAs($this->superAdmin())
             ->postJson(route('admin.settings.models'), [
-                'embedding_base_url' => 'http://localhost:11434/v1',
-                'embedding_api_key' => '',
+                'base_url' => 'http://localhost:11434/v1',
+                'api_key' => '',
             ])
             ->assertOk()
             ->assertJson(['ok' => false]);
@@ -61,17 +61,18 @@ class EmbeddingModelListTest extends TestCase
 
         $this->actingAs($user)
             ->postJson(route('admin.settings.models'), [
-                'embedding_base_url' => 'http://localhost:11434/v1',
+                'base_url' => 'http://localhost:11434/v1',
             ])
             ->assertForbidden();
     }
 
-    public function test_the_settings_page_offers_a_fetch_button(): void
+    public function test_every_model_field_offers_a_search_button(): void
     {
-        $this->actingAs($this->superAdmin())
-            ->get(route('admin.settings'))
-            ->assertOk()
-            ->assertSee('Fetch models')
-            ->assertSee('embedding_model_options');
+        $response = $this->actingAs($this->superAdmin())
+            ->get(route('admin.settings', 'models'))
+            ->assertOk();
+
+        // Embedding and the five jobs.
+        $this->assertSame(6, preg_match_all('/<button[^>]*data-picker-search/', $response->getContent()));
     }
 }

@@ -122,10 +122,31 @@
                     <span>Users and roles</span>
                 </a>
 
-                <a href="{{ route('admin.settings') }}" class="sidebar-link {{ request()->routeIs('admin.settings*') ? 'active' : '' }}">
-                    <i class="bi bi-sliders2"></i>
-                    <span>Admin settings</span>
-                </a>
+            @endif
+
+            {{-- Platform settings, one link per category, so a new category is
+                 a line in AdminSettingsController::SECTIONS rather than a
+                 longer page. A dot marks a category the last save refused. --}}
+            @if(auth()->user()->isSuperAdmin())
+                @php
+                    $onSettings = request()->routeIs('admin.settings');
+                    $settingsSection = $onSettings ? (request()->route('section') ?? 'providers') : null;
+                    $settingsErrors = $onSettings && $errors->any()
+                        ? \App\Http\Controllers\AdminSettingsController::sectionsWithErrors($errors) : [];
+                @endphp
+
+                <div class="sidebar-group">Admin Settings</div>
+
+                @foreach(\App\Http\Controllers\AdminSettingsController::SECTIONS as $key => $meta)
+                    <a href="{{ route('admin.settings', $key) }}"
+                       class="sidebar-link sidebar-link-settings {{ $settingsSection === $key ? 'active' : '' }}">
+                        <i class="bi {{ $meta['icon'] }}"></i>
+                        <span>{{ $meta['label'] }}</span>
+                        @if(in_array($key, $settingsErrors, true))
+                            <span class="sidebar-error-dot" title="Has a problem to fix"></span>
+                        @endif
+                    </a>
+                @endforeach
             @endif
         </nav>
 

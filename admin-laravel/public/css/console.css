@@ -1291,3 +1291,169 @@ button.card:active {
 .job-default { font-size: 0.6875rem; font-weight: 400; color: var(--text-faint); white-space: nowrap; }
 .job-card .card-header { min-height: 2.75rem; }
 .job-card .model-picker .model-status { margin-bottom: 0.25rem; }
+
+/* --- Architecture modal -------------------------------------------------- */
+.arch-system {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7.5rem minmax(0, 1fr) 7.5rem minmax(0, 1fr);
+  grid-template-areas:
+    ".      .  site   .  customer"
+    ".      .  l1     .  l5"
+    "models l3 engine l2 portal"
+    ".      .  l4     l4 l4"
+    ".      .  db     db db";
+  gap: 0;
+  align-items: stretch;
+}
+.arch-node {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.arch-node > i { font-size: 1rem; color: var(--text-faint); }
+.arch-node > strong { font-size: 0.8125rem; color: var(--text); }
+.arch-node code { font-size: 0.72rem; color: var(--text-muted); }
+.arch-core { border-style: solid; border-color: var(--accent-line); background: var(--accent-soft); }
+.arch-core > i { color: var(--accent); }
+.arch-model { border-style: solid; border-color: var(--info); background: var(--info-soft); }
+.arch-model > i { color: var(--info); }
+.arch-store { border-style: solid; border-color: var(--ok); background: var(--ok-soft); }
+.arch-store > i { color: var(--ok); }
+
+/* A connector: a dashed rule with its label sitting on it. */
+.arch-link {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 0.25rem;
+  position: relative;
+  font-size: 0.66rem;
+  line-height: 1.25;
+  color: var(--text-faint);
+  text-align: center;
+}
+.arch-link::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px dashed var(--border-strong);
+}
+.arch-link span { position: relative; background: var(--bg-elev); padding: 0.0625rem 0.25rem; }
+.arch-link-down { min-height: 2.5rem; }
+.arch-link-down::before { left: 50%; right: auto; top: 0; bottom: 0; border-top: 0; border-left: 1px dashed var(--border-strong); }
+
+.arch-principles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem 1.25rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.arch-principles > div { display: flex; gap: 0.5rem; }
+.arch-principles i { color: var(--accent); }
+.arch-principles strong { color: var(--text); font-weight: 600; }
+
+@media (max-width: 991.98px) {
+  .arch-system {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "site" "l1" "engine" "l3" "models" "l2" "portal" "l5" "customer" "l4" "db";
+  }
+  .arch-link { min-height: 2.5rem; }
+  .arch-link::before { left: 50%; right: auto; top: 0; bottom: 0; border-top: 0; border-left: 1px dashed var(--border-strong); }
+  .arch-principles { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Numbered stages joined by a rail. */
+.arch-steps { list-style: none; counter-reset: arch; margin: 0; padding: 0; }
+.arch-steps > li { counter-increment: arch; position: relative; padding: 0 0 1.125rem 2.5rem; }
+.arch-steps > li::before {
+  content: counter(arch);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1.625rem;
+  height: 1.625rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.arch-steps > li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 0.8125rem;
+  top: 1.875rem;
+  bottom: 0.25rem;
+  border-left: 1px dashed var(--border-strong);
+}
+.arch-step-title { font-size: 0.8125rem; font-weight: 600; color: var(--text); margin: 0.1875rem 0 0.375rem; }
+.arch-step-body { font-size: 0.78rem; color: var(--text-muted); }
+
+.arch-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+.arch-row-cascade { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr); }
+.arch-pipeline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 0.375rem;
+}
+.arch-chip-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.arch-chip-card > i { color: var(--accent); font-size: 0.9375rem; }
+.arch-chip-card > strong { color: var(--text); font-size: 0.78rem; }
+.arch-then {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  font-size: 0.625rem;
+}
+@media (max-width: 1199.98px) {
+  .arch-pipeline { grid-template-columns: minmax(0, 1fr); }
+  .arch-pipeline .arch-then i { transform: rotate(90deg); }
+}
+@media (max-width: 767.98px) {
+  .arch-row, .arch-row-cascade { grid-template-columns: minmax(0, 1fr); }
+  .arch-row-cascade .arch-then i { transform: rotate(90deg); }
+}
+
+.arch-table th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 600; }
+.arch-table td { font-size: 0.78rem; }
+
+.arch-node-card { padding: 0.875rem 1rem; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); }
+.arch-memory { display: flex; height: 0.875rem; border-radius: var(--r-xs); overflow: hidden; background: var(--surface-3); gap: 1px; }
+.arch-legend { list-style: none; padding: 0; margin: 0.75rem 0 0; font-size: 0.75rem; color: var(--text-muted); }
+.arch-legend li { display: flex; align-items: center; gap: 0.5rem; padding: 0.125rem 0; }
+.arch-swatch { width: 0.625rem; height: 0.625rem; border-radius: 2px; flex-shrink: 0; }
+.arch-mem-sys { background: var(--text-faint); }
+.arch-mem-main { background: var(--accent); }
+.arch-mem-cache { background: var(--warn); opacity: 0.55; }
+.arch-mem-job { background: var(--info); }
+.arch-mem-later { background: var(--info); opacity: 0.35; }
+.arch-mem-free { background: var(--surface-3); border: 1px solid var(--border-strong); }

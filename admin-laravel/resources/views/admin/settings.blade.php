@@ -346,6 +346,28 @@
         <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
             <div class="col">
                 <div class="card h-100">
+                    <div class="card-header d-flex align-items-center gap-2"><i class="bi bi-diagram-3"></i> Architecture</div>
+                    <div class="p-3 d-flex flex-column gap-3">
+                        <p class="text-muted mb-0 small">
+                            How the portal, the engine and the models fit together: the path a message takes, how a
+                            document is indexed, which model does each job right now, and the plan for the two DGX Sparks.
+                        </p>
+                        <div class="d-flex flex-wrap gap-1">
+                            <span class="chip">2 services</span>
+                            <span class="chip">1 database</span>
+                            <span class="chip">{{ count($modelRoles) + 2 }} model jobs</span>
+                        </div>
+                        <div class="mt-auto">
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                    data-bs-toggle="modal" data-bs-target="#architectureModal">
+                                <i class="bi bi-diagram-3"></i> View architecture
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card h-100">
                     <div class="card-header d-flex align-items-center gap-2"><i class="bi bi-arrow-repeat"></i> Rebuild the index</div>
                     <div class="p-3 d-flex flex-column gap-3">
                         <p class="text-muted mb-0 small">
@@ -368,4 +390,7 @@
 </div>
 
 @include('admin._provider-modal')
+@if($section === 'maintenance')
+    @include('admin._architecture-modal')
+@endif
 @endsection

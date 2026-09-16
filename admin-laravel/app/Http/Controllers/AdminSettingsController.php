@@ -26,6 +26,10 @@ class AdminSettingsController extends Controller
             'label' => 'Models', 'icon' => 'bi-boxes',
             'description' => 'Which model does each job. Pick a provider, then search it for the model: a list that comes back also proves the provider answers.',
         ],
+        'guard' => [
+            'label' => 'Guard', 'icon' => 'bi-shield-check',
+            'description' => 'What the guard blocks, for every bot that has it switched on under Brain. A bot can add topics of its own there.',
+        ],
         'chunking' => [
             'label' => 'Chunking', 'icon' => 'bi-scissors',
             'description' => 'How sources are cut into passages, and how much of them reaches the model.',
@@ -52,6 +56,24 @@ class AdminSettingsController extends Controller
         'embedding_dimensions', 'chunk_size', 'chunk_overlap',
         'context_char_budget',
         'web_search_provider', 'web_search_tavily_key', 'web_search_brave_key',
+        'guard_topics', 'guard_borderline',
+    ];
+
+    /**
+     * The harms the guard can block. api-engine/guard.py holds the same keys,
+     * tells a stand-in model about the ones switched on, and maps a dedicated
+     * guard model's own category names onto them. Keep the two in step.
+     */
+    public const GUARD_CATEGORIES = [
+        'violence' => ['label' => 'Violence and weapons', 'hint' => 'Threats, attacks, making weapons'],
+        'illegal' => ['label' => 'Illegal activity', 'hint' => 'Drugs, fraud, hacking, theft'],
+        'sexual' => ['label' => 'Sexual content', 'hint' => 'Explicit material of any kind'],
+        'self_harm' => ['label' => 'Self-harm', 'hint' => 'Suicide and self-injury'],
+        'hate' => ['label' => 'Hate and harassment', 'hint' => 'Discrimination, abuse, unethical acts'],
+        'personal_data' => ['label' => 'Personal data', 'hint' => "Exposing someone's private details"],
+        'jailbreak' => ['label' => 'Instruction override', 'hint' => 'Attempts to make the bot ignore its rules'],
+        'political' => ['label' => 'Political topics', 'hint' => 'Elections, parties, contested issues'],
+        'copyright' => ['label' => 'Copyright', 'hint' => 'Reproducing protected works'],
     ];
 
     /**
@@ -61,33 +83,38 @@ class AdminSettingsController extends Controller
      */
     public const MODEL_ROLES = [
         'intent' => [
+            'icon' => 'bi-signpost-split',
             'label' => 'Intent',
             'job' => 'Reads each message with the recent conversation, decides whether it needs facts, and rewrites a follow-up into a question that stands on its own.',
-            'blank' => "each bot's own model",
+            'blank' => "Bot's main model",
             'placeholder' => 'qwen3.5:4b',
         ],
         'sql' => [
+            'icon' => 'bi-database',
             'label' => 'SQL',
             'job' => 'Writes the query, and decides whether any table can answer a question at all. Small models are markedly weaker at SQL than at conversation.',
-            'blank' => "each bot's own model",
+            'blank' => "Bot's main model",
             'placeholder' => 'qwen3-coder:30b',
         ],
         'rerank' => [
+            'icon' => 'bi-sort-down',
             'label' => 'Reranker',
             'job' => 'Scores each retrieved passage against the question. Needs an endpoint that serves /v1/rerank, such as vLLM or llama.cpp. Ollama does not.',
-            'blank' => 'reranking is skipped',
+            'blank' => 'Off: no reranking',
             'placeholder' => 'bge-reranker-v2-m3',
         ],
         'guard' => [
+            'icon' => 'bi-shield-check',
             'label' => 'Guard',
             'job' => 'Checks what visitors send, and what bots answer, for harmful content.',
-            'blank' => "each bot's own model",
+            'blank' => "Bot's main model",
             'placeholder' => 'qwen3guard-gen:0.6b',
         ],
         'vision' => [
+            'icon' => 'bi-eye',
             'label' => 'Vision',
-            'job' => 'Reads uploaded images, and scanned PDFs with no text layer, page by page up to 40 pages. Needs a model that accepts images. Re-index a source after setting this.',
-            'blank' => 'scans and images cannot be read',
+            'job' => 'Reads uploaded images, and scanned PDFs with no text layer, page by page up to 40 pages. Needs a model that accepts images; by default, the main model of a bot that reads the collection. Re-index a source after setting this.',
+            'blank' => "Bot's main model",
             'placeholder' => 'qwen3-vl:8b',
         ],
     ];
@@ -152,6 +179,7 @@ class AdminSettingsController extends Controller
     {
         return match (true) {
             str_starts_with($field, 'embedding_'), str_contains($field, '_model_') => 'models',
+            str_starts_with($field, 'guard_') => 'guard',
             str_starts_with($field, 'web_search_') => 'web-search',
             str_starts_with($field, 'brand_') => 'branding',
             default => 'chunking',
@@ -211,6 +239,8 @@ class AdminSettingsController extends Controller
                 ->values(),
             'modelRoles' => self::MODEL_ROLES,
             'defaultEmbeddingUrl' => self::DEFAULT_EMBEDDING_URL,
+            'guardCategories' => self::GUARD_CATEGORIES,
+            'guardChosen' => array_filter(explode(',', (string) AppSetting::get('guard_categories'))),
             // Resolved here rather than in the view, so the card and the
             // sidebar cannot disagree about which mark is in use.
             'logoUrl' => Brand::logoUrl(),
@@ -235,6 +265,12 @@ class AdminSettingsController extends Controller
             'web_search_provider' => ['required', 'in:duckduckgo,tavily,brave'],
             'web_search_tavily_key' => ['nullable', 'string', 'max:200'],
             'web_search_brave_key' => ['nullable', 'string', 'max:200'],
+            // Read only from the form that has the checkboxes; see below.
+            'guard_categories' => ['exclude_unless:guard_categories_present,1', 'nullable', 'array'],
+            'guard_categories.*' => ['exclude_unless:guard_categories_present,1', 'string',
+                Rule::in(array_keys(self::GUARD_CATEGORIES))],
+            'guard_topics' => ['nullable', 'string', 'max:2000'],
+            'guard_borderline' => ['nullable', 'in:allow,block'],
             // No SVG. One served from our own origin runs its own script for
             // anyone who opens it directly, and super admin only is not a
             // good enough reason to leave that open.
@@ -261,6 +297,16 @@ class AdminSettingsController extends Controller
 
         foreach (self::keys() as $key) {
             AppSetting::put($key, $validated[$key] ?? '');
+        }
+
+        AppSetting::put('guard_borderline', $validated['guard_borderline'] ?? 'allow');
+
+        // Unticked checkboxes send nothing, so an absent list means none only
+        // when the form that has the checkboxes sent it. A client that never
+        // knew about categories must not switch every one of them off.
+        if ($request->boolean('guard_categories_present')) {
+            AppSetting::put('guard_categories', implode(',', array_values(array_intersect(
+                array_keys(self::GUARD_CATEGORIES), $validated['guard_categories'] ?? []))));
         }
 
         // Deliberately not in KEYS. That loop writes every key it knows on

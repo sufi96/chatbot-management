@@ -47,6 +47,7 @@ class BotBrainController extends Controller
             'rerank_min_score' => ['sometimes', 'numeric', 'min:0', 'max:1'],
             'retrieval_min_similarity' => ['sometimes', 'numeric', 'min:0', 'max:1'],
             'guard_refusal' => ['nullable', 'string', 'max:500'],
+            'guard_topics' => ['nullable', 'string', 'max:2000'],
             'retrieval_fallback' => ['required', 'in:say_unknown,answer_anyway'],
             'web_search_max_results' => ['required', 'integer', 'min:1', 'max:10'],
             'web_search_country' => ['nullable', 'string', 'size:2', 'alpha'],

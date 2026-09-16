@@ -34,7 +34,7 @@ def replying(text, calls=None):
 def test_a_safe_label_is_safe():
     verdict = guard.parse("Safety: Safe\nCategories: None")
 
-    assert verdict == guard.Verdict(safe=True, category="", ran=True)
+    assert verdict == guard.Verdict(safe=True, category="", ran=True, labelled=True)
 
 
 def test_an_unsafe_label_blocks_and_names_the_harm():
@@ -169,3 +169,149 @@ def test_a_bot_without_its_own_refusal_uses_the_default():
 def test_a_bots_own_refusal_is_used():
     assert guard.refusal_for(FakeBot(guard_refusal="Maaf, saya tidak dapat membantu.")) == (
         "Maaf, saya tidak dapat membantu.")
+
+
+# Rules: which harms, which topics, and what borderline means
+
+def rules(**overrides):
+    return {**SETTING_DEFAULTS, **overrides}
+
+
+def test_every_category_is_guarded_by_default():
+    assert set(SETTING_DEFAULTS["guard_categories"].split(",")) == set(guard.CATEGORIES)
+    assert SETTING_DEFAULTS["guard_borderline"] == "allow"
+    assert SETTING_DEFAULTS["guard_topics"] == ""
+
+
+@pytest.mark.asyncio
+async def test_the_prompt_names_only_the_categories_switched_on():
+    calls = []
+    await guard.check(FakeBot(), "hello", rules(guard_categories="violence,personal_data"),
+                      complete=replying('{"safe": true, "category": ""}', calls))
+
+    prompt = calls[0]["system_prompt"]
+    assert "violence" in prompt and "personal_data" in prompt
+    assert "sexual" not in prompt
+
+
+@pytest.mark.asyncio
+async def test_platform_and_bot_topics_are_both_in_the_prompt():
+    bot = FakeBot()
+    bot.guard_topics = "medical diagnosis"
+    calls = []
+
+    await guard.check(bot, "hello", rules(guard_topics="competitor pricing\n\n"),
+                      complete=replying('{"safe": true, "category": ""}', calls))
+
+    assert "- competitor pricing" in calls[0]["system_prompt"]
+    assert "- medical diagnosis" in calls[0]["system_prompt"]
+
+
+@pytest.mark.asyncio
+async def test_nothing_to_guard_makes_no_call():
+    calls = []
+    verdict = await guard.check(FakeBot(), "hello", rules(guard_categories=""),
+                                complete=replying("x", calls))
+
+    assert calls == []
+    assert verdict == guard.Verdict()
+
+
+@pytest.mark.asyncio
+async def test_a_dedicated_guard_flagging_a_category_switched_off_lets_it_through():
+    verdict = await guard.check(
+        FakeBot(), "who should I vote for", rules(guard_categories="violence"),
+        complete=replying("Safety: Unsafe\nCategories: Politically Sensitive Topics"))
+
+    assert verdict.safe is True
+    assert verdict.ran is True
+
+
+@pytest.mark.asyncio
+async def test_a_dedicated_guard_flagging_a_category_switched_on_blocks():
+    verdict = await guard.check(
+        FakeBot(), "x", rules(guard_categories="violence,personal_data"),
+        complete=replying("Safety: Unsafe\nCategories: PII"))
+
+    assert verdict.safe is False
+    assert verdict.category == "PII"
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_category_still_blocks():
+    """A harm the guard names that we do not recognise is not ours to wave through."""
+    verdict = await guard.check(
+        FakeBot(), "x", rules(guard_categories="violence"),
+        complete=replying('{"safe": false, "category": "something new"}'))
+
+    assert verdict.safe is False
+
+
+@pytest.mark.asyncio
+async def test_a_stand_in_naming_a_category_switched_off_lets_it_through():
+    verdict = await guard.check(
+        FakeBot(), "x", rules(guard_categories="violence,topic"),
+        complete=replying('{"safe": false, "category": "copyright"}'))
+
+    assert verdict.safe is True
+
+
+@pytest.mark.asyncio
+async def test_borderline_is_let_through_by_default():
+    verdict = await guard.check(
+        FakeBot(), "x", SETTING_DEFAULTS,
+        complete=replying("Safety: Controversial\nCategories: Politically Sensitive Topics"))
+
+    assert verdict.safe is True
+    assert verdict.category == "Politically Sensitive Topics"
+
+
+@pytest.mark.asyncio
+async def test_borderline_can_be_blocked():
+    verdict = await guard.check(
+        FakeBot(), "x", rules(guard_borderline="block"),
+        complete=replying("Safety: Controversial\nCategories: Politically Sensitive Topics"))
+
+    assert verdict.safe is False
+
+
+@pytest.mark.asyncio
+async def test_blocking_borderline_asks_a_stand_in_to_lean_cautious():
+    calls = []
+    await guard.check(FakeBot(), "x", rules(guard_borderline="block"),
+                      complete=replying('{"safe": true, "category": ""}', calls))
+
+    assert "unsure" in calls[0]["system_prompt"]
+
+
+@pytest.mark.asyncio
+async def test_topics_behind_a_dedicated_guard_are_checked_by_the_bots_main_model():
+    """Qwen3Guard knows only its own categories, so it cannot judge a topic."""
+    settings = rules(guard_topics="competitor pricing",
+                     guard_model_base_url="http://spark-b:8004/v1",
+                     guard_model_name="qwen3guard-gen-4b")
+    replies = iter(["Safety: Safe\nCategories: None",
+                    '{"safe": false, "category": "topic"}'])
+    calls = []
+
+    async def complete(**kwargs):
+        calls.append(kwargs)
+        return next(replies)
+
+    verdict = await guard.check(FakeBot(), "how cheap is BrandX", settings, complete=complete)
+
+    assert len(calls) == 2
+    assert calls[1]["base_url"] == "http://localhost:11434/v1"
+    assert calls[1]["model_name"] == "qwen3.5:4b"
+    assert "competitor pricing" in calls[1]["system_prompt"]
+    assert verdict.safe is False
+    assert verdict.category == "topic"
+
+
+@pytest.mark.asyncio
+async def test_a_stand_in_already_judged_topics_so_no_second_call():
+    calls = []
+    await guard.check(FakeBot(), "x", rules(guard_topics="competitor pricing"),
+                      complete=replying('{"safe": true, "category": ""}', calls))
+
+    assert len(calls) == 1

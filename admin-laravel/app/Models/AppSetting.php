@@ -41,6 +41,11 @@ class AppSetting extends Model
         'guard_model_name' => '',
         'vision_model_provider_id' => '',
         'vision_model_name' => '',
+        // What the guard blocks. Every category on is what it did before it
+        // had settings; api-engine/guard.py holds the keys.
+        'guard_categories' => 'violence,illegal,sexual,self_harm,hate,personal_data,jailbreak,political,copyright',
+        'guard_topics' => '',
+        'guard_borderline' => 'allow',
         // Empty means the mark shipped with the console. Deliberately outside
         // the settings form's write-every-key loop, so an unrelated save
         // cannot blank somebody's logo.

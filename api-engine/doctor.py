@@ -149,7 +149,7 @@ async def check_rerank(settings: dict, transport=None) -> Check:
 async def check_vision(settings: dict, transport=None) -> Check:
     client = vision_module.client_for(settings)
     if client is None:
-        return Check("vision", detail="blank: scans and images cannot be read")
+        return Check("vision", detail="blank: each collection borrows the main model of a bot that reads it")
 
     check = Check("vision", client.base_url, client.model)
     started = time.perf_counter()
@@ -200,6 +200,9 @@ async def run_checks(settings: dict, answer_targets: list[AnswerTarget],
                                        target.api_key, target.model, transport=transport))
 
     for role in roles.GENERATIVE:
+        # Checked by reading an image below: a chat reply proves nothing about that.
+        if role == "vision":
+            continue
         url_key, api_key_key, name_key = roles.setting_keys(role)
         base_url = (settings.get(url_key) or "").strip()
         model = (settings.get(name_key) or "").strip()

@@ -6,9 +6,10 @@ the vision role, each such page is rendered to an image and transcribed into
 Markdown, which then goes through the same chunking as any other document:
 headings, lists and tables survive as structure.
 
-The role has no stand-in. Ingestion belongs to no bot, and a chat model may not
-read images. Blank means a scan still cannot be read, and the source says so in
-words an operator can act on.
+Ingestion belongs to no bot, so a blank role borrows the main model of a bot
+that reads the collection, which the indexer finds. That model may not read
+images; when it fails, the source says whose model it was and what to set. A
+collection no bot reads has nothing to borrow, and says that instead.
 """
 import base64
 import io
@@ -43,9 +44,11 @@ PROMPT = ("Transcribe this page into Markdown. Keep headings as headings, lists 
           "language, with no commentary. If the page is blank, reply with nothing.")
 
 NO_VISION_FOR_IMAGE = ("Images need a vision model. Set one under Models in admin settings, "
+                       "or connect this collection to a bot whose main model reads images, "
                        "then re-index.")
 NO_VISION_FOR_SCAN = ("This PDF has no text layer, so it looks scanned. Set a vision model "
-                      "under Models in admin settings, then re-index.")
+                      "under Models in admin settings, or connect this collection to a bot "
+                      "whose main model reads images, then re-index.")
 
 _FENCE = re.compile(r"^```[a-zA-Z]*\n(.*)\n```$", re.DOTALL)
 
@@ -100,10 +103,13 @@ def _png(image) -> bytes:
 
 
 class VisionClient:
-    def __init__(self, base_url: str, api_key: str, model: str):
+    def __init__(self, base_url: str, api_key: str, model: str,
+                 borrowed_from: str | None = None):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key or ""
         self.model = model
+        # The bot whose main model this is, when the vision role was blank.
+        self.borrowed_from = borrowed_from
 
     async def transcribe(self, png: bytes, transport=None) -> str:
         """One page's text as Markdown. Raises when the endpoint fails."""
@@ -139,13 +145,33 @@ class VisionClient:
         return unfence(response.json()["choices"][0]["message"]["content"] or "")
 
 
-def client_for(settings: dict) -> VisionClient | None:
-    """A client for the install's vision model, or None when none is configured."""
-    endpoint = roles.endpoint_for("vision", None, settings)
+def client_for(settings: dict, bot=None) -> VisionClient | None:
+    """A client for the vision role, borrowing the bot's main model when the role
+    is blank. None when there is nothing to call."""
+    endpoint = roles.endpoint_for("vision", bot, settings)
     if not endpoint.available:
         return None
 
-    return VisionClient(endpoint.base_url, endpoint.api_key, endpoint.model)
+    return VisionClient(endpoint.base_url, endpoint.api_key, endpoint.model,
+                        borrowed_from=None if endpoint.configured else bot.name)
+
+
+async def _transcribe(client, png: bytes) -> str:
+    """One page, with a failure of a borrowed model explained.
+
+    A bot's main model is often a text model. Its endpoint's own complaint says
+    little to an operator who never chose it to read images.
+    """
+    try:
+        return await client.transcribe(png)
+    except Exception as error:
+        if not getattr(client, "borrowed_from", None):
+            raise
+        raise ValueError(
+            f"No Vision model is set, so this was read with the main model of "
+            f"{client.borrowed_from} ({client.model}), which failed: {str(error)[:200]}. "
+            f"Set a Vision model under Models in admin settings, or give that bot a "
+            f"model that reads images, then re-index.") from error
 
 
 async def read_file(path: Path, settings: dict, make_client=None) -> str:
@@ -159,7 +185,7 @@ async def read_file(path: Path, settings: dict, make_client=None) -> str:
         client = make_client(settings)
         if client is None:
             raise ValueError(NO_VISION_FOR_IMAGE)
-        return await client.transcribe(image_as_png(path))
+        return await _transcribe(client, image_as_png(path))
 
     text = extract_file(path)
     if suffix != ".pdf":
@@ -179,6 +205,6 @@ async def read_file(path: Path, settings: dict, make_client=None) -> str:
     if pages > MAX_PAGES:
         print(f"[Vision] {path.name} has {pages} pages; reading the first {MAX_PAGES}.")
 
-    transcribed = [await client.transcribe(png) for png in render_pdf_pages(path)]
+    transcribed = [await _transcribe(client, png) for png in render_pdf_pages(path)]
 
     return "\n\n".join(part for part in transcribed if part.strip()) or text

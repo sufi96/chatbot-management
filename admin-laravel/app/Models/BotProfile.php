@@ -71,6 +71,7 @@ class BotProfile extends Model
         'intent_enabled',
         'guard_enabled',
         'guard_refusal',
+        'guard_topics',
         'top_p',
         'top_k_sampling',
         'presence_penalty',

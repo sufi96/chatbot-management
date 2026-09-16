@@ -106,9 +106,19 @@ def test_an_unknown_role_is_refused():
         roles.endpoint_for("imagine", FakeBot(), SETTING_DEFAULTS)
 
 
-def test_a_blank_vision_role_is_unavailable_rather_than_borrowed():
-    """Ingestion belongs to no bot, and a chat model may not read images."""
-    assert roles.endpoint_for("vision", None, SETTING_DEFAULTS).available is False
+def test_a_blank_vision_role_borrows_the_main_model_of_the_bot_given():
+    """Indexing passes a bot that reads the collection; its model reads the page."""
+    endpoint = roles.endpoint_for("vision", FakeBot(), SETTING_DEFAULTS)
+
+    assert endpoint.available is True
+    assert endpoint.configured is False
+    assert endpoint.model == "qwen3.5:4b"
+
+
+def test_a_blank_role_with_no_bot_to_borrow_from_is_unavailable():
+    """A collection no bot reads has no main model to fall back on."""
+    for role in roles.GENERATIVE:
+        assert roles.endpoint_for(role, None, SETTING_DEFAULTS).available is False, role
 
 
 def test_a_configured_vision_role_is_available():

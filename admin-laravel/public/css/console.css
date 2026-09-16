@@ -1173,8 +1173,9 @@ button.card:active {
 .brand-preview-wide img { max-height: 48px; }
 
 .brand-preview-square img { max-height: 64px; max-width: 64px; }
-
 /* --- Admin settings ------------------------------------------------------ */
+.settings-page { max-width: 1320px; }
+
 .sidebar-error-dot {
   width: 6px;
   height: 6px;
@@ -1190,25 +1191,39 @@ button.card:active {
   .sidebar-link-settings:not(.active) { display: none; }
 }
 
-.provider-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-}
-.provider-row + .provider-row { border-top: 1px solid var(--border); }
-.provider-url {
-  font-family: var(--font-mono);
+/* A quiet one-line explanation in place of a full alert. */
+.settings-note {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
   font-size: 0.75rem;
   color: var(--text-muted);
-  overflow-wrap: anywhere;
+}
+.settings-note > i { color: var(--text-faint); margin-top: 0.0625rem; }
+
+/* Fixed-width labels, so provider and model fields line up card to card. */
+.picker-label {
+  width: 5.75rem;
+  justify-content: flex-start;
+  font-size: 0.72rem;
+  color: var(--text-muted);
 }
 
-.model-job + .model-job {
-  border-top: 1px solid var(--border);
-  margin-top: 1rem;
-  padding-top: 1rem;
+.job-card .card-header i,
+.settings-page .card-header > span > i,
+.settings-page .card-header > i { color: var(--text-faint); }
+
+/* Two lines of description, the rest on hover, so cards stay one height. */
+.job-desc {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  margin-bottom: 0.625rem;
+  min-height: calc(2 * 1.4em);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* The discovered-models list: filter on top, scrolling names below. */
@@ -1225,4 +1240,54 @@ button.card:active {
   white-space: normal;
   overflow-wrap: anywhere;
 }
-.model-status { min-height: 1.125rem; }
+.model-status { min-height: 1.125rem; margin-top: 0.25rem; font-size: 0.72rem; }
+
+.provider-icon { color: var(--text-faint); font-size: 0.875rem; }
+.provider-url {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  margin-top: 0.125rem;
+}
+.chip-accent { color: var(--accent); border-color: var(--accent-line); background: var(--accent-soft); }
+
+.provider-add {
+  width: 100%;
+  min-height: 7.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 1rem;
+  text-align: center;
+  color: var(--text);
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-md);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.provider-add:hover, .provider-add:focus-visible { border-color: var(--accent-line); background: var(--accent-soft); }
+.provider-add > i { font-size: 1.125rem; color: var(--accent); }
+
+/* A whole-tile checkbox, so the hint is part of what you click. */
+.guard-option {
+  display: flex;
+  gap: 0.625rem;
+  align-items: flex-start;
+  height: 100%;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.guard-option:hover { background: var(--surface-2); }
+.guard-option:has(input:checked) { border-color: var(--accent-line); background: var(--accent-soft); }
+.guard-option .form-check-input { margin-top: 0.125rem; flex-shrink: 0; }
+.guard-option-label { display: block; font-size: 0.8125rem; font-weight: 500; color: var(--text); }
+.guard-option-hint { display: block; font-size: 0.7rem; color: var(--text-muted); }
+.job-default { font-size: 0.6875rem; font-weight: 400; color: var(--text-faint); white-space: nowrap; }
+.job-card .card-header { min-height: 2.75rem; }
+.job-card .model-picker .model-status { margin-bottom: 0.25rem; }

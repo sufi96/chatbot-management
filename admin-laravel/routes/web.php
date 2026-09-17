@@ -72,6 +72,9 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     // AI providers. Managed from inside the bot form, so every action
     // answers JSON and nothing here renders a page of its own.
     Route::post('/providers', [AiProviderController::class, 'store'])->name('providers.store');
+    // Named by provider id, so a key never travels through the browser.
+    Route::post('/providers/models', [AiProviderController::class, 'models'])->name('providers.models');
+    Route::post('/providers/test', [AiProviderController::class, 'test'])->name('providers.test');
     Route::put('/providers/{id}', [AiProviderController::class, 'update'])->name('providers.update');
     Route::delete('/providers/{id}', [AiProviderController::class, 'destroy'])->name('providers.destroy');
 

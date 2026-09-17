@@ -146,4 +146,45 @@ class EngineClient
                     'message' => 'Could not reach the engine: ' . $e->getMessage()];
         }
     }
+
+    /**
+     * The chat models an endpoint offers, for the bot form's model picker.
+     * The key is sent from here, never from the browser.
+     */
+    public static function chatModels(string $baseUrl, string $apiKey): array
+    {
+        try {
+            $response = self::request()->timeout(30)->post(self::base() . '/api/v1/bot/fetch-models', [
+                'base_url' => $baseUrl,
+                'api_key' => $apiKey,
+            ]);
+
+            return $response->successful()
+                ? $response->json()
+                : ['success' => false, 'models' => [], 'message' => 'Engine returned HTTP ' . $response->status()];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'models' => [], 'message' => 'Could not reach the engine: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * Asks the model for a word, for the bot form's Test inference. The engine
+     * waits up to a minute for a cold model, so this waits a little longer.
+     */
+    public static function testInference(string $baseUrl, string $apiKey, string $model): array
+    {
+        try {
+            $response = self::request()->timeout(75)->post(self::base() . '/api/v1/bot/test-connection', [
+                'base_url' => $baseUrl,
+                'api_key' => $apiKey,
+                'model_name' => $model,
+            ]);
+
+            return $response->successful()
+                ? $response->json()
+                : ['success' => false, 'message' => 'Engine returned HTTP ' . $response->status()];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => 'Could not reach the engine: ' . $e->getMessage()];
+        }
+    }
 }

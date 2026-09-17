@@ -5,7 +5,7 @@
 @section('content')
 <div style="max-width: 1200px;">
 
-    <div class="page-head mb-4">
+    <div class="page-head mb-3">
         <div>
             <a href="{{ route('bots.edit', $bot->id) }}" class="d-inline-flex align-items-center gap-1.5 mb-2" style="font-size: 0.8125rem;">
                 <i class="bi bi-arrow-left"></i> {{ $bot->name }}
@@ -21,6 +21,8 @@
             <i class="bi bi-chat-dots"></i> Open test widget
         </button>
     </div>
+
+    @include('bots._tabs')
 
     <form action="{{ route('bots.brain.update', $bot->id) }}" method="POST" id="brainForm">
         @csrf
@@ -440,15 +442,13 @@
             </div>
         </div>
 
-        <div class="form-actions">
-            <span class="text-muted d-none d-sm-inline" style="font-size: 0.75rem;">
-                Saving applies to every site running this bot.
-            </span>
-            <div class="d-flex align-items-center gap-2 ms-auto">
-                <a href="{{ route('bots.edit', $bot->id) }}" class="btn btn-outline-secondary">Cancel</a>
-                <button type="submit" class="btn btn-brand">Save brain settings</button>
-            </div>
-        </div>
+        {{-- Same bar as the Profile tab so the two tabs read as one bot's
+             settings; only the button names which half it saves. --}}
+        @include('bots._save-bar', [
+            'formId' => 'brainForm',
+            'saveLabel' => 'Save Brain changes',
+            'track' => true,
+        ])
     </form>
 
 </div>
@@ -473,7 +473,10 @@
         if (launcher) {
             launcher.click();
         } else {
-            window.alert('The widget has not finished loading. Check that the streaming engine on port 8000 is running, then reload.');
+            noticeDialog({
+                title: 'The widget is not ready',
+                message: 'The widget has not finished loading. Check that the streaming engine on port 8000 is running, then reload.',
+            });
         }
     }
 

@@ -24,11 +24,11 @@
             @if($isEdit)
                 @if($bot->is_active)
                     <span class="d-inline-flex align-items-center gap-1.5" style="color: var(--ok); font-size: 0.78125rem;">
-                        <span class="state-dot is-live"></span> Accepting chats
+                        <span class="state-dot is-live"></span> Online
                     </span>
                 @else
-                    <span class="d-inline-flex align-items-center gap-1.5 text-muted" style="font-size: 0.78125rem;">
-                        <span class="state-dot is-off"></span> Paused
+                    <span class="d-inline-flex align-items-center gap-1.5" style="color: var(--danger); font-size: 0.78125rem;">
+                        <span class="state-dot" style="background: var(--danger);"></span> Offline
                     </span>
                 @endif
             @endif
@@ -37,16 +37,11 @@
             {{ $isEdit ? 'Changes apply to every site running this bot as soon as you save.' : 'Configuring in workspace ' . $activeSystem->name . '.' }}
         </p>
     </div>
-
-    {{-- Brain is the page an operator comes back to most, so it sits in the
-         head where it needs no scrolling to find. The card further down
-         explains what is on it; this is the shortcut. --}}
-    @if($isEdit)
-        <a href="{{ route('bots.brain', $bot->id) }}" class="btn btn-brand d-inline-flex align-items-center gap-2">
-            <i class="bi bi-diagram-2"></i> Open Brain
-        </a>
-    @endif
 </div>
+
+@if($isEdit)
+    @include('bots._tabs')
+@endif
 
 <form action="{{ $isEdit ? route('bots.update', $bot->id) : route('bots.store') }}" method="POST" enctype="multipart/form-data" id="botForm">
     @csrf
@@ -54,74 +49,154 @@
         @method('PUT')
     @endif
 
-    <div class="row g-3">
+    {{-- A grid rather than a row so the power card can sit above the
+         preview on wide screens and above the settings on narrow ones,
+         without rendering it twice. --}}
+    <div class="bot-editor">
 
-        {{-- ===================== Settings column ===================== --}}
-        <div class="col-12 col-lg-7 col-xxl-8">
-
-            {{-- Identity --}}
-            <div class="card mb-3">
-                <div class="card-header">Identity</div>
-                <div class="p-3">
-                    <div class="mb-3">
-                        <label for="input_name" class="form-label">
-                            Profile name <span style="color: var(--danger);">*</span>
-                        </label>
-                        <input type="text" name="name" id="input_name" class="form-control"
-                               value="{{ old('name', $bot->name) }}"
-                               placeholder="Sales concierge, Support assistant, Billing triage" required>
-                    </div>
-
-                    <div class="form-check form-switch d-flex align-items-center gap-2 mb-0">
-                        <input class="form-check-input" type="checkbox" role="switch" name="is_active" value="1"
-                               id="is_active" {{ old('is_active', $bot->is_active) ? 'checked' : '' }}>
-                        <label class="form-check-label" for="is_active">
-                            Accept live conversations through the widget and API
-                        </label>
+        {{-- Power: the one control that decides whether the bot answers at
+             all, so it gets its own card above the preview instead of a small
+             switch. It is a form field like the rest and applies on save.
+             Not sticky: only the preview follows the scroll. --}}
+        @php $botOn = (bool) old('is_active', $isEdit ? $bot->is_active : true); @endphp
+        <div class="card bot-power bot-editor-power {{ $botOn ? 'is-on' : 'is-off' }}" id="botPower"
+             data-saved="{{ $botOn ? '1' : '0' }}">
+            <div class="p-3 h-100 d-flex flex-column justify-content-center gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="bot-power-icon"><i class="bi bi-power"></i></span>
+                    <div>
+                        <div class="bot-power-title">
+                            Bot is <span data-power-label>{{ $botOn ? 'Online' : 'Offline' }}</span>
+                        </div>
+                        <div class="bot-power-desc" data-power-desc>
+                            {{ $botOn ? 'Accepting live conversations through the widget and API.' : 'The widget and API will not accept conversations.' }}
+                        </div>
+                        <div class="bot-power-pending" data-power-pending hidden>
+                            <i class="bi bi-exclamation-circle"></i> Not saved yet. Save changes to apply.
+                        </div>
                     </div>
                 </div>
+
+                <div class="bot-power-toggle" role="radiogroup" aria-label="Bot power">
+                    <input type="radio" class="visually-hidden" name="is_active" value="1" id="is_active_on" {{ $botOn ? 'checked' : '' }}>
+                    <label for="is_active_on" class="bot-power-opt is-opt-on">
+                        <i class="bi bi-play-fill"></i> On
+                    </label>
+                    <input type="radio" class="visually-hidden" name="is_active" value="0" id="is_active_off" {{ $botOn ? '' : 'checked' }}>
+                    <label for="is_active_off" class="bot-power-opt is-opt-off">
+                        <i class="bi bi-pause-fill"></i> Off
+                    </label>
+                </div>
             </div>
+        </div>
+
+        {{-- Identity shares the first row with the power card, so the two
+             stretch to one height. --}}
+        <div class="card bot-editor-identity">
+            <div class="card-header">Identity</div>
+            <div class="p-3">
+                <div>
+                    <label for="input_name" class="form-label">
+                        Profile name <span style="color: var(--danger);">*</span>
+                    </label>
+                    <input type="text" name="name" id="input_name" class="form-control"
+                           value="{{ old('name', $bot->name) }}"
+                           placeholder="Sales concierge, Support assistant, Billing triage" required>
+                </div>
+            </div>
+        </div>
+
+        {{-- ===================== Settings column ===================== --}}
+        <div class="bot-editor-main">
 
             {{-- Model and endpoint --}}
             <div class="card mb-3">
                 <div class="card-header d-flex align-items-center justify-content-between gap-2">
                     <span>Model and endpoint</span>
-                    <span class="chip">OpenAI-compatible</span>
+                    <button type="button" onclick="testConnection()" id="btnTestConn" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-plug"></i> Test inference
+                    </button>
                 </div>
                 <div class="p-3">
+                    {{-- The test's outcome. The button lives in the header, and
+                         this line only takes space once there is something to say. --}}
+                    <div id="testConnResult" class="test-conn-result"></div>
 
                     <label for="provider_id" class="form-label">
                         Provider <span style="color: var(--danger);">*</span>
                     </label>
-                    <div class="input-group mb-1">
-                        <select name="provider_id" id="provider_id" class="form-select"
-                                onchange="onProviderChange()" required
+                    {{-- The select is what the form submits and what the script reads;
+                         the picker beside it is how it is shown, two lines per endpoint
+                         so the URL, the key and the bots on it are all in sight. --}}
+                    <div class="d-flex align-items-stretch gap-2 mb-1">
+                        <div class="dropdown provider-picker">
+                            <button type="button" class="provider-trigger" id="providerTrigger"
+                                    data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="listbox"
+                                    @if($providers->isEmpty()) disabled @endif>
+                                <span class="provider-trigger-body" id="providerTriggerBody"></span>
+                                <i class="bi bi-chevron-expand provider-trigger-caret"></i>
+                            </button>
+                            <div class="dropdown-menu provider-menu">
+                                <div class="model-menu-filter" id="providerFilterWrap" hidden>
+                                    <input type="search" class="form-control form-control-sm" id="providerFilter"
+                                           placeholder="Filter by name, URL or workspace" aria-label="Filter providers"
+                                           autocomplete="off">
+                                </div>
+                                <div class="provider-menu-list" id="providerMenuList" role="listbox"></div>
+                            </div>
+                        </div>
+                        <select name="provider_id" id="provider_id" class="visually-hidden" tabindex="-1" aria-hidden="true"
+                                onchange="onProviderChange()"
                                 @if($providers->isEmpty()) disabled @endif>
                             @if($providers->isEmpty())
                                 <option value="">No providers yet — add one</option>
                             @endif
-                            @foreach($providers as $provider)
-                                <option value="{{ $provider->id }}"
-                                        data-name="{{ $provider->name }}"
-                                        data-base-url="{{ $provider->base_url }}"
-                                        data-api-key="{{ $provider->api_key }}"
-                                        @selected(old('provider_id', $bot->provider_id) === $provider->id)>
-                                    {{ $provider->label() }}
-                                </option>
+                            {{-- Grouped by owner, and the owner repeated in each label so a
+                                 closed select still tells two same-named endpoints apart.
+                                 A locked entry is one a super admin set that this user
+                                 cannot pick, so it carries neither URL nor key. --}}
+                            @foreach($providers->groupBy(fn ($p) => $p->system_id ?? '') as $ownerId => $group)
+                                <optgroup label="{{ $group->first()->ownerName() }}" data-system-id="{{ $ownerId }}">
+                                    @foreach($group as $provider)
+                                        @php
+                                            $locked = (bool) $provider->getAttribute('locked');
+                                            $editable = !$locked && $provider->system_id !== null;
+                                        @endphp
+                                        <option value="{{ $provider->id }}"
+                                                data-name="{{ $provider->name }}"
+                                                data-owner="{{ $provider->ownerName() }}"
+                                                data-editable="{{ $editable ? '1' : '0' }}"
+                                                data-own="{{ $provider->system_id === $providerSystemId ? '1' : '0' }}"
+                                                data-bots="{{ $provider->bots_count ?? 0 }}"
+                                                @if($locked)
+                                                    data-locked="1"
+                                                @else
+                                                    data-base-url="{{ $provider->base_url }}"
+                                                    data-api-key="{{ $provider->api_key }}"
+                                                @endif
+                                                @selected(old('provider_id', $bot->provider_id) === $provider->id)>
+                                            {{ $locked ? $provider->name : $provider->label() }} · {{ $provider->ownerName() }}
+                                        </option>
+                                    @endforeach
+                                </optgroup>
                             @endforeach
                         </select>
-                        <button type="button" class="btn btn-brand" onclick="openProviderModal('new')"
-                                title="Add a provider">
-                            <i class="bi bi-plus-lg"></i> New
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary" id="btnEditProvider"
-                                onclick="openProviderModal('edit')" title="Edit the selected provider">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button type="button" class="btn btn-outline-danger" id="btnDeleteProvider"
-                                onclick="deleteProvider()" title="Delete the selected provider">
-                            <i class="bi bi-trash"></i>
-                        </button>
+                        <div class="provider-actions">
+                            <button type="button" class="btn btn-brand" onclick="openProviderModal('new')"
+                                    title="Add a provider">
+                                <i class="bi bi-plus-lg"></i> New
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" id="btnEditProvider"
+                                    onclick="openProviderModal('edit')" title="Edit the selected provider"
+                                    aria-label="Edit the selected provider">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="btn btn-outline-danger" id="btnDeleteProvider"
+                                    onclick="deleteProvider()" title="Delete the selected provider"
+                                    aria-label="Delete the selected provider">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="form-text mb-3" id="providerHint">
                         One saved endpoint, shared by every bot pointing at it. Edit it once when the
@@ -162,7 +237,7 @@
                         <div class="form-text">Queries the base URL and confirms the endpoint answers.</div>
                     </div>
 
-                    <div class="row g-3 mb-3">
+                    <div class="row g-3">
                         <div class="col-6">
                             <label for="temperature" class="form-label">Temperature</label>
                             <input type="number" step="0.1" min="0" max="2" name="temperature" id="temperature"
@@ -176,31 +251,8 @@
                             <div class="form-text">Ceiling on one reply.</div>
                         </div>
                     </div>
-
-                    <div class="d-flex align-items-center gap-2 pt-3" style="border-top: 1px solid var(--border);">
-                        <button type="button" onclick="testConnection()" id="btnTestConn" class="btn btn-sm btn-outline-secondary">
-                            <i class="bi bi-plug"></i> Test inference
-                        </button>
-                        <span id="testConnResult" style="font-size: 0.78125rem;"></span>
-                    </div>
                 </div>
             </div>
-
-            {{-- Prompt and knowledge live on the Brain page --}}
-            @if($isEdit)
-                <div class="card mb-3">
-                    <div class="card-header">Brain</div>
-                    <div class="p-3 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3">
-                        <p class="text-muted mb-0" style="font-size: 0.8125rem;">
-                            The system prompt, the collections this bot reads, and its retrieval and
-                            generation settings are on their own page.
-                        </p>
-                        <a href="{{ route('bots.brain', $bot->id) }}" class="btn btn-outline-primary flex-shrink-0">
-                            <i class="bi bi-diagram-2"></i> Open Brain
-                        </a>
-                    </div>
-                </div>
-            @endif
 
             {{-- Appearance --}}
             <div class="card mb-3">
@@ -447,25 +499,43 @@
                 </div>
             </div>
 
-            {{-- Sticky action bar: the form is long, so Save follows you down it. --}}
-            <div class="form-actions">
-                <span class="text-muted d-none d-sm-inline" style="font-size: 0.75rem;">
-                    {{ $isEdit ? 'Saving updates every site running this bot.' : 'You can change all of this later.' }}
-                </span>
-                <div class="d-flex align-items-center gap-2 ms-auto">
-                    <a href="{{ route('bots.index') }}" class="btn btn-outline-secondary">Cancel</a>
-                    <button type="submit" class="btn btn-brand">
-                        {{ $isEdit ? 'Save changes' : 'Create bot profile' }}
-                    </button>
+            {{-- Danger zone. Forms cannot nest, so the button submits
+                 botDeleteForm, which sits after this form, through form="". --}}
+            @if($isEdit && auth()->user()->canManageSystem($bot->system_id, 'system_admin'))
+                <div class="card mb-3 danger-zone">
+                    <div class="card-header">Delete bot profile</div>
+                    <div class="p-3 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3">
+                        <p class="mb-0" style="font-size: 0.8125rem;">
+                            It stops answering on every site and leaves this workspace. Its
+                            conversations are kept, and only a super admin can restore it.
+                        </p>
+                        <button type="submit" form="botDeleteForm" class="btn btn-danger flex-shrink-0"
+                                data-confirm="Delete this bot profile?"
+                                data-confirm-subject="{{ $bot->name }}"
+                                data-confirm-message="It stops answering on every site and leaves this workspace. Its conversations are kept, and only a super admin can restore it."
+                                data-confirm-type="{{ $bot->name }}"
+                                data-confirm-label="Delete bot">
+                            <i class="bi bi-trash3"></i> Delete bot profile
+                        </button>
+                    </div>
                 </div>
-            </div>
+            @endif
+
+            {{-- Sticky action bar: the form is long, so Save follows you down it.
+                 A new bot has nothing to compare against, so its bar always shows. --}}
+            @include('bots._save-bar', [
+                'formId' => 'botForm',
+                'saveLabel' => $isEdit ? 'Save Profile changes' : 'Create bot profile',
+                'track' => $isEdit,
+                'hint' => 'You can change all of this later.',
+            ])
         </div>
 
         {{-- ===================== Output column =====================
              Preview and embed are both read-only outputs, so tabbing them is
              safe: no required input ever ends up in a hidden pane.
              ========================================================== --}}
-        <div class="col-12 col-lg-5 col-xxl-4">
+        <div class="bot-editor-output">
             <div class="sticky-top" style="top: 72px; z-index: 10;">
                 <div class="card overflow-hidden">
                     <div class="card-header p-0">
@@ -645,6 +715,14 @@
     </div>
 </form>
 
+@if($isEdit && auth()->user()->canManageSystem($bot->system_id, 'system_admin'))
+    {{-- confirm_name is filled in by the confirm dialog from what was typed. --}}
+    <form action="{{ route('bots.destroy', $bot->id) }}" method="POST" id="botDeleteForm" class="d-none">
+        @csrf
+        @method('DELETE')
+    </form>
+@endif
+
 @if($isEdit)
     {{-- The real bot, embedded here so the test widget is the genuine article. --}}
     <script
@@ -711,6 +789,29 @@
 
 @push('scripts')
 <script>
+    // Power card: reflect the chosen state straight away and flag it as
+    // unsaved, since it only takes effect when the form is saved.
+    (function () {
+        var card = document.getElementById('botPower');
+        if (!card) return;
+        var label = card.querySelector('[data-power-label]');
+        var desc = card.querySelector('[data-power-desc]');
+        var pending = card.querySelector('[data-power-pending]');
+
+        card.querySelectorAll('input[name="is_active"]').forEach(function (radio) {
+            radio.addEventListener('change', function () {
+                var on = radio.value === '1';
+                card.classList.toggle('is-on', on);
+                card.classList.toggle('is-off', !on);
+                label.textContent = on ? 'Online' : 'Offline';
+                desc.textContent = on
+                    ? 'Accepting live conversations through the widget and API.'
+                    : 'The widget and API will not accept conversations.';
+                pending.hidden = radio.value === card.dataset.saved;
+            });
+        });
+    })();
+
     // Opens the real widget that this page embeds, not the mock preview.
     function openTestWidget() {
         var host = document.querySelector('chat-widget');
@@ -718,7 +819,10 @@
         if (launcher) {
             launcher.click();
         } else {
-            window.alert('The widget has not finished loading. Check that the streaming engine on port 8000 is running, then reload.');
+            noticeDialog({
+                title: 'The widget is not ready',
+                message: 'The widget has not finished loading. Check that the streaming engine on port 8000 is running, then reload.',
+            });
         }
     }
 
@@ -1047,7 +1151,7 @@
                 badge.innerHTML = '<i class="bi bi-check-circle-fill"></i> ' + data.count + ' model(s) found';
 
                 if (testConnResult) {
-                    testConnResult.className = 'text-success';
+                    testConnResult.className = 'test-conn-result text-success';
                     testConnResult.innerHTML = '<i class="bi bi-check2-circle"></i> Endpoint reachable, ' + data.count + ' model(s) available';
                 }
 
@@ -1061,7 +1165,7 @@
                 dropdownList.innerHTML = '<li><span class="dropdown-item-text text-danger small"><i class="bi bi-exclamation-triangle me-1"></i> ' + (data.message || 'No models found') + '</span></li>';
 
                 if (testConnResult) {
-                    testConnResult.className = 'text-danger';
+                    testConnResult.className = 'test-conn-result text-danger';
                     testConnResult.innerHTML = '<i class="bi bi-exclamation-circle"></i> ' + (data.message || 'Connection failed');
                 }
             }
@@ -1077,7 +1181,7 @@
             dropdownList.innerHTML = '<li><span class="dropdown-item-text text-danger small"><i class="bi bi-x-circle me-1"></i> FastAPI engine unreachable</span></li>';
 
             if (testConnResult) {
-                testConnResult.className = 'text-danger';
+                testConnResult.className = 'test-conn-result text-danger';
                 testConnResult.textContent = 'Streaming engine on port 8000 is unreachable';
             }
         });
@@ -1093,6 +1197,7 @@
     var providerRoutes = {
         store: '{{ route('providers.store') }}',
         base: '{{ url('/providers') }}',
+        systemId: @json($providerSystemId),
     };
 
     function selectedProviderOption() {
@@ -1104,12 +1209,146 @@
         var option = selectedProviderOption();
         var hasProvider = !!(option && option.value);
 
-        document.getElementById('base_url').value = hasProvider ? option.dataset.baseUrl : '';
+        document.getElementById('base_url').value = hasProvider ? (option.dataset.baseUrl || '') : '';
         document.getElementById('api_key').value = hasProvider ? (option.dataset.apiKey || '') : '';
 
-        document.getElementById('btnEditProvider').disabled = !hasProvider;
-        document.getElementById('btnDeleteProvider').disabled = !hasProvider;
+        // Platform providers are edited in Admin Settings, and one set from
+        // above is not this user's to change.
+        var editable = hasProvider && option.dataset.editable === '1';
+        document.getElementById('btnEditProvider').disabled = !editable;
+        document.getElementById('btnDeleteProvider').disabled = !editable;
+
+        renderProviderPicker();
     }
+
+    // ---- Provider picker ---------------------------------------------------
+    //
+    // Drawn from the select every time it changes, so adding, editing and
+    // deleting only ever touch the select.
+
+    function providerMeta(option) {
+        if (option.dataset.locked === '1') {
+            return ['Set by a super admin'];
+        }
+        var bots = parseInt(option.dataset.bots || '0', 10);
+        return [
+            option.dataset.apiKey ? 'Key saved' : 'No key',
+            bots === 0 ? 'No bots yet' : bots + (bots === 1 ? ' bot' : ' bots'),
+        ];
+    }
+
+    function providerEntry(option, withOwner) {
+        var wrap = document.createElement('span');
+        wrap.className = 'provider-entry';
+
+        var top = document.createElement('span');
+        top.className = 'provider-entry-top';
+        var name = document.createElement('span');
+        name.className = 'provider-entry-name';
+        name.textContent = option.dataset.name;
+        top.appendChild(name);
+        if (withOwner) {
+            var owner = document.createElement('span');
+            owner.className = 'chip' + (option.dataset.own === '1' ? ' chip-accent' : '');
+            owner.textContent = option.dataset.owner;
+            top.appendChild(owner);
+        }
+        wrap.appendChild(top);
+
+        var sub = document.createElement('span');
+        sub.className = 'provider-entry-sub';
+        if (option.dataset.baseUrl) {
+            var url = document.createElement('span');
+            url.className = 'provider-entry-url';
+            url.textContent = option.dataset.baseUrl;
+            sub.appendChild(url);
+        }
+        providerMeta(option).forEach(function (text) {
+            var item = document.createElement('span');
+            item.className = 'provider-entry-meta';
+            item.textContent = text;
+            sub.appendChild(item);
+        });
+        wrap.appendChild(sub);
+
+        return wrap;
+    }
+
+    function renderProviderPicker() {
+        var select = document.getElementById('provider_id');
+        var trigger = document.getElementById('providerTrigger');
+        var body = document.getElementById('providerTriggerBody');
+        var list = document.getElementById('providerMenuList');
+        var filterWrap = document.getElementById('providerFilterWrap');
+        var filter = document.getElementById('providerFilter');
+        if (!select || !trigger) return;
+
+        var selected = selectedProviderOption();
+        body.innerHTML = '';
+        if (selected && selected.value) {
+            body.appendChild(providerEntry(selected, true));
+        } else {
+            var empty = document.createElement('span');
+            empty.className = 'provider-entry-empty';
+            empty.textContent = 'No providers yet. Add one with New.';
+            body.appendChild(empty);
+        }
+        trigger.disabled = select.disabled;
+
+        var query = filter.value.trim().toLowerCase();
+        var total = select.querySelectorAll('option[value]:not([value=""])').length;
+        filterWrap.hidden = total < 6;
+
+        list.innerHTML = '';
+        Array.prototype.forEach.call(select.querySelectorAll('optgroup'), function (group) {
+            var matches = Array.prototype.filter.call(group.querySelectorAll('option'), function (option) {
+                var haystack = [option.dataset.name, option.dataset.owner, option.dataset.baseUrl || ''].join(' ').toLowerCase();
+                return !query || haystack.indexOf(query) !== -1;
+            });
+            if (!matches.length) return;
+
+            var header = document.createElement('div');
+            header.className = 'dropdown-header';
+            header.textContent = group.label;
+            list.appendChild(header);
+
+            matches.forEach(function (option) {
+                var item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'dropdown-item provider-item' + (option.selected ? ' active' : '');
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', option.selected ? 'true' : 'false');
+                item.appendChild(providerEntry(option, false));
+                item.addEventListener('click', function () {
+                    select.value = option.value;
+                    onProviderChange();
+                });
+                list.appendChild(item);
+            });
+        });
+
+        if (!list.children.length) {
+            var none = document.createElement('div');
+            none.className = 'provider-menu-none';
+            none.textContent = query ? 'Nothing matches that filter.' : 'No providers yet.';
+            list.appendChild(none);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var filter = document.getElementById('providerFilter');
+        var trigger = document.getElementById('providerTrigger');
+        if (!filter || !trigger) return;
+
+        filter.addEventListener('input', renderProviderPicker);
+        filter.addEventListener('click', function (event) { event.stopPropagation(); });
+        trigger.addEventListener('shown.bs.dropdown', function () {
+            if (!document.getElementById('providerFilterWrap').hidden) filter.focus();
+        });
+        trigger.addEventListener('hidden.bs.dropdown', function () {
+            if (filter.value) { filter.value = ''; renderProviderPicker(); }
+        });
+    });
 
     function openProviderModal(mode) {
         var result = document.getElementById('providerModalResult');
@@ -1165,7 +1404,7 @@
         fetch(id ? providerRoutes.base + '/' + id : providerRoutes.store, {
             method: id ? 'PUT' : 'POST',
             headers: providerHeaders(),
-            body: JSON.stringify({ name: name, base_url: baseUrl, api_key: apiKey })
+            body: JSON.stringify({ system_id: providerRoutes.systemId, name: name, base_url: baseUrl, api_key: apiKey })
         })
         .then(function(res) {
             return res.json().then(function(data) { return { ok: res.ok, data: data }; });
@@ -1203,13 +1442,25 @@
             var placeholder = select.querySelector('option[value=""]');
             if (placeholder) { placeholder.remove(); }
 
+            var group = select.querySelector('optgroup[data-system-id="' + provider.system_id + '"]');
+            if (!group) {
+                group = document.createElement('optgroup');
+                group.label = provider.owner;
+                group.dataset.systemId = provider.system_id;
+                select.insertBefore(group, select.firstChild);
+            }
+
             option = document.createElement('option');
             option.value = provider.id;
-            select.appendChild(option);
+            group.appendChild(option);
         }
 
-        option.textContent = provider.label;
+        option.textContent = provider.label + ' · ' + provider.owner;
         option.dataset.name = provider.name;
+        option.dataset.owner = provider.owner;
+        option.dataset.editable = '1';
+        option.dataset.own = provider.system_id === providerRoutes.systemId ? '1' : '0';
+        option.dataset.bots = option.dataset.bots || '0';
         option.dataset.baseUrl = provider.base_url;
         option.dataset.apiKey = provider.api_key || '';
 
@@ -1222,8 +1473,21 @@
         var option = selectedProviderOption();
         if (!option || !option.value) { return; }
 
-        if (!confirm('Delete "' + option.dataset.name + '"?')) { return; }
+        var bots = parseInt(option.dataset.bots || '0', 10);
+        confirmDialog({
+            title: 'Delete this provider?',
+            subject: option.dataset.name,
+            detail: [option.dataset.baseUrl, option.dataset.owner].filter(Boolean).join(' · '),
+            message: bots > 0
+                ? 'It is still used by ' + bots + (bots === 1 ? ' bot' : ' bots') + ', so the delete will be refused until they point elsewhere.'
+                : 'No bot uses it. This cannot be undone.',
+            confirmLabel: 'Delete provider',
+        }).then(function (confirmed) {
+            if (confirmed) removeProvider(option);
+        });
+    }
 
+    function removeProvider(option) {
         var hint = document.getElementById('providerHint');
 
         fetch(providerRoutes.base + '/' + option.value, {
@@ -1240,7 +1504,9 @@
                 return;
             }
 
+            var group = option.parentNode;
             option.remove();
+            if (group.tagName === 'OPTGROUP' && !group.children.length) { group.remove(); }
             hint.className = 'form-text mb-3 text-success';
             hint.textContent = payload.data.message;
 
@@ -1319,18 +1585,18 @@
         var btn = document.getElementById('btnTestConn');
 
         if (!baseUrl) {
-            statusEl.className = 'small fw-medium text-danger';
+            statusEl.className = 'test-conn-result fw-medium text-danger';
             statusEl.textContent = 'Base URL is required';
             return;
         }
 
         if (!modelName) {
-            statusEl.className = 'small fw-medium text-warning text-dark';
+            statusEl.className = 'test-conn-result fw-medium text-warning text-dark';
             statusEl.textContent = 'Choose a model first, or fetch the list.';
             return;
         }
 
-        statusEl.className = 'small fw-medium text-secondary';
+        statusEl.className = 'test-conn-result fw-medium text-secondary';
         statusEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Testing inference response (model may be loading)...';
         btn.disabled = true;
 
@@ -1347,16 +1613,16 @@
         .then(function(data) {
             btn.disabled = false;
             if (data.success) {
-                statusEl.className = 'small fw-medium text-success';
+                statusEl.className = 'test-conn-result fw-medium text-success';
                 statusEl.textContent = data.message;
             } else {
-                statusEl.className = 'small fw-medium text-danger';
+                statusEl.className = 'test-conn-result fw-medium text-danger';
                 statusEl.textContent = data.message;
             }
         })
         .catch(function(err) {
             btn.disabled = false;
-            statusEl.className = 'small fw-medium text-danger';
+            statusEl.className = 'test-conn-result fw-medium text-danger';
             statusEl.textContent = 'Could not reach the streaming engine on port 8000';
         });
     }

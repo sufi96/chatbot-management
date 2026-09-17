@@ -353,6 +353,69 @@
         .widget-wrapper.expanded #btn-expand .icon-expand { display: none; }
         .widget-wrapper.expanded #btn-expand .icon-collapse { display: block; }
 
+        /* In-panel confirmation. It covers the panel only, never the host
+           page, and answers in the bot's own colour. */
+        .chat-confirm {
+            position: absolute;
+            inset: 0;
+            z-index: 5;
+            display: flex;
+            align-items: flex-end;
+            padding: 12px;
+            background: rgba(15, 23, 42, 0.32);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.18s ease;
+        }
+        .chat-confirm.open { opacity: 1; pointer-events: auto; }
+        .chat-confirm-card {
+            width: 100%;
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+            transform: translateY(12px);
+            transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .chat-confirm.open .chat-confirm-card { transform: translateY(0); }
+        .chat-confirm-title {
+            margin: 0 0 4px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #0f172a;
+        }
+        .chat-confirm-text {
+            margin: 0 0 14px;
+            font-size: 13px;
+            line-height: 1.45;
+            color: #475569;
+        }
+        .chat-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+        .chat-confirm-actions button {
+            font: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            border-radius: 8px;
+            padding: 7px 14px;
+            cursor: pointer;
+        }
+        .chat-confirm-cancel {
+            background: #ffffff;
+            color: #334155;
+            border: 1px solid #e2e8f0;
+        }
+        .chat-confirm-cancel:hover { background: #f8fafc; }
+        .chat-confirm-ok {
+            background: var(--primary-color, #1f2937);
+            color: #ffffff;
+            border: 1px solid transparent;
+        }
+        .chat-confirm-ok:hover { opacity: 0.9; }
+        .chat-confirm-actions button:focus-visible {
+            outline: 2px solid var(--primary-color, #1f2937);
+            outline-offset: 2px;
+        }
+
         /* Header */
         .chat-header {
             background: var(--primary-color, #1f2937);
@@ -1063,6 +1126,18 @@
                 </div>
                 <div class="powered-by">Powered by Chatbot Management Hub</div>
             </div>
+
+            <div class="chat-confirm" id="chat-confirm" role="alertdialog" aria-modal="true"
+                 aria-labelledby="chat-confirm-title" aria-describedby="chat-confirm-text" aria-hidden="true">
+                <div class="chat-confirm-card">
+                    <p class="chat-confirm-title" id="chat-confirm-title">Clear this conversation?</p>
+                    <p class="chat-confirm-text" id="chat-confirm-text">The messages so far are removed from this window and the chat starts over.</p>
+                    <div class="chat-confirm-actions">
+                        <button type="button" class="chat-confirm-cancel" id="chat-confirm-cancel">Cancel</button>
+                        <button type="button" class="chat-confirm-ok" id="chat-confirm-ok">Clear</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <button class="launcher-btn" id="launcher-btn" aria-label="Open Chat">
@@ -1095,6 +1170,9 @@
     var sendBtn = shadowRoot.getElementById("send-btn");
     var typingIndicator = shadowRoot.getElementById("typing-indicator");
     var botTitleEl = shadowRoot.getElementById("bot-title");
+    var chatConfirm = shadowRoot.getElementById("chat-confirm");
+    var chatConfirmOk = shadowRoot.getElementById("chat-confirm-ok");
+    var chatConfirmCancel = shadowRoot.getElementById("chat-confirm-cancel");
 
     function updateColors(hex) {
         if (!hex) return;
@@ -1445,20 +1523,40 @@
     chatBackdrop.addEventListener("click", function () { setExpanded(false); });
 
     document.addEventListener("keydown", function (event) {
-        if (event.key === "Escape" && isExpanded) { setExpanded(false); }
+        if (event.key !== "Escape") { return; }
+        if (chatConfirm.classList.contains("open")) { closeClearConfirm(); return; }
+        if (isExpanded) { setExpanded(false); }
     });
 
     launcherBtn.addEventListener("click", function () { toggleChat(); });
     btnCloseHeader.addEventListener("click", function () { toggleChat(false); });
 
-    btnClear.addEventListener("click", function () {
-        if (confirm("Clear current conversation?")) {
-            messageHistory = [];
-            while (chatMessages.firstChild && chatMessages.firstChild !== typingIndicator) {
-                chatMessages.removeChild(chatMessages.firstChild);
-            }
-            appendMessage("bot", botConfig.greeting);
+    // Asked inside the panel rather than with the browser's confirm(), which
+    // would carry the host site's address and look nothing like the widget.
+    function openClearConfirm() {
+        chatConfirm.classList.add("open");
+        chatConfirm.setAttribute("aria-hidden", "false");
+        chatConfirmCancel.focus();
+    }
+
+    function closeClearConfirm() {
+        chatConfirm.classList.remove("open");
+        chatConfirm.setAttribute("aria-hidden", "true");
+        btnClear.focus();
+    }
+
+    btnClear.addEventListener("click", openClearConfirm);
+    chatConfirmCancel.addEventListener("click", closeClearConfirm);
+    chatConfirm.addEventListener("click", function (event) {
+        if (event.target === chatConfirm) { closeClearConfirm(); }
+    });
+    chatConfirmOk.addEventListener("click", function () {
+        messageHistory = [];
+        while (chatMessages.firstChild && chatMessages.firstChild !== typingIndicator) {
+            chatMessages.removeChild(chatMessages.firstChild);
         }
+        appendMessage("bot", botConfig.greeting);
+        closeClearConfirm();
     });
 
     // Input handling

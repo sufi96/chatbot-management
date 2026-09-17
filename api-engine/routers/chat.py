@@ -51,7 +51,8 @@ async def chat_stream(
     db: AsyncSession = Depends(get_db)
 ):
     # Retrieve bot profile and associated system
-    stmt = select(BotProfile).where(BotProfile.id == req.bot_id, BotProfile.is_active.is_(True))
+    stmt = select(BotProfile).where(BotProfile.id == req.bot_id, BotProfile.is_active.is_(True),
+                                    BotProfile.deleted_at.is_(None))
     result = await db.execute(stmt)
     bot = result.scalars().first()
 

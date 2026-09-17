@@ -6,10 +6,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class BotProfile extends Model
 {
-    use HasFactory;
+    // Deleting from a workspace only marks the bot; see the migration that
+    // added deleted_at. Only a super admin restores or purges one.
+    use HasFactory, SoftDeletes;
 
     protected $keyType = 'string';
     public $incrementing = false;

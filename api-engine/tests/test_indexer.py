@@ -315,6 +315,40 @@ async def test_a_scan_is_read_by_the_main_model_of_a_bot_using_the_collection(
 
 
 @pytest.mark.asyncio
+async def test_a_deleted_bot_does_not_read_a_scan(session, tmp_path, monkeypatch):
+    from datetime import datetime
+
+    from database import AiProvider, BotKbCollection, BotProfile
+    from kb import vision
+
+    seen = []
+
+    async def transcribe(self, png, transport=None):
+        seen.append((self.model, self.borrowed_from))
+        return "## Warranty\n\nTwo years."
+
+    monkeypatch.setattr(vision.VisionClient, "transcribe", transcribe)
+
+    session.add(AiProvider(id="aip_laptop", system_id="sys1", name="Laptop",
+                           base_url="http://laptop:11434/v1", api_key=""))
+    session.add(BotProfile(id="bot_gone", system_id="sys1", name="Gone", provider_id="aip_laptop",
+                           model_name="gone-model", is_active=True, deleted_at=datetime.utcnow(),
+                           created_at=datetime(2020, 1, 1)))
+    session.add(BotProfile(id="bot_here", system_id="sys1", name="Helpdesk", provider_id="aip_laptop",
+                           model_name="qwen3-vl:8b", is_active=True))
+    session.add(BotKbCollection(bot_id="bot_gone", collection_id="col1"))
+    session.add(BotKbCollection(bot_id="bot_here", collection_id="col1"))
+    path = scanned_upload(tmp_path, monkeypatch)
+    session.add(KbSource(id="scan5", collection_id="col1", type="file",
+                         title="Warranty card", file_path=path))
+    await session.commit()
+
+    await index_source(session, "scan5", embedder=StubEmbedder())
+
+    assert seen == [("qwen3-vl:8b", "Helpdesk")]
+
+
+@pytest.mark.asyncio
 async def test_a_scan_in_a_collection_no_bot_reads_explains_itself(session, tmp_path, monkeypatch):
     path = scanned_upload(tmp_path, monkeypatch)
     session.add(KbSource(id="scan4", collection_id="col1", type="file",

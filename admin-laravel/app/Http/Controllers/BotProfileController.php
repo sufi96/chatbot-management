@@ -5,9 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\AiProvider;
 use App\Models\BotProfile;
 use App\Models\System;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 
 class BotProfileController extends Controller
 {
@@ -36,13 +36,14 @@ class BotProfileController extends Controller
             abort(403, 'Unauthorized. At least Editor role is required to create bot profiles.');
         }
 
-        $providers = $this->providersFor($activeSystem->id);
+        $providers = $this->providersFor($request->user(), $activeSystem->id);
 
         return view('bots.form', [
             'isEdit' => false,
             'providers' => $providers,
+            'providerSystemId' => $activeSystem->id,
             'bot' => new BotProfile([
-                'provider_id' => optional($providers->first())->id,
+                'provider_id' => optional($providers->firstWhere('system_id', $activeSystem->id) ?? $providers->first())->id,
                 'model_name' => 'llama3.2',
                 'temperature' => 0.7,
                 'max_tokens' => 1024,
@@ -73,7 +74,7 @@ class BotProfileController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'system_prompt' => ['nullable', 'string'],
-            'provider_id' => $this->providerRule($activeSystem->id),
+            'provider_id' => $this->providerRule($request->user()),
             'model_name' => ['required', 'string', 'max:255'],
             'temperature' => ['required', 'numeric', 'min:0', 'max:2'],
             'max_tokens' => ['required', 'integer', 'min:64', 'max:8192'],
@@ -135,7 +136,8 @@ class BotProfileController extends Controller
 
         return view('bots.form', [
             'isEdit' => true,
-            'providers' => $this->providersFor($bot->system_id),
+            'providers' => $this->providersFor($request->user(), $bot->system_id, $bot->provider_id),
+            'providerSystemId' => $bot->system_id,
             'bot' => $bot,
             'activeSystem' => $activeSystem,
             'apiHost' => $this->apiHost(),
@@ -152,7 +154,7 @@ class BotProfileController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'provider_id' => $this->providerRule($bot->system_id),
+            'provider_id' => $this->providerRule($request->user(), $bot->provider_id),
             'model_name' => ['required', 'string', 'max:255'],
             'temperature' => ['required', 'numeric', 'min:0', 'max:2'],
             'max_tokens' => ['required', 'integer', 'min:64', 'max:8192'],
@@ -215,9 +217,17 @@ class BotProfileController extends Controller
             abort(403, 'Unauthorized. Only System Admin can delete bot profiles.');
         }
 
+        // The dialog only unlocks on an exact match; this holds it to that for
+        // a request that did not come through the dialog.
+        if ($request->input('confirm_name') !== $bot->name) {
+            return back()->with('error', 'The name typed did not match, so the bot profile was not deleted.');
+        }
+
+        // Marks the bot only. It stops answering and leaves this workspace, and
+        // a super admin can restore or erase it from the Bots page.
         $bot->delete();
 
-        return redirect()->route('bots.index')->with('success', 'Bot profile deleted successfully.');
+        return redirect()->route('bots.index')->with('success', "{$bot->name} was deleted. A super admin can still restore it.");
     }
 
     public function embed(Request $request, string $id)
@@ -242,23 +252,46 @@ class BotProfileController extends Controller
      * because embed snippets already deployed on customer sites point at them.
      */
     /**
-     * The endpoints this workspace has saved, newest names first by
-     * alphabet so the picker reads like a list somebody keeps.
+     * The endpoints this user may choose from: the bot's own workspace first,
+     * then other workspaces by name, then the platform's.
+     *
+     * The bot's current provider stays even when this user could not pick it
+     * (a super admin set it), flagged so the form names it without its URL or key.
      */
-    private function providersFor(string $systemId)
+    private function providersFor(User $user, string $systemId, ?string $currentId = null)
     {
-        return AiProvider::where('system_id', $systemId)->orderBy('name')->get();
+        $providers = AiProvider::usableBy($user)->with('system')->withCount('bots')->get();
+
+        if ($currentId && !$providers->contains('id', $currentId)) {
+            $current = AiProvider::with('system')->withCount('bots')->find($currentId);
+            if ($current) {
+                $current->setAttribute('locked', true);
+                $providers->push($current);
+            }
+        }
+
+        return $providers->sortBy(fn (AiProvider $p) => [
+            $p->system_id === $systemId ? 0 : ($p->system_id ? 1 : 2),
+            $p->ownerName(),
+            $p->name,
+        ])->values();
     }
 
     /**
-     * A bot may only point at an endpoint its own workspace owns. Scoping the
-     * rule here is what stops a crafted form id from borrowing another
-     * workspace's API key.
+     * A bot may point only at an endpoint this user may use, or keep the one
+     * it already has. Checking here is what stops a crafted form id from
+     * borrowing a key the user was never shown.
      */
-    private function providerRule(string $systemId): array
+    private function providerRule(User $user, ?string $currentId = null): array
     {
-        return ['required', 'string', Rule::exists('ai_providers', 'id')
-            ->where('system_id', $systemId)];
+        return ['required', 'string', function (string $attribute, $value, $fail) use ($user, $currentId) {
+            if ($value === $currentId) {
+                return;
+            }
+            if (!AiProvider::usableBy($user)->whereKey($value)->exists()) {
+                $fail('Pick a provider from the list.');
+            }
+        }];
     }
 
     private function makeBotId(System $system): string

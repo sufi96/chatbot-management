@@ -17,7 +17,8 @@ class ConnectionTestRequest(BaseModel):
 @router.get("/{bot_id}/config")
 async def get_bot_public_config(bot_id: str, db: AsyncSession = Depends(get_db)):
     """Fetch public configuration for embedding widget."""
-    stmt = select(BotProfile).where(BotProfile.id == bot_id, BotProfile.is_active.is_(True))
+    stmt = select(BotProfile).where(BotProfile.id == bot_id, BotProfile.is_active.is_(True),
+                                    BotProfile.deleted_at.is_(None))
     result = await db.execute(stmt)
     bot = result.scalars().first()
 

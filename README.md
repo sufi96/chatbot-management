@@ -57,8 +57,8 @@ size.
 ### 1. 🏢 Multi-Tenant Workspace & RBAC Hierarchy
 - **1 System = Many Bot Profiles:** Organize chatbots by client, domain, or team.
 - **Granular RBAC:** Four distinct permission tiers:
-  - **Super Admin:** Global control over all platform users, workspaces, and bots.
-  - **System Admin:** Workspace-level administrator with full user and bot control.
+  - **Super Admin:** Global control over all platform users, workspaces, and bots. The only role that can restore or permanently erase a deleted bot.
+  - **System Admin:** Workspace-level administrator with full user and bot control. Deleting a bot only marks it, so nothing is lost by mistake.
   - **Editor:** Configure bots, prompts, models, and styling within assigned workspace.
   - **Viewer:** Read-only access to bot configurations and conversation transcripts.
 - **CORS Whitelisting:** Define authorized host domains per workspace to restrict widget usage.
@@ -106,7 +106,16 @@ size.
 - **Auditable.** Every database-answered message keeps its statement and row count in the conversation log.
 - **A playground for tuning.** Run a statement the way a bot would and see exactly what your annotations bought you.
 
-### 8. 📱 Responsive UI & Clean Action Layouts
+### 8. 🤖 Bot Settings and Safe Deletion
+- **Profile and Brain tabs:** a bot's settings are split in two. Profile holds identity, model and widget styling; Brain holds the prompt, knowledge and retrieval. Each tab saves on its own.
+- **A clear On/Off switch:** a large Online/Offline card beside the identity section decides whether the bot answers at all. Green when online, red when offline, with the same state shown next to the bot's name.
+- **Save bar that only shows when needed:** the floating save bar stays hidden until something changes, then counts the unsaved changes (*"2 unsaved changes"*) with **Discard** and **Save**. It sits on the left so it never covers the chat launcher.
+- **Test inference in the model card header**, with the result shown in the card once there is one.
+- **Deleting takes intent:** delete lives at the foot of a bot's settings, in a red section, and asks for the bot's name to be typed before it unlocks. The server checks the name too.
+- **Soft delete:** a deleted bot stops answering on every site and leaves its workspace, but the bot and its conversations are kept.
+- **Admin Bots page (Super Admin):** every bot in every workspace in one list, filtered by workspace, status and a search on name, id or model. Status badges show **Active**, **Deactivated** or **Deleted**. A deleted bot can be **restored**, or **deleted permanently** (type the name again), which also erases its conversations.
+
+### 9. 📱 Responsive UI & Clean Action Layouts
 - Styled with modern **Plus Jakarta Sans** typography, sleek cards, unified toolbars, and dynamic-width responsiveness across laptops, desktops, and mobile devices.
 
 ---

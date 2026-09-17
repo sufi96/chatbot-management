@@ -66,4 +66,41 @@ class TranscriptModelTraceTest extends TestCase
             ->assertOk()
             ->assertJsonPath('messages.0.model_trace', null);
     }
+
+    /**
+     * The transcript header names the models once for the whole session,
+     * rather than under every answer.
+     */
+    public function test_the_session_lists_each_jobs_models_once(): void
+    {
+        $user = $this->editor();
+        $this->conversation();
+
+        ChatMessage::create([
+            'id' => 'msg_1', 'conversation_id' => 'conv_1', 'sender' => 'user', 'content' => 'Hi',
+        ]);
+        ChatMessage::create([
+            'id' => 'msg_2', 'conversation_id' => 'conv_1', 'sender' => 'assistant', 'content' => 'Hello',
+            'model_trace' => '{"chat": "qwen3.5:4b", "intent": "qwen3:1.7b"}',
+        ]);
+        ChatMessage::create([
+            'id' => 'msg_3', 'conversation_id' => 'conv_1', 'sender' => 'assistant', 'content' => 'Pending.',
+            'model_trace' => '{"chat": "qwen3.5:4b", "sql": "qwen3-coder:30b"}',
+        ]);
+        ChatMessage::create([
+            'id' => 'msg_4', 'conversation_id' => 'conv_1', 'sender' => 'assistant', 'content' => 'Broken trace',
+            'model_trace' => 'not json',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('logs.transcript', 'conv_1'))
+            ->assertOk()
+            ->assertJsonPath('session_id', 's1')
+            ->assertJsonPath('message_count', 4)
+            ->assertJsonPath('models', [
+                'chat' => ['qwen3.5:4b'],
+                'intent' => ['qwen3:1.7b'],
+                'sql' => ['qwen3-coder:30b'],
+            ]);
+    }
 }

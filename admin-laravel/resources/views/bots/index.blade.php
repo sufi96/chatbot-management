@@ -61,33 +61,7 @@
                         @endif
                     </div>
 
-                    <div class="px-3 py-2">
-                        <div class="kv">
-                            <span class="kv-key">Provider</span>
-                            <span class="kv-val text-truncate" style="max-width: 190px;">{{ $bot->provider?->name ?? 'None set' }}</span>
-                        </div>
-                        <div class="kv">
-                            <span class="kv-key">Model</span>
-                            <span class="kv-val text-truncate" style="max-width: 190px;">{{ $bot->model_name }}</span>
-                        </div>
-                        <div class="kv">
-                            <span class="kv-key">Endpoint</span>
-                            <span class="kv-val text-truncate" style="max-width: 190px;" title="{{ $bot->provider?->base_url }}">{{ $bot->provider?->base_url ?? '—' }}</span>
-                        </div>
-                        <div class="kv">
-                            <span class="kv-key">Launcher shape</span>
-                            <span class="kv-val">
-                                {{ $bot->launcher_shape === 'transparent_fit' ? 'Cutout fit' : ($bot->launcher_shape === 'circle_transparent' ? 'Outlined circle' : 'Filled circle') }}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="px-3 pb-3 flex-grow-1">
-                        <div class="text-muted mb-1" style="font-size: 0.75rem;">System prompt</div>
-                        <p class="text-muted mb-0 truncate-1" style="font-size: 0.78125rem; line-height: 1.5;">
-                            {{ \Illuminate\Support\Str::limit($bot->system_prompt, 120) }}
-                        </p>
-                    </div>
+                    @include('bots._card-details', ['bot' => $bot])
 
                     <div class="card-footer d-flex align-items-center gap-1.5 p-2"
                          style="border-radius: 0 0 var(--r-md) var(--r-md);">
@@ -97,21 +71,12 @@
                         </button>
 
                         @if(auth()->user()->canManageSystem($activeSystem->id, 'editor'))
-                            <a href="{{ route('bots.edit', $bot->id) }}" class="btn btn-sm btn-outline-secondary" title="Edit profile">
-                                <i class="bi bi-sliders"></i>
+                            {{-- Deleting lives at the foot of this settings page, behind
+                                 typing the bot's name, not one click from the list. --}}
+                            <a href="{{ route('bots.edit', $bot->id) }}" class="btn btn-sm btn-outline-secondary"
+                               title="Bot settings" aria-label="Bot settings">
+                                <i class="bi bi-gear"></i>
                             </a>
-                        @endif
-
-                        @if(auth()->user()->canManageSystem($activeSystem->id, 'system_admin'))
-                            <form action="{{ route('bots.destroy', $bot->id) }}" method="POST"
-                                  onsubmit="return confirm('Delete the bot profile {{ $bot->name }}? Its conversations are deleted too.');"
-                                  class="d-inline m-0">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete profile">
-                                    <i class="bi bi-trash3"></i>
-                                </button>
-                            </form>
                         @endif
                     </div>
 

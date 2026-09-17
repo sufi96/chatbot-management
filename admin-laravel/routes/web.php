@@ -10,6 +10,7 @@ use App\Http\Controllers\LogController;
 use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\BotBrainController;
 use App\Http\Controllers\AdminSettingsController;
+use App\Http\Controllers\AdminBotController;
 use App\Http\Controllers\AiProviderController;
 use App\Http\Controllers\AdminProviderController;
 use App\Http\Controllers\DbConnectionController;
@@ -128,5 +129,12 @@ Route::middleware(['auth', 'system.access'])->group(function () {
         Route::post('/admin/providers', [AdminProviderController::class, 'store'])->name('admin.providers.store');
         Route::put('/admin/providers/{id}', [AdminProviderController::class, 'update'])->name('admin.providers.update');
         Route::delete('/admin/providers/{id}', [AdminProviderController::class, 'destroy'])->name('admin.providers.destroy');
+
+        // Every bot in every workspace, deleted ones included. Restoring and
+        // erasing a deleted bot happen only here.
+        Route::get('/admin/bots', [AdminBotController::class, 'index'])->name('admin.bots.index');
+        Route::delete('/admin/bots/{id}', [AdminBotController::class, 'destroy'])->name('admin.bots.destroy');
+        Route::post('/admin/bots/{id}/restore', [AdminBotController::class, 'restore'])->name('admin.bots.restore');
+        Route::delete('/admin/bots/{id}/purge', [AdminBotController::class, 'purge'])->name('admin.bots.purge');
     });
 });

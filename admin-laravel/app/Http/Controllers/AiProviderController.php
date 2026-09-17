@@ -14,18 +14,23 @@ use Illuminate\Support\Str;
  * a half-filled bot form, and a redirect would throw that away.
  *
  * Platform providers (no workspace) are Admin Settings' own, and are not
- * found from here.
+ * found from here, though a super admin may point a bot at one.
  */
 class AiProviderController extends Controller
 {
     public function store(Request $request): JsonResponse
     {
-        $activeSystem = view()->shared('activeSystem');
-        $this->authorizeEditor($request, $activeSystem->id);
+        // The form names the bot's workspace, which on an edit need not be
+        // the active one.
+        $systemId = (string) $request->input('system_id', view()->shared('activeSystem')->id);
+        $this->authorizeEditor($request, $systemId);
 
-        $provider = AiProvider::create($this->validated($request) + [
+        $validated = $this->validated($request);
+        AiProvider::refuseLookalike($systemId, $validated);
+
+        $provider = AiProvider::create($validated + [
             'id' => 'aip_' . Str::random(12),
-            'system_id' => $activeSystem->id,
+            'system_id' => $systemId,
         ]);
 
         return response()->json([
@@ -40,7 +45,10 @@ class AiProviderController extends Controller
         $provider = AiProvider::whereNotNull('system_id')->findOrFail($id);
         $this->authorizeEditor($request, $provider->system_id);
 
-        $provider->update($this->validated($request));
+        $validated = $this->validated($request);
+        AiProvider::refuseLookalike($provider->system_id, $validated, $provider->id);
+
+        $provider->update($validated);
 
         return response()->json([
             'success' => true,
@@ -104,6 +112,8 @@ class AiProviderController extends Controller
             'base_url' => $provider->base_url,
             'api_key' => $provider->api_key,
             'label' => $provider->label(),
+            'system_id' => $provider->system_id,
+            'owner' => $provider->ownerName(),
         ];
     }
 

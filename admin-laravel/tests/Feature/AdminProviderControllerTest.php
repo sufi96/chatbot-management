@@ -106,6 +106,40 @@ class AdminProviderControllerTest extends TestCase
         $this->assertDatabaseHas('ai_providers', ['id' => 'aip_spark']);
     }
 
+    /**
+     * A super admin can point a bot at a platform provider, and deleting it
+     * would leave that bot with nothing to answer from.
+     */
+    public function test_a_platform_provider_a_bot_uses_is_not_deleted(): void
+    {
+        $this->platformProvider();
+        System::create(['id' => 'sys_test', 'name' => 'W', 'allowed_origins' => '*']);
+        \App\Models\BotProfile::create([
+            'id' => 'bot_1', 'system_id' => 'sys_test', 'name' => 'Support',
+            'provider_id' => 'aip_spark', 'model_name' => 'llama3.2',
+        ]);
+        AppSetting::put('sql_model_provider_id', 'aip_spark');
+
+        $this->actingAs($this->superAdmin())
+            ->deleteJson(route('admin.providers.destroy', 'aip_spark'))
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Still used by SQL and the bot Support. Point them at another provider and save first.');
+
+        $this->assertDatabaseHas('ai_providers', ['id' => 'aip_spark']);
+    }
+
+    public function test_the_platform_cannot_hold_two_providers_with_one_name(): void
+    {
+        $this->platformProvider();
+
+        $this->actingAs($this->superAdmin())
+            ->postJson(route('admin.providers.store'), [
+                'name' => 'Spark', 'base_url' => 'http://spark-b:8000/v1', 'api_key' => '',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('name');
+    }
+
     public function test_an_unused_provider_is_deleted(): void
     {
         $this->platformProvider();

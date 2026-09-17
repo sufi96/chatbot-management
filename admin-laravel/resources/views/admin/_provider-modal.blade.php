@@ -298,7 +298,19 @@
     function deleteProvider(provider) {
         var out = document.getElementById('providerListStatus');
 
-        if (!confirm('Delete ' + provider.name + '?')) return;
+        confirmDialog({
+            title: 'Delete this provider?',
+            subject: provider.name,
+            detail: provider.base_url,
+            message: 'A provider a job or a bot still uses is not deleted. This cannot be undone.',
+            confirmLabel: 'Delete provider',
+        }).then(function (confirmed) {
+            if (confirmed) removeProvider(provider);
+        });
+    }
+
+    function removeProvider(provider) {
+        var out = document.getElementById('providerListStatus');
 
         send('DELETE', routes.base + '/' + encodeURIComponent(provider.id))
             .then(function (data) {

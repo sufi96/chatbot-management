@@ -375,7 +375,9 @@
                             changing the model or the dimensions. It runs in the background.
                         </p>
                         <form action="{{ route('admin.settings.reindex') }}" method="POST" class="m-0 mt-auto"
-                              onsubmit="return confirm('Re-embed every source in every workspace?');">
+                              data-confirm="Re-index everything?" data-confirm-tone="primary"
+                              data-confirm-message="Every source in every workspace is embedded again with the saved settings. It runs in the background, and answers may be thinner until it finishes."
+                              data-confirm-label="Re-index everything">
                             @csrf
                             <button type="submit" class="btn btn-sm btn-outline-primary">
                                 <i class="bi bi-arrow-repeat"></i> Re-index everything

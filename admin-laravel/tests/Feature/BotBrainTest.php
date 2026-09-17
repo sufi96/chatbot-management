@@ -153,6 +153,15 @@ class BotBrainTest extends TestCase
             ->get(route('bots.edit', $this->bot->id))
             ->assertOk()
             ->assertDontSee('name="system_prompt"', false)
-            ->assertSee('Open Brain');
+            ->assertSee('href="' . route('bots.brain', $this->bot->id) . '"', false);
+    }
+
+    public function test_the_brain_page_links_back_to_the_profile_tab(): void
+    {
+        $this->actingAs($this->editor())
+            ->get(route('bots.brain', $this->bot->id))
+            ->assertOk()
+            ->assertSee('href="' . route('bots.edit', $this->bot->id) . '"', false)
+            ->assertSee('aria-current="page"', false);
     }
 }

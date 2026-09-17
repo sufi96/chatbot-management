@@ -257,7 +257,10 @@
                                                     <button class="btn btn-sm btn-outline-danger"
                                                             form="removeColumnForm"
                                                             formaction="{{ route('databases.columns.destroy', $column->id) }}"
-                                                            onclick="return confirm('Remove {{ $column->column_name }}? Anything unsaved on this table is lost.');">
+                                                            data-confirm="Remove this column?" data-confirm-subject="{{ $column->column_name }}"
+                                                            data-confirm-detail="{{ $selected->qualifiedName() }}"
+                                                            data-confirm-message="Anything unsaved on this table is lost."
+                                                            data-confirm-label="Remove column">
                                                         Remove
                                                     </button>
                                                 </td>
@@ -377,14 +380,7 @@
         // "Some of them" is a third state, and a half-empty box says so.
         all.indeterminate = readable > 0 && readable < total;
 
-        all.addEventListener('change', function () {
-            if (!all.checked && !confirm(
-                'Stop bots reading all ' + total + ' tables? Your descriptions are kept.')) {
-                all.checked = true;
-                all.indeterminate = readable > 0 && readable < total;
-                return;
-            }
-
+        function submitAllReadable() {
             var form = document.getElementById('allReadableForm');
             var answer = document.createElement('input');
             answer.type = 'hidden';
@@ -394,6 +390,22 @@
 
             all.disabled = true;
             form.submit();
+        }
+
+        all.addEventListener('change', function () {
+            if (all.checked) { submitAllReadable(); return; }
+
+            confirmDialog({
+                title: 'Stop bots reading every table?',
+                subject: total + ' tables',
+                message: 'Bots can no longer query any of them. Your descriptions are kept, so switching it back is safe.',
+                confirmLabel: 'Stop reading',
+                tone: 'primary',
+            }).then(function (confirmed) {
+                if (confirmed) { submitAllReadable(); return; }
+                all.checked = true;
+                all.indeterminate = readable > 0 && readable < total;
+            });
         });
     }
 
@@ -448,6 +460,13 @@
             event.returnValue = '';
         }
     });
+
+    var removeColumnForm = document.getElementById('removeColumnForm');
+    if (removeColumnForm) {
+        removeColumnForm.addEventListener('submit', function (event) {
+            if (!event.defaultPrevented) { form.dataset.submitting = '1'; }
+        });
+    }
 
     form.addEventListener('submit', function () {
         form.dataset.submitting = '1';

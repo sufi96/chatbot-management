@@ -1715,8 +1715,26 @@ button.card:active {
 
 .provider-entry { display: flex; flex-direction: column; gap: 0.1875rem; min-width: 0; }
 .provider-entry-name { font-size: 0.875rem; font-weight: 600; overflow-wrap: anywhere; }
-.provider-entry-owner { color: var(--text-muted); white-space: nowrap; }
-.provider-entry-owner.is-own { color: var(--accent); }
+/* Whose a provider is: this workspace in the accent, another workspace in
+   green, the platform in blue. */
+.provider-owner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 100%;
+  padding: 0.0625rem 0.4375rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: normal;
+  text-transform: none;
+  overflow-wrap: anywhere;
+}
+.provider-owner-badge.is-own      { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-line); }
+.provider-owner-badge.is-other    { color: var(--ok);     background: var(--ok-soft);     border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
+.provider-owner-badge.is-platform { color: var(--info);   background: var(--info-soft);   border-color: color-mix(in srgb, var(--info) 35%, transparent); }
 .provider-entry-sub {
   display: flex;
   flex-wrap: wrap;
@@ -1783,6 +1801,8 @@ button.card:active {
 .bot-card-deleted > :not(:first-child):not(.card-footer) { opacity: 0.55; }
 
 /* A settings card for what cannot be undone. */
+.provider-menu.show { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); }
+.provider-menu-header { padding: 0.375rem 0.625rem 0.25rem; }
 .danger-zone { border-color: var(--danger); background: linear-gradient(0deg, var(--danger-soft), var(--danger-soft)), var(--surface); }
 .danger-zone .card-header { color: var(--danger); border-bottom-color: var(--danger); }
 .danger-zone p { color: var(--text-muted); }

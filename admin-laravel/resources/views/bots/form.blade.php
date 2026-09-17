@@ -174,6 +174,7 @@
                                                 data-owner="{{ $provider->ownerName() }}"
                                                 data-editable="{{ $editable ? '1' : '0' }}"
                                                 data-own="{{ $provider->system_id === $providerSystemId ? '1' : '0' }}"
+                                                data-scope="{{ $provider->system_id === null ? 'platform' : ($provider->system_id === $providerSystemId ? 'own' : 'other') }}"
                                                 data-bots="{{ $provider->bots_count ?? 0 }}"
                                                 @if($locked)
                                                     data-locked="1"
@@ -1263,6 +1264,16 @@
         ];
     }
 
+    function providerOwnerBadge(label, scope) {
+        var badge = document.createElement('span');
+        badge.className = 'provider-owner-badge is-' + (scope || 'other');
+        badge.innerHTML = scope === 'platform'
+            ? '<i class="bi bi-globe2"></i> '
+            : '<i class="bi bi-diagram-3"></i> ';
+        badge.appendChild(document.createTextNode(label));
+        return badge;
+    }
+
     function providerEntry(option, withOwner) {
         var wrap = document.createElement('span');
         wrap.className = 'provider-entry';
@@ -1272,16 +1283,13 @@
         name.textContent = option.dataset.name;
         wrap.appendChild(name);
 
-        // Whose it is leads the second line as plain text, so a long workspace
-        // name wraps with the rest instead of being cut off in a badge.
+        // Whose it is leads the second line as a badge coloured by scope: this
+        // workspace, another workspace or the platform. A long name wraps
+        // inside the badge rather than being cut off.
         var sub = document.createElement('span');
         sub.className = 'provider-entry-sub';
         if (withOwner) {
-            var owner = document.createElement('span');
-            owner.className = 'provider-entry-owner' + (option.dataset.own === '1' ? ' is-own' : '');
-            owner.innerHTML = '<i class="bi bi-diagram-3"></i> ';
-            owner.appendChild(document.createTextNode(option.dataset.owner));
-            sub.appendChild(owner);
+            sub.appendChild(providerOwnerBadge(option.dataset.owner, option.dataset.scope));
         }
         if (option.dataset.baseUrl) {
             var url = document.createElement('span');
@@ -1334,8 +1342,8 @@
             if (!matches.length) return;
 
             var header = document.createElement('div');
-            header.className = 'dropdown-header';
-            header.textContent = group.label;
+            header.className = 'dropdown-header provider-menu-header';
+            header.appendChild(providerOwnerBadge(group.label, matches[0].dataset.scope));
             list.appendChild(header);
 
             matches.forEach(function (option) {
@@ -1502,6 +1510,8 @@
         option.dataset.owner = provider.owner;
         option.dataset.editable = '1';
         option.dataset.own = provider.system_id === providerRoutes.systemId ? '1' : '0';
+        option.dataset.scope = provider.system_id === null ? 'platform'
+            : (option.dataset.own === '1' ? 'own' : 'other');
         option.dataset.bots = option.dataset.bots || '0';
         option.dataset.baseUrl = provider.base_url;
         option.dataset.hasKey = provider.has_key ? '1' : '0';

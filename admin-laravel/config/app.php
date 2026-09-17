@@ -20,7 +20,7 @@ return [
     'name' => env('APP_NAME', 'ChitChat Command Center (C4)'),
 
     // Shown as a badge at the foot of the sidebar.
-    'version' => env('APP_VERSION', '1.0.0'),
+    'version' => env('APP_VERSION', '1.0.1'),
 
     // The wordmark in three parts. The short name leads, the badge sits
     // beside it, and the long half becomes the tracked second line. The tab

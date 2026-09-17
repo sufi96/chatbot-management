@@ -392,7 +392,6 @@
 </div>
 
 @include('admin._provider-modal')
-@if($section === 'maintenance')
-    @include('admin._architecture-modal')
-@endif
+{{-- The architecture modal itself is in the layout, for every page; here it
+     shows the live model settings. --}}
 @endsection

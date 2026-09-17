@@ -316,3 +316,87 @@ async def test_a_guard_that_fails_open_lets_the_answer_through(factory, monkeypa
 
     assert contents(events) == "Hi."
     assert "guard" not in json.loads(saved["assistant"].model_trace)
+
+
+@pytest.mark.asyncio
+async def test_an_answer_with_no_source_asked_is_kept_as_the_models_own(factory, monkeypatch):
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("Hi there."))
+
+    await post(factory)
+    answer = (await rows(factory))["assistant"]
+
+    assert answer.source_kind == "model"
+    assert answer.citations is None
+
+
+@pytest.mark.asyncio
+async def test_an_answer_keeps_the_source_and_citations_that_answered(factory, monkeypatch):
+    from sources.result import SourceResult
+
+    await update_bot(factory, retrieval_enabled=True)
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("Two years."))
+
+    async def resolve(order, enabled, attempts):
+        return SourceResult(kind="documents", context_block="Warranty: two years.",
+                            citations=[{"n": 1, "title": "Handbook", "source_id": "src_1"}],
+                            has_content=True)
+    monkeypatch.setattr(chat.sources, "resolve", resolve)
+
+    await post(factory, message="what is the warranty on the kettle")
+    answer = (await rows(factory))["assistant"]
+
+    assert answer.source_kind == "documents"
+    assert json.loads(answer.citations) == [{"n": 1, "title": "Handbook", "source_id": "src_1"}]
+
+
+@pytest.mark.asyncio
+async def test_a_search_that_found_nothing_is_kept_as_none(factory, monkeypatch):
+    await update_bot(factory, retrieval_enabled=True)
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("I do not know."))
+
+    async def resolve(order, enabled, attempts):
+        return None
+    monkeypatch.setattr(chat.sources, "resolve", resolve)
+
+    await post(factory, message="what is the warranty on the kettle")
+
+    assert (await rows(factory))["assistant"].source_kind == "none"
+
+
+@pytest.mark.asyncio
+async def test_an_answer_keeps_how_long_the_visitor_waited(factory, monkeypatch):
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("Hi ", "there."))
+
+    await post(factory)
+    answer = (await rows(factory))["assistant"]
+
+    assert answer.first_token_ms is not None
+    assert answer.response_ms is not None
+    assert 0 <= answer.first_token_ms <= answer.response_ms
+
+
+@pytest.mark.asyncio
+async def test_a_refusal_is_kept_as_refused_with_its_wait(factory, monkeypatch):
+    await update_bot(factory, guard_enabled=True)
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", model_must_not_answer())
+    monkeypatch.setattr(guard, "check", verdicts(guard.Verdict(safe=False, ran=True)))
+
+    await post(factory, message="something harmful")
+    answer = (await rows(factory))["assistant"]
+
+    assert answer.source_kind == "refused"
+    assert answer.response_ms is not None
+
+
+@pytest.mark.asyncio
+async def test_an_answer_keeps_prompt_and_completion_tokens_apart(factory, monkeypatch):
+    async def stream_chat(**kwargs):
+        yield f"data: {json.dumps({'content': 'Hi.'})}\n\n"
+        yield f"data: {json.dumps({'meta': {'model': 'qwen3.5:4b', 'tokens_in': 120, 'tokens_out': 8}})}\n\n"
+        yield "data: [DONE]\n\n"
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", stream_chat)
+
+    await post(factory)
+    answer = (await rows(factory))["assistant"]
+
+    assert (answer.tokens_used, answer.tokens_in, answer.tokens_out) == (128, 120, 8)

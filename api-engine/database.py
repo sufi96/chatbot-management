@@ -155,7 +155,18 @@ class ChatMessage(Base):
     # What the guard named: on the visitor's row when a message was refused,
     # on the assistant's row when an answer was flagged.
     guard_flag = Column(String(60), nullable=True)
+    # On the assistant's row, for the analytics page: which source answered
+    # (see sources.answer_kind), the citations the widget was sent as JSON, and
+    # how long the visitor waited for the first token and for the whole reply.
+    source_kind = Column(String(20), nullable=True)
+    citations = Column(Text, nullable=True)
+    first_token_ms = Column(Integer, nullable=True)
+    response_ms = Column(Integer, nullable=True)
     tokens_used = Column(Integer, default=0)
+    # The two halves of tokens_used, prompt and completion. Null when the
+    # endpoint reported no usage, and on answers saved before they were kept.
+    tokens_in = Column(Integer, nullable=True)
+    tokens_out = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     conversation = relationship("ChatConversation", back_populates="messages")

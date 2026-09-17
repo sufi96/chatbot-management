@@ -300,7 +300,7 @@ class AiProviderControllerTest extends TestCase
     private function platformProvider(string $baseUrl = 'http://spark:8000/v1', string $key = ''): AiProvider
     {
         return AiProvider::create([
-            'id' => 'aip_platform', 'system_id' => null, 'name' => 'DGX Spark',
+            'id' => 'aip_platform', 'system_id' => null, 'name' => 'Platform Endpoint',
             'base_url' => $baseUrl, 'api_key' => $key,
         ]);
     }
@@ -326,7 +326,7 @@ class AiProviderControllerTest extends TestCase
             ->assertOk()
             ->assertSee('Laptop Ollama')
             ->assertSee('Store Key')
-            ->assertSee('DGX Spark')
+            ->assertSee('Platform Endpoint')
             ->assertSee('label="Store"', false)
             ->assertSee('label="Platform"', false);
     }
@@ -356,7 +356,7 @@ class AiProviderControllerTest extends TestCase
             ->assertSee('label="Store"', false)
             ->assertDontSee('Third Key')
             ->assertDontSee('sk_third')
-            ->assertDontSee('DGX Spark')
+            ->assertDontSee('Platform Endpoint')
             ->assertDontSee('sk_platform');
     }
 
@@ -423,7 +423,7 @@ class AiProviderControllerTest extends TestCase
         $this->actingAs($editor)
             ->get(route('bots.edit', 'bot_1'))
             ->assertOk()
-            ->assertSee('DGX Spark')
+            ->assertSee('Platform Endpoint')
             ->assertDontSee('spark-secret')
             ->assertDontSee('sk_platform');
 

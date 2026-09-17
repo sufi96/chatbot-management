@@ -108,6 +108,16 @@ class BotProfile extends Model
         ];
     }
 
+    /**
+     * The bots this user may see. A deleted bot is described to everyone as
+     * deleted for good, and only a super admin, who can restore it, still
+     * finds it, with its conversations and analytics.
+     */
+    public function scopeVisibleTo($query, User $user)
+    {
+        return $user->isSuperAdmin() ? $query->withTrashed() : $query;
+    }
+
     public function system(): BelongsTo
     {
         return $this->belongsTo(System::class, 'system_id');

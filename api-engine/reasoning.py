@@ -135,12 +135,16 @@ class TranscriptCollector:
         self._content = []
         self._reasoning = []
         self._tokens = 0
+        self._tokens_in = None
+        self._tokens_out = None
         self._model = None
 
     def observe(self, payload: dict) -> None:
         meta = payload.get("meta")
         if meta:
-            self._tokens = int(meta.get("tokens_in", 0) or 0) + int(meta.get("tokens_out", 0) or 0)
+            self._tokens_in = int(meta.get("tokens_in", 0) or 0)
+            self._tokens_out = int(meta.get("tokens_out", 0) or 0)
+            self._tokens = self._tokens_in + self._tokens_out
             # The endpoint's own name for the model, which can differ from the
             # bot's setting when an alias or a quantised build answers.
             self._model = meta.get("model") or self._model
@@ -164,6 +168,16 @@ class TranscriptCollector:
     def tokens(self) -> int:
         """Prompt plus completion tokens, or zero when none were reported."""
         return self._tokens
+
+    @property
+    def tokens_in(self):
+        """Prompt tokens, or None when the endpoint reported no usage."""
+        return self._tokens_in
+
+    @property
+    def tokens_out(self):
+        """Completion tokens, or None when the endpoint reported no usage."""
+        return self._tokens_out
 
     @property
     def model(self):

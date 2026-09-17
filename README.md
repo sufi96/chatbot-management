@@ -1,4 +1,4 @@
-# ChitChat Command Center (C⁴) 🤖 `v1.0.0`
+# ChitChat Command Center (C⁴) 🤖 `v1.0.1`
 
 A production-ready, multi-tenant AI Chatbot Management platform featuring a **Laravel 13 Admin Portal**, a **Python FastAPI Streaming Engine**, and a **Zero-Dependency Shadow DOM JS Widget**.
 
@@ -49,6 +49,37 @@ shipping?" still searches. Saying hello costs nothing.
 recursive splitting, at roughly fourteen times the indexing cost. Cross-encoder
 reranking needs PyTorch for a gain that fusion largely captures at this corpus
 size.
+
+---
+
+## 🆕 What's New in `v1.0.1`
+
+### 📊 Analytics
+- **Its own sidebar link** under Administer. Bot profiles stay about settings and embed codes.
+- **Pick bots across workspaces:** a dropdown at the top right groups bots by workspace, one at a time or a whole workspace at once. Everyone sees the workspaces they belong to; a Super Admin sees all.
+- **Any window:** 24 hours, 7, 30 or 90 days, or custom dates, read in the viewer's own time zone.
+- **Headline figures with the change from the window before,** green when it is good news and red when it is not: more flags is red, faster replies is green.
+- **Activity by hour or day, and a weekday × hour heatmap** of when visitors write.
+- **Visitors and questions:** where they come from, new or returning, how messages were read, and the most asked questions.
+- **Answers:** which source answered (knowledge base, database, web, nothing found, model only, refused), response times, the documents cited and the ready ones never cited, sites cited, and the model behind each job.
+- **Gaps and safety:** questions the sources had nothing for, and guard flags by category.
+- **By bot profile,** and the full conversations table for the bots and window chosen.
+
+### 💬 Conversations
+- **Token column:** total, prompt tokens in and reply tokens out, sortable.
+- **Every bubble shows its time** and the gap since the one before, with long pauses marked and a divider when the day changes. A bot's reply also shows its time to first token and to the whole reply.
+- **Tidier transcript:** the session id sits at the top right, and the model behind each job moves to the footer.
+
+### 🗑️ Deleted Bots Keep Their History
+- A workspace is told a deleted bot is gone for good, and for its members it is: the bot, its conversations and its analytics disappear from every page, the dashboard included.
+- A Super Admin still sees all three, marked **Deleted**, can open them from the admin **Bots** page, and can restore the bot. Only **Delete permanently** there erases anything.
+
+### 🏠 Dashboard and Help
+- **The dashboard is a workspace overview:** bots, conversations in the last seven days, knowledge sources, database connections and members. Each bot has one **Actions** menu for its embed code, settings and analytics.
+- **Architecture for everyone:** the info button in the top bar opens the architecture overview on any page. The live model settings in it stay with Super Admins.
+
+### ⚙️ Engine
+- Every answer records which source answered, what it cited, the time to first token and to the whole reply, and prompt and reply tokens separately. Run `php artisan migrate` after pulling: answers saved before this have no such data, and the pages say so rather than guessing.
 
 ---
 
@@ -112,7 +143,7 @@ size.
 - **Save bar that only shows when needed:** the floating save bar stays hidden until something changes, then counts the unsaved changes (*"2 unsaved changes"*) with **Discard** and **Save**. It sits on the left so it never covers the chat launcher.
 - **Test inference in the model card header**, with the result shown in the card once there is one.
 - **Deleting takes intent:** delete lives at the foot of a bot's settings, in a red section, and asks for the bot's name to be typed before it unlocks. The server checks the name too.
-- **Soft delete:** a deleted bot stops answering on every site and leaves its workspace, but the bot and its conversations are kept.
+- **Soft delete:** a deleted bot stops answering on every site and leaves its workspace, but the bot and its conversations are kept. From `v1.0.1`, a workspace is told it is deleted permanently, and only a Super Admin still sees it.
 - **Admin Bots page (Super Admin):** every bot in every workspace in one list, filtered by workspace, status and a search on name, id or model. Status badges show **Active**, **Deactivated** or **Deleted**. A deleted bot can be **restored**, or **deleted permanently** (type the name again), which also erases its conversations.
 
 ### 9. 📱 Responsive UI & Clean Action Layouts

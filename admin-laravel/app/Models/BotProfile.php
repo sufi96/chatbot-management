@@ -18,6 +18,14 @@ class BotProfile extends Model
     public $incrementing = false;
 
     /**
+     * The console's own assistant, created by a migration. It belongs to the
+     * platform rather than a workspace, cannot be deleted, and is shown as the
+     * chat widget to super admins inside the console. is_platform is left out
+     * of $fillable on purpose: no form can make a bot into this one.
+     */
+    public const CONSOLE_ID = 'bot_console_assistant';
+
+    /**
      * An unrelated top hit scores about 0.0164 from one retrieval branch, and
      * only reaches about 0.033 when both branches agree. A floor below 0.0164
      * therefore admits passages about the wrong subject on every question, and
@@ -90,6 +98,7 @@ class BotProfile extends Model
             'launcher_size' => 'integer',
             'close_size' => 'integer',
             'is_active' => 'boolean',
+            'is_platform' => 'boolean',
             'retrieval_enabled' => 'boolean',
             'db_query_enabled' => 'boolean',
             'intent_enabled' => 'boolean',
@@ -113,6 +122,12 @@ class BotProfile extends Model
      * deleted for good, and only a super admin, who can restore it, still
      * finds it, with its conversations and analytics.
      */
+    /** The console assistant, or null if its row has been removed by hand. */
+    public static function console(): ?self
+    {
+        return static::query()->find(self::CONSOLE_ID);
+    }
+
     public function scopeVisibleTo($query, User $user)
     {
         return $user->isSuperAdmin() ? $query->withTrashed() : $query;

@@ -217,6 +217,9 @@ class BotProfileController extends Controller
             abort(403, 'Unauthorized. Only System Admin can delete bot profiles.');
         }
 
+        // The console's own assistant is part of the platform, not a workspace's to remove.
+        abort_if($bot->is_platform, 403, 'The console assistant cannot be deleted.');
+
         // The dialog only unlocks on an exact match; this holds it to that for
         // a request that did not come through the dialog.
         if ($request->input('confirm_name') !== $bot->name) {
@@ -261,7 +264,7 @@ class BotProfileController extends Controller
      * The bot's current provider stays even when this user could not pick it
      * (a super admin set it), flagged so the form names it without its URL or key.
      */
-    private function providersFor(User $user, string $systemId, ?string $currentId = null)
+    private function providersFor(User $user, ?string $systemId, ?string $currentId = null)
     {
         $providers = AiProvider::usableBy($user)->with('system')->withCount('bots')->get();
 

@@ -30,6 +30,10 @@ final class DbQueryRunner
         // connection is not readable, and a table the database no longer has
         // is not readable either.
         $allowed = $connection->readableTables()->get()
+            // On the console's own database, tables holding secrets stay shut
+            // even if someone ticked them.
+            ->reject(fn ($table) => ConsoleDatabase::is($connection)
+                && in_array(strtolower($table->table_name), ConsoleDatabase::NEVER, true))
             ->map(fn ($table) => strtolower($table->qualifiedName()))
             ->all();
 
@@ -47,6 +51,9 @@ final class DbQueryRunner
         try {
             $probe = ProbeConnection::open($connection);
             self::applyTimeout($probe, $connection->driver, $timeout);
+            if (ConsoleDatabase::is($connection)) {
+                self::readOnly($probe, $connection->driver);
+            }
             $rows = $probe->select($sql);
         } catch (Throwable $e) {
             return self::refuse(substr($e->getMessage(), 0, 500));
@@ -63,6 +70,26 @@ final class DbQueryRunner
             'elapsed_ms' => $elapsed,
             'message' => '',
         ];
+    }
+
+    /**
+     * The console's own database is read with the application's account,
+     * which can write. So the session is made read-only too, behind the
+     * SELECT-only checks. Not on the application's own connection, as in the
+     * test suite, where it would stop the application writing.
+     */
+    private static function readOnly($probe, string $driver): void
+    {
+        if ($probe->getName() !== ProbeConnection::NAME) {
+            return;
+        }
+
+        match ($driver) {
+            'sqlite' => $probe->statement('PRAGMA query_only = ON'),
+            'pgsql' => $probe->statement('SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY'),
+            'mysql' => $probe->statement('SET SESSION TRANSACTION READ ONLY'),
+            default => null,
+        };
     }
 
     private static function applyTimeout($probe, string $driver, int $timeout): void

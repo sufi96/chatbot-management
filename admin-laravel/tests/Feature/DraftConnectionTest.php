@@ -6,11 +6,12 @@ use App\Models\DbConnection;
 use App\Models\System;
 use App\Services\Schema\DraftConnection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\WithoutConsoleDatabase;
 use Tests\TestCase;
 
 class DraftConnectionTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, WithoutConsoleDatabase;
 
     private function stored(): DbConnection
     {

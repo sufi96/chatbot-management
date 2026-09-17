@@ -305,6 +305,23 @@
         ])
     @endauth
 
+    {{-- The console assistant, for super admins only, once it has a provider
+         and is switched on. Not on a bot's own settings pages, which already
+         carry that bot's widget for testing. --}}
+    @auth
+        @if(auth()->user()->isSuperAdmin() && !request()->routeIs('bots.edit', 'bots.brain'))
+            @php($consoleBot = \App\Models\BotProfile::console())
+            @if($consoleBot && $consoleBot->is_active && $consoleBot->provider_id)
+                <script
+                    src="{{ env('API_HOST_URL', 'http://localhost:8000') }}/widget.js"
+                    data-bot-id="{{ $consoleBot->id }}"
+                    data-api-host="{{ env('API_HOST_URL', 'http://localhost:8000') }}"
+                    defer>
+                </script>
+            @endif
+        @endif
+    @endauth
+
     <script src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
     <script>
         (function () {

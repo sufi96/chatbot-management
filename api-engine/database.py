@@ -36,6 +36,9 @@ class AiProvider(Base):
     name = Column(String(255), nullable=False)
     base_url = Column(String(500), nullable=False)
     api_key = Column(String(500), default="")
+    # Set for a gateway that silently drops system messages. The engine then
+    # sends instructions inside the user message. See llm_adapter.with_instructions.
+    merge_system_prompt = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -46,7 +49,8 @@ class BotProfile(Base):
     __tablename__ = "bot_profiles"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    system_id = Column(String(36), ForeignKey("systems.id", ondelete="CASCADE"), nullable=False)
+    # Null only for the console assistant, which belongs to the platform.
+    system_id = Column(String(36), ForeignKey("systems.id", ondelete="CASCADE"), nullable=True)
     name = Column(String(255), nullable=False)
     system_prompt = Column(Text, default="You are a helpful, courteous, and accurate AI assistant.")
     provider_id = Column(String(36), ForeignKey("ai_providers.id", ondelete="SET NULL"), nullable=True)
@@ -108,6 +112,9 @@ class BotProfile(Base):
     thinking_level = Column(String(10), default="off")
 
     is_active = Column(Boolean, default=True)
+    # The console's own assistant. Laravel creates it; it answers only on the
+    # console's own pages. See portal_origin_allowed.
+    is_platform = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     # Set when the bot is deleted from its workspace. Laravel owns it; a bot
@@ -235,7 +242,8 @@ class DbConnection(Base):
     __tablename__ = "db_connections"
 
     id = Column(String(36), primary_key=True)
-    system_id = Column(String(36), ForeignKey("systems.id", ondelete="CASCADE"), nullable=False)
+    # Null only for the console's own database, which the console assistant reads.
+    system_id = Column(String(36), ForeignKey("systems.id", ondelete="CASCADE"), nullable=True)
     name = Column(String(255), nullable=False)
     driver = Column(String(20), nullable=False)
     # Credentials are deliberately not modelled here. The engine never opens
@@ -383,6 +391,7 @@ async def _expand_provider_links(session, settings: dict) -> dict:
         provider = providers.get(provider_id)
         settings[prefix + "base_url"] = provider.base_url if provider else ""
         settings[prefix + "api_key"] = (provider.api_key or "") if provider else ""
+        settings[prefix + "merge_system"] = bool(provider and getattr(provider, "merge_system_prompt", False))
 
     return settings
 
@@ -491,6 +500,12 @@ def provider_endpoint(bot) -> tuple[str, str]:
         return "", ""
 
     return provider.base_url, provider.api_key or ""
+
+
+def provider_merges_system(bot) -> bool:
+    """Whether this bot's provider drops system messages. See AiProvider."""
+    provider = bot.provider if bot is not None else None
+    return bool(provider and getattr(provider, "merge_system_prompt", False))
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

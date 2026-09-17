@@ -4,6 +4,22 @@ from typing import AsyncGenerator, List, Dict, Any
 
 from reasoning import ReasoningSplitter
 
+def with_instructions(system_prompt: str, user_message: str, merge_system: bool) -> str:
+    """The user turn, carrying the instructions when the provider drops system messages.
+
+    Some gateways silently discard the system role, so a bot's prompt, its
+    retrieved context and the SQL writer's schema never reach the model, and it
+    answers as if it knew nothing. For a provider marked that way the
+    instructions ride at the top of the message being answered: the latest
+    turn, so fresh context sits beside the question it was fetched for.
+    """
+    instructions = (system_prompt or "").strip()
+    if not merge_system or not instructions:
+        return user_message
+
+    return f"{instructions}\n\n---\n\n{user_message}"
+
+
 class LLMAdapter:
     @staticmethod
     def _normalize_endpoint(base_url: str) -> str:
@@ -30,7 +46,8 @@ class LLMAdapter:
         presence_penalty: float = 0.0,
         frequency_penalty: float = 0.0,
         thinking_level: str = "off",
-        transport=None
+        transport=None,
+        merge_system: bool = False,
     ) -> AsyncGenerator[str, None]:
         endpoint = cls._normalize_endpoint(base_url)
         headers = {
@@ -40,7 +57,7 @@ class LLMAdapter:
             headers["Authorization"] = f"Bearer {api_key.strip()}"
 
         messages = []
-        if system_prompt and system_prompt.strip():
+        if system_prompt and system_prompt.strip() and not merge_system:
             messages.append({"role": "system", "content": system_prompt.strip()})
 
         for msg in history:
@@ -57,7 +74,7 @@ class LLMAdapter:
                 and messages[-1]["content"].strip() == (user_message or "").strip()):
             messages.pop()
 
-        messages.append({"role": "user", "content": user_message})
+        messages.append({"role": "user", "content": with_instructions(system_prompt, user_message, merge_system)})
 
         payload = {
             "model": model_name,
@@ -179,6 +196,7 @@ class LLMAdapter:
         max_tokens: int = 512,
         response_format: dict | None = None,
         transport=None,
+        merge_system: bool = False,
     ) -> str:
         """A whole answer in one call, for the SQL generator and the intent reader.
 
@@ -191,9 +209,9 @@ class LLMAdapter:
             headers["Authorization"] = f"Bearer {api_key.strip()}"
 
         messages = []
-        if system_prompt and system_prompt.strip():
+        if system_prompt and system_prompt.strip() and not merge_system:
             messages.append({"role": "system", "content": system_prompt.strip()})
-        messages.append({"role": "user", "content": user_message})
+        messages.append({"role": "user", "content": with_instructions(system_prompt, user_message, merge_system)})
 
         payload = {
             "model": model_name,

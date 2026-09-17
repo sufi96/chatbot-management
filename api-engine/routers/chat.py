@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 
-from database import (get_db, get_settings, provider_endpoint, BotProfile, System,
+from config import settings as app_settings
+from database import (get_db, get_settings, provider_endpoint, provider_merges_system, BotProfile, System,
                       ChatConversation, ChatMessage, BotKbCollection)
 import guard
 import intent
@@ -45,6 +46,25 @@ async def save_assistant_message(conv_id: str, **fields) -> None:
         print(f"[Chat Log Error] Could not save assistant response: {error}")
 
 
+def portal_origin_allowed(origin: str, portal_base_url: str) -> bool:
+    """Whether a request comes from the console's own pages.
+
+    The console assistant has no workspace and so no allowlist of its own. It
+    answers the console and nothing else: a site that learns its id cannot
+    borrow the platform's model. localhost and 127.0.0.1 count as one host, as
+    they do for workspace allowlists.
+    """
+    from urllib.parse import urlsplit
+
+    def key(url: str):
+        parts = urlsplit(url.strip().rstrip("/"))
+        host = (parts.hostname or "").replace("127.0.0.1", "localhost")
+        port = parts.port or {"http": 80, "https": 443}.get(parts.scheme)
+        return (parts.scheme, host, port)
+
+    return bool(origin) and key(origin) == key(portal_base_url)
+
+
 @router.post("/stream")
 async def chat_stream(
     req: ChatStreamRequest, 
@@ -73,6 +93,10 @@ async def chat_stream(
     system = sys_result.scalars().first()
 
     origin_header = request.headers.get("origin", "")
+    if bot.is_platform and not portal_origin_allowed(
+            origin_header, app_settings.CONSOLE_ORIGIN or app_settings.PORTAL_BASE_URL):
+        raise HTTPException(status_code=403, detail="This assistant only answers inside the console.")
+
     if system and system.allowed_origins and system.allowed_origins.strip() != "*":
         allowed = [o.strip().rstrip("/") for o in system.allowed_origins.split(",") if o.strip()]
         expanded_allowed = set(allowed)
@@ -279,7 +303,8 @@ async def chat_stream(
                 top_k_sampling=bot.top_k_sampling,
                 presence_penalty=bot.presence_penalty or 0.0,
                 frequency_penalty=bot.frequency_penalty or 0.0,
-                thinking_level=bot.thinking_level or "off"
+                thinking_level=bot.thinking_level or "off",
+                merge_system=provider_merges_system(bot),
             ):
                 if chunk.startswith("data: "):
                     raw = chunk[6:].strip()

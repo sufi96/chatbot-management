@@ -78,8 +78,16 @@ size.
 - **The dashboard is a workspace overview:** bots, conversations in the last seven days, knowledge sources, database connections and members. Each bot has one **Actions** menu for its embed code, settings and analytics.
 - **Architecture for everyone:** the info button in the top bar opens the architecture overview on any page. The live model settings in it stay with Super Admins.
 
+### 🤖 Console Assistant
+- **A built-in bot for this console,** first on the admin **Bots** page in a blue card. It cannot be deleted, and it is edited like any other bot: provider, model, widget, prompt.
+- **Its chat widget shows on every console page, for super admins only,** once it has a provider and is switched on.
+- **It reads the console's own database,** read-only: workspaces, members, bots, conversations and knowledge. Tables holding passwords, provider keys, connection passwords and platform settings stay shut, even if ticked.
+- **Analytics and conversations of its own,** under a **Platform** group in the bot picker. "All bot profiles" leaves it out unless it is ticked.
+- **The engine answers it only from the console's address.** Set `CONSOLE_ORIGIN` in `api-engine/.env` when the browser reaches the console at a different address from `PORTAL_BASE_URL`, as in Docker.
+
 ### ⚙️ Engine
 - Every answer records which source answered, what it cited, the time to first token and to the whole reply, and prompt and reply tokens separately. Run `php artisan migrate` after pulling: answers saved before this have no such data, and the pages say so rather than guessing.
+- **"Send instructions inside the message"** on a provider, for a gateway that silently drops system messages. Without it a bot on such a gateway answers without its prompt, its knowledge or its database.
 
 ---
 

@@ -23,6 +23,10 @@ class AiProviderBackfillTest extends TestCase
 
     private function backToTheOldShape(): void
     {
+        // The console assistant is created by a later migration; the old shape
+        // this test rebuilds predates it and its null workspace.
+        DB::table('bot_profiles')->delete();
+
         Artisan::call('migrate:rollback', ['--path' => self::MIGRATION, '--realpath' => false]);
 
         DB::table('systems')->insert([

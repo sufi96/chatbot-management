@@ -10,11 +10,12 @@ use App\Services\Schema\DiscoveredColumn;
 use App\Services\Schema\DiscoveredTable;
 use App\Services\Schema\SchemaSync;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\WithoutConsoleDatabase;
 use Tests\TestCase;
 
 class SchemaSyncTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, WithoutConsoleDatabase;
 
     private function connection(): DbConnection
     {

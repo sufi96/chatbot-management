@@ -115,6 +115,9 @@
                             <td>
                                 <div class="fw-semibold">
                                     {{ $conv->bot_name ?? 'Deleted profile' }}
+                                    @if($conv->bot?->is_platform)
+                                        <span class="badge bot-picker-builtin ms-1">Built in</span>
+                                    @endif
                                     @if($conv->bot?->trashed())
                                         <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">Deleted</span>
                                     @endif

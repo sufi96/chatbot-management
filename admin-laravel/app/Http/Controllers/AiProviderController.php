@@ -189,6 +189,8 @@ class AiProviderController extends Controller
         // A local endpoint wants no key at all, and the column is not
         // nullable, so an absent key is an empty one.
         $validated['api_key'] = (string) ($validated['api_key'] ?? '');
+        // An unticked box sends nothing, which means the provider keeps system messages.
+        $validated['merge_system_prompt'] = $request->boolean('merge_system_prompt');
 
         return $validated;
     }
@@ -200,6 +202,7 @@ class AiProviderController extends Controller
             'name' => $provider->name,
             'base_url' => $provider->base_url,
             'has_key' => $provider->api_key !== null && $provider->api_key !== '',
+            'merge_system_prompt' => (bool) $provider->merge_system_prompt,
             'label' => $provider->label(),
             'system_id' => $provider->system_id,
             'owner' => $provider->ownerName(),

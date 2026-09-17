@@ -32,7 +32,7 @@ import re
 from dataclasses import dataclass, replace
 
 import roles
-from database import provider_endpoint
+from database import provider_endpoint, provider_merges_system
 from llm_adapter import LLMAdapter
 
 TEXT_CHARS = 4000
@@ -216,12 +216,14 @@ def judged(verdict: Verdict, rules: Rules) -> Verdict:
     return verdict if guarded(verdict.category, rules) else replace(verdict, safe=True)
 
 
-async def _ask(complete, base_url: str, api_key: str, model: str, rules: Rules, text: str):
+async def _ask(complete, base_url: str, api_key: str, model: str, rules: Rules, text: str,
+               merge_system: bool = False):
     # No JSON mode: a dedicated guard model answers in its own format, and
     # forcing JSON would break exactly the model this role is meant for.
     return await complete(
         base_url=base_url, api_key=api_key, model_name=model,
-        system_prompt=build_prompt(rules), user_message=text[:TEXT_CHARS], max_tokens=60)
+        system_prompt=build_prompt(rules), user_message=text[:TEXT_CHARS], max_tokens=60,
+        merge_system=merge_system)
 
 
 async def check(bot, text: str, settings: dict, complete=None) -> Verdict:
@@ -238,7 +240,8 @@ async def check(bot, text: str, settings: dict, complete=None) -> Verdict:
         return Verdict()
 
     complete = complete or LLMAdapter.complete
-    raw = await _ask(complete, endpoint.base_url, endpoint.api_key, endpoint.model, rules, text)
+    raw = await _ask(complete, endpoint.base_url, endpoint.api_key, endpoint.model, rules, text,
+                     merge_system=endpoint.merge_system)
 
     verdict = parse(raw)
     if verdict is None:
@@ -266,7 +269,8 @@ async def _check_topics(bot, rules: Rules, text: str, complete) -> Verdict | Non
         return None
 
     topics_only = Rules(topics=rules.topics, block_borderline=rules.block_borderline)
-    raw = await _ask(complete, base_url, api_key, model, topics_only, text)
+    raw = await _ask(complete, base_url, api_key, model, topics_only, text,
+                     merge_system=provider_merges_system(bot))
 
     verdict = parse(raw)
     if verdict is None or verdict.labelled:

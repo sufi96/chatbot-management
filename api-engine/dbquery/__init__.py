@@ -101,6 +101,9 @@ async def load_bot_schema(session, bot_id: str) -> tuple[str, str, str, list[Sch
     return connection_id, connection_name, driver, tables
 
 
+SQL_MAX_TOKENS = 2048
+
+
 def _sql_endpoint(bot, settings: dict) -> tuple[str, str, str]:
     """Where query work goes. Blank settings mean the bot's own model.
 
@@ -144,6 +147,7 @@ async def answer(session, bot, message: str, settings: dict, complete=None,
         return DbAnswer()
 
     base_url, api_key, model = _sql_endpoint(bot, settings)
+    merge_system = roles.endpoint_for("sql", bot, settings).merge_system
 
     from config import settings as engine_settings
 
@@ -159,9 +163,12 @@ async def answer(session, bot, message: str, settings: dict, complete=None,
             f"{generation_prompt}\n\nYour last statement was rejected: {complaint}\n"
             "Write a statement that obeys the rules.")
 
+        # Room to think first: a reasoning model that ignores the thinking
+        # switch spent the old 512 tokens reasoning and returned no statement.
         raw = _unfence(await complete(
             base_url=base_url, api_key=api_key, model_name=model,
-            system_prompt=prompt, user_message=message))
+            system_prompt=prompt, user_message=message,
+            max_tokens=SQL_MAX_TOKENS, merge_system=merge_system))
 
         # A decline is not a rejected statement, so it is not argued with.
         if raw.strip().upper() == DECLINED:

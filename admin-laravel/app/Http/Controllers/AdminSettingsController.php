@@ -414,6 +414,7 @@ class AdminSettingsController extends Controller
             'name' => $provider->name,
             'base_url' => $provider->base_url,
             'api_key' => $provider->api_key,
+            'merge_system_prompt' => (bool) $provider->merge_system_prompt,
             'label' => $provider->label(),
             'used_by' => self::usageOf($provider->id),
         ];

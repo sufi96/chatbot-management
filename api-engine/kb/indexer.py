@@ -44,11 +44,11 @@ async def read_source(source: KbSource, settings: dict, make_vision=None) -> str
 async def reading_bot(session, collection_id: str):
     """A bot that reads this collection, whose main model stands in for a blank
     vision role. An active bot first, the oldest of them, so the choice holds
-    still from one re-index to the next."""
+    still from one re-index to the next. A deleted bot is not asked."""
     result = await session.execute(
         select(BotProfile)
         .join(BotKbCollection, BotKbCollection.bot_id == BotProfile.id)
-        .where(BotKbCollection.collection_id == collection_id)
+        .where(BotKbCollection.collection_id == collection_id, BotProfile.deleted_at.is_(None))
         .options(selectinload(BotProfile.provider))
         .order_by(BotProfile.is_active.desc(), BotProfile.created_at, BotProfile.id)
         .limit(1))

@@ -81,7 +81,10 @@
                                         Change role
                                     </button>
                                     <form action="{{ route('systems.users.remove', [$system->id, $member->id]) }}" method="POST"
-                                          onsubmit="return confirm('Remove {{ $member->name }} from {{ $system->name }}?');" class="d-inline m-0">
+                                          data-confirm="Remove from this workspace?"
+                                          data-confirm-subject="{{ $member->name }}" data-confirm-detail="{{ $member->email }}"
+                                          data-confirm-message="They lose access to {{ $system->name }}. Their account and other workspaces are not affected."
+                                          data-confirm-label="Remove member" class="d-inline m-0">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove from workspace">

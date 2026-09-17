@@ -96,7 +96,9 @@
                                             <i class="bi bi-pencil"></i>
                                         </button>
                                         <form action="{{ route('systems.destroy', $sys->id) }}" method="POST"
-                                              onsubmit="return confirm('Delete the workspace {{ $sys->name }}? Every bot profile inside it is deleted too.');"
+                                              data-confirm="Delete this workspace?" data-confirm-subject="{{ $sys->name }}"
+                                              data-confirm-message="Every bot profile inside it is deleted too. This cannot be undone."
+                                              data-confirm-label="Delete workspace"
                                               class="d-inline m-0">
                                             @csrf
                                             @method('DELETE')

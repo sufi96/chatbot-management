@@ -110,6 +110,9 @@ class BotProfile(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # Set when the bot is deleted from its workspace. Laravel owns it; a bot
+    # with one is gone as far as the engine is concerned.
+    deleted_at = Column(DateTime, nullable=True)
 
     system = relationship("System", back_populates="bots")
     provider = relationship("AiProvider", back_populates="bots", lazy="selectin")

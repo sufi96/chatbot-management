@@ -11,14 +11,17 @@ use Illuminate\Support\Str;
  * Platform providers, edited from Admin Settings.
  *
  * The same shape as a workspace's providers, owned by no workspace. Model
- * jobs link to these; bots never can. Every action answers JSON because the
+ * jobs link to these, and a super admin may point a bot at one. Every action answers JSON because the
  * modal sits over a settings form that may not be saved yet.
  */
 class AdminProviderController extends Controller
 {
     public function store(Request $request): JsonResponse
     {
-        $provider = AiProvider::create($this->validated($request) + [
+        $validated = $this->validated($request);
+        AiProvider::refuseLookalike(null, $validated);
+
+        $provider = AiProvider::create($validated + [
             'id' => 'aip_' . Str::random(12),
             'system_id' => null,
         ]);
@@ -34,7 +37,10 @@ class AdminProviderController extends Controller
     {
         $provider = AiProvider::platform()->findOrFail($id);
 
-        $provider->update($this->validated($request));
+        $validated = $this->validated($request);
+        AiProvider::refuseLookalike(null, $validated, $provider->id);
+
+        $provider->update($validated);
 
         return response()->json([
             'success' => true,
@@ -53,7 +59,8 @@ class AdminProviderController extends Controller
     {
         $provider = AiProvider::platform()->findOrFail($id);
 
-        $inUse = collect(AdminSettingsController::usageOf($provider->id));
+        $inUse = collect(AdminSettingsController::usageOf($provider->id))
+            ->concat($provider->bots()->orderBy('name')->pluck('name')->map(fn ($name) => "the bot {$name}"));
 
         if ($inUse->isNotEmpty()) {
             return response()->json([

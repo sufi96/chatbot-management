@@ -104,7 +104,11 @@
                                                 data-bs-toggle="modal"
                                                 data-bs-target="#editConnection{{ $connection->id }}">Edit</button>
                                         <form action="{{ route('databases.destroy', $connection->id) }}" method="POST"
-                                              onsubmit="return confirm('Delete {{ $connection->name }} and every annotation on it?');"
+                                              data-confirm="Delete this database connection?"
+                                              data-confirm-subject="{{ $connection->name }}"
+                                              data-confirm-detail="{{ $connection->driver }} · {{ $connection->host ? $connection->host . ' / ' : '' }}{{ $connection->database }}"
+                                              data-confirm-message="Every table description and annotation on it is deleted too, and bots stop reading it. The database itself is not touched."
+                                              data-confirm-label="Delete connection"
                                               class="d-inline">
                                             @csrf
                                             @method('DELETE')

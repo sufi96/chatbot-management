@@ -86,7 +86,10 @@
 
                                 @if(auth()->id() !== $u->id)
                                     <form action="{{ route('users.destroy', $u->id) }}" method="POST"
-                                          onsubmit="return confirm('Delete the account for {{ $u->name }}?');" class="d-inline m-0">
+                                          data-confirm="Delete this account?"
+                                          data-confirm-subject="{{ $u->name }}" data-confirm-detail="{{ $u->email }}"
+                                          data-confirm-message="They lose access to every workspace at once. This cannot be undone."
+                                          data-confirm-label="Delete account" class="d-inline m-0">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete account">

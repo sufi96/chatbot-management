@@ -35,6 +35,7 @@
   --accent-ink:    #1a1206;
   --accent-soft:   rgba(224, 160, 58, 0.13);
   --accent-line:   rgba(224, 160, 58, 0.34);
+  --accent-glow:   rgba(224, 160, 58, 0.45);
 
   --ok:            #56b48c;
   --ok-soft:       rgba(86, 180, 140, 0.14);
@@ -82,6 +83,7 @@
   --accent-ink:    #ffffff;
   --accent-soft:   rgba(147, 93, 9, 0.10);
   --accent-line:   rgba(147, 93, 9, 0.30);
+  --accent-glow:   rgba(147, 93, 9, 0.30);
 
   --ok:            #1c7a54;
   --ok-soft:       rgba(28, 122, 84, 0.10);
@@ -298,11 +300,91 @@ hr { border-color: var(--border); opacity: 1; }
 }
 
 .sidebar-foot {
-  padding: 0.75rem 1rem;
+  padding: 0.5rem;
   border-top: 1px solid var(--border);
   font-size: 0.75rem;
   color: var(--text-faint);
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
 }
+
+.sidebar-user {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  transition: border-color 0.12s linear, background-color 0.12s linear;
+}
+.sidebar-user:hover,
+.sidebar-user[aria-expanded="true"] { background: var(--surface); border-color: var(--border); }
+.sidebar-user-text {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8125rem;
+  line-height: 1.25;
+}
+.sidebar-user-email { font-size: 0.6875rem; color: var(--text-faint); }
+
+.sidebar-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.5rem 0.125rem;
+}
+
+.engine-status,
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.engine-status { position: relative; cursor: default; }
+.engine-status.is-online   { color: var(--ok);     background: var(--ok-soft); }
+.engine-status.is-online .state-dot   { background: var(--ok); }
+.engine-status.is-degraded { color: var(--warn);   background: var(--warn-soft); }
+.engine-status.is-degraded .state-dot { background: var(--warn); }
+.engine-status.is-offline  { color: var(--danger); background: var(--danger-soft); }
+.engine-status.is-offline .state-dot  { background: var(--danger); }
+
+.engine-status-pop {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 0.5rem);
+  z-index: 1080;
+  min-width: 200px;
+  padding: 0.5rem 0.625rem;
+  display: none;
+  flex-direction: column;
+  gap: 0.25rem;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-pop);
+  color: var(--text-muted);
+  font-weight: 400;
+  white-space: nowrap;
+}
+.engine-status:hover .engine-status-pop,
+.engine-status:focus-visible .engine-status-pop { display: flex; }
+.engine-status-pop .kv-row { display: flex; justify-content: space-between; gap: 1rem; }
+.engine-status-pop .figure-mono { color: var(--text); }
 
 .workspace-switch {
   margin: 0.75rem 0.5rem 0;
@@ -450,6 +532,10 @@ hr { border-color: var(--border); opacity: 1; }
   margin: 0;
   max-width: 68ch;
 }
+/* A one-sentence description that should run the full width and only wrap
+   once the screen is too narrow for it. */
+.page-head-wide > div { flex: 1 1 auto; min-width: 0; }
+.page-head-wide p { max-width: none; }
 
 /* --- Metric row ---------------------------------------------------------
    Deliberately not four identical cards. One bordered strip, divided.
@@ -620,7 +706,8 @@ textarea.form-control { line-height: 1.55; }
   background-color: var(--surface-2);
   border: 1px solid var(--border-strong);
 }
-.form-check-input:checked {
+.form-check-input:checked,
+.form-check-input[type="checkbox"]:indeterminate {
   background-color: var(--accent);
   border-color: var(--accent);
 }
@@ -915,22 +1002,152 @@ textarea.form-control { line-height: 1.55; }
   .ws-row { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* Bot editor layout. One column on narrow screens (power, identity,
+   settings, preview); two on wide ones. Power and identity share the first
+   row so they come out the same height; below them the preview's own
+   wrapper is the only thing that sticks. */
+.bot-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+@media (min-width: 992px) {
+  .bot-editor { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+  .bot-editor-identity { grid-column: 1; grid-row: 1; }
+  .bot-editor-power    { grid-column: 2; grid-row: 1; }
+  .bot-editor-main     { grid-column: 1; grid-row: 2; }
+  .bot-editor-output   { grid-column: 2; grid-row: 2; }
+}
+@media (min-width: 1400px) {
+  .bot-editor { grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); }
+}
+
+/* Bot power card: the on/off for a whole bot, sized so its state reads
+   at a glance. Green when on, red when off. */
+.bot-power { transition: border-color 0.15s ease, background-color 0.15s ease; }
+.bot-power.is-on  { border-color: var(--ok);     background: linear-gradient(0deg, var(--ok-soft), var(--ok-soft)), var(--surface); }
+.bot-power.is-off { border-color: var(--danger); background: linear-gradient(0deg, var(--danger-soft), var(--danger-soft)), var(--surface); }
+
+.bot-power-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  font-size: 1.125rem;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+.bot-power.is-on  .bot-power-icon { color: var(--ok);     background: var(--ok-soft); }
+.bot-power.is-off .bot-power-icon { color: var(--danger); background: var(--danger-soft); }
+
+.bot-power-title { font-size: 1rem; font-weight: 600; line-height: 1.3; }
+.bot-power.is-on  .bot-power-title [data-power-label] { color: var(--ok); }
+.bot-power.is-off .bot-power-title [data-power-label] { color: var(--danger); }
+.bot-power-desc { font-size: 0.75rem; color: var(--text-muted); }
+.bot-power-pending { font-size: 0.78125rem; color: var(--warn); margin-top: 0.25rem; }
+
+.bot-power-toggle {
+  display: flex;
+  width: 100%;
+  padding: 4px;
+  gap: 4px;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.bot-power-opt {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.4375rem 1rem;
+  border-radius: var(--r-md);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.bot-power-opt:hover { color: var(--text); background: var(--surface-3); }
+input:checked + .bot-power-opt.is-opt-on  { color: #fff; background: var(--ok); }
+input:checked + .bot-power-opt.is-opt-off { color: #fff; background: var(--danger); }
+input:focus-visible + .bot-power-opt { outline: 2px solid var(--focus); outline-offset: 2px; }
+
 /* Sticky action bar for long settings forms. Follows the column down so
-   Save is always reachable without scrolling to the bottom. */
+   Save is always reachable without scrolling to the bottom. Only as wide as
+   its contents and kept to the left, so it never runs under the chat
+   widget's launcher in the bottom-right corner. */
 .form-actions {
   position: sticky;
   bottom: 0;
   z-index: 20;
+  width: fit-content;
+  max-width: calc(100% - 5.5rem);
   display: flex;
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
   margin-bottom: 1rem;
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
+  /* Accent border and a soft accent glow, over a frosted backdrop, so the
+     bar stands apart from the cards it floats over. */
+  background: color-mix(in srgb, var(--bg-elev) 82%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  backdrop-filter: blur(12px) saturate(140%);
+  border: 1px solid var(--accent);
   border-radius: var(--r-md);
-  box-shadow: var(--shadow-pop);
+  box-shadow:
+    0 0 0 4px var(--accent-soft),
+    0 0 32px 2px var(--accent-glow),
+    var(--shadow-pop);
 }
+
+.form-actions[hidden] { display: none; }
+.form-actions:not([hidden]) { animation: form-actions-in 0.18s ease-out; }
+@keyframes form-actions-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .form-actions:not([hidden]) { animation: none; }
+}
+
+/* How many fields differ from what is saved. */
+.unsaved-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+}
+.unsaved-dot {
+  flex-shrink: 0;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* The buttons never shrink or wrap. When the column is too narrow for the
+   hint beside them as well, the hint goes rather than the buttons spilling
+   out of the bar; an unsaved count moves onto its own line above them
+   instead. The container is the column the bar sits in. */
+.form-actions:has(.unsaved-status) { flex-wrap: wrap; row-gap: 0.5rem; }
+.form-actions > div { flex-shrink: 0; white-space: nowrap; }
+.bot-editor-main { container-type: inline-size; }
+@container (max-width: 600px) {
+  .form-actions > .text-muted { display: none !important; }
+}
+
+/* Result of the bot form's Test inference button, hidden until it has one. */
+.test-conn-result { font-size: 0.78125rem; margin-bottom: 1rem; }
+.test-conn-result:empty { display: none; }
 
 /* Tab strip sitting inside a card header */
 .card-header .nav-tabs .nav-link { padding: 0.4375rem 0.75rem; }
@@ -1457,3 +1674,317 @@ button.card:active {
 .arch-mem-job { background: var(--info); }
 .arch-mem-later { background: var(--info); opacity: 0.35; }
 .arch-mem-free { background: var(--surface-3); border: 1px solid var(--border-strong); }
+
+/* --- Provider picker (bot form) ------------------------------------------ */
+/* Two lines per endpoint: the name and whose it is, then the URL, the key
+   and the bots on it. Same-named entries are told apart without opening them. */
+.provider-picker { flex: 1; min-width: 0; }
+.provider-trigger {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.4375rem 0.625rem;
+  background-color: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  text-align: left;
+  transition: border-color 0.12s linear, box-shadow 0.12s linear;
+}
+.provider-trigger:hover { border-color: var(--text-faint); }
+.provider-trigger:focus-visible,
+.provider-trigger[aria-expanded="true"] {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus);
+}
+.provider-trigger:disabled { background-color: var(--surface-2); color: var(--text-muted); }
+.provider-trigger-body { flex: 1; min-width: 0; }
+.provider-trigger-caret { color: var(--text-faint); font-size: 0.8rem; }
+
+.provider-actions { display: flex; align-items: center; gap: 0.375rem; }
+
+.provider-entry { display: flex; flex-direction: column; gap: 0.1875rem; min-width: 0; }
+.provider-entry-top { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.provider-entry-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.provider-entry-top .chip { margin-left: auto; flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.provider-entry-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0.5rem;
+  row-gap: 0.125rem;
+  font-size: 0.6875rem;
+  color: var(--text-faint);
+  min-width: 0;
+}
+.provider-entry-url {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.provider-entry-meta { white-space: nowrap; }
+.provider-entry-sub > * + *::before { content: "·"; margin-right: 0.5rem; color: var(--border-strong); }
+.provider-entry-empty { font-size: 0.8125rem; color: var(--text-faint); }
+
+.provider-menu { width: 100%; padding: 0; }
+.provider-menu-list { max-height: 320px; overflow-y: auto; padding: 0.3125rem; }
+.provider-menu-list .dropdown-header:not(:first-child) { margin-top: 0.25rem; border-top: 1px solid var(--border); padding-top: 0.5rem; }
+.provider-item { display: block; white-space: normal; padding: 0.5rem 0.625rem; }
+.provider-item.active .provider-entry-name { color: var(--accent); }
+.provider-item.active .provider-entry-sub { color: var(--text-muted); }
+.provider-menu-none { padding: 0.75rem; font-size: 0.78125rem; color: var(--text-faint); text-align: center; }
+
+/* --- Confirm dialog ------------------------------------------------------ */
+.confirm-dialog { max-width: 420px; }
+.confirm-dialog .modal-body { padding: 1.25rem 1.25rem 1rem; }
+.confirm-dialog .modal-footer { padding: 0.75rem 1.25rem; gap: 0.5rem; }
+.confirm-dialog .modal-footer > * { margin: 0; }
+.confirm-icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-md);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 1rem;
+}
+.confirm-icon.is-primary,
+.confirm-icon.is-info { background: var(--accent-soft); color: var(--accent); }
+.confirm-title { font-size: 0.9375rem; font-weight: 600; margin: 0.375rem 0 0.625rem; }
+.confirm-subject {
+  padding: 0.5rem 0.625rem;
+  margin-bottom: 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+.confirm-subject-name { font-size: 0.8125rem; font-weight: 500; overflow-wrap: anywhere; }
+.confirm-subject-detail { font-family: var(--font-mono); font-size: 0.6875rem; color: var(--text-muted); overflow-wrap: anywhere; }
+.confirm-subject-detail:empty { display: none; }
+.confirm-message { font-size: 0.78125rem; color: var(--text-muted); margin: 0; line-height: 1.5; }
+.confirm-type { margin-top: 0.875rem; }
+.confirm-type .form-label { font-size: 0.78125rem; color: var(--text-muted); }
+.confirm-type strong { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+
+/* A deleted bot's card on the admin Bots page. Its details are muted; its name, badge and actions are not. */
+.bot-card-deleted > :not(:first-child):not(.card-footer) { opacity: 0.55; }
+
+/* A settings card for what cannot be undone. */
+.danger-zone { border-color: var(--danger); background: linear-gradient(0deg, var(--danger-soft), var(--danger-soft)), var(--surface); }
+.danger-zone .card-header { color: var(--danger); border-bottom-color: var(--danger); }
+.danger-zone p { color: var(--text-muted); }
+
+/* --- Dashboard: a bot's provider and model -------------------------------- */
+/* The model sits under the provider chip at every width: the card is a
+   column of the page, and a long model name wrapped beside a chip reads badly
+   even on a wide screen. A name too long for the column still wraps. */
+.bot-model {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+.bot-model .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bot-model-name { overflow-wrap: anywhere; line-height: 1.35; }
+
+/* --- Pager ---------------------------------------------------------------- */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+.pager-summary { font-size: 0.75rem; color: var(--text-muted); }
+.pager-summary .figure-mono { color: var(--text); }
+.pager-list {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pager-btn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 0.625rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.78125rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: border-color 0.12s linear, color 0.12s linear, background-color 0.12s linear;
+}
+.pager-btn .bi { font-size: 0.75rem; }
+a.pager-btn:hover { border-color: var(--border-strong); background: var(--surface-2); color: var(--text); }
+.pager-btn.is-current { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); font-family: var(--font-mono); }
+a.pager-btn:not([rel]) { font-family: var(--font-mono); }
+.pager-btn.is-disabled { opacity: 0.45; cursor: not-allowed; }
+.pager-gap { padding: 0 0.375rem; font-size: 0.78125rem; color: var(--text-faint); }
+.pager-compact { display: none; }
+
+@media (max-width: 575.98px) {
+  .pager { justify-content: center; }
+  .pager-summary { width: 100%; text-align: center; }
+  .pager-pages { display: none; }
+  .pager-compact { display: block; }
+  .pager-word { display: none; }
+}
+
+/* --- List toolbar and sortable tables ------------------------------------- */
+.list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.list-search { position: relative; flex: 1 1 260px; min-width: 0; }
+.list-search .bi {
+  position: absolute;
+  left: 0.625rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  font-size: 0.8125rem;
+  pointer-events: none;
+}
+.list-search .form-control { padding-left: 1.875rem; }
+.list-select { width: auto; min-width: 180px; flex: 0 1 auto; padding-right: 2rem; background-position: right 0.625rem center; }
+.list-select-narrow { min-width: 0; }
+.list-reset { color: var(--text-muted); font-size: 0.78125rem; text-decoration: none; padding-left: 0.25rem; padding-right: 0.25rem; }
+.list-reset:hover { color: var(--accent); }
+
+.sortable-table .cell-nowrap { white-space: nowrap; }
+/* A long opening message wraps to three lines and ends in an ellipsis, so one
+   pasted essay cannot stretch its row or push the table sideways. */
+.opening-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  max-width: 420px;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+/* An origin is a URL with few spaces, so it breaks anywhere; a long one
+   wraps to three lines at most, like the opening message. The floor keeps an
+   ordinary site address on one line rather than letting the table squeeze
+   the column down to a few characters. */
+.origin-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  min-width: 12rem;
+  max-width: 220px;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+/* Wide enough for four digits (row 9999) and no wider. */
+.sortable-table .row-number {
+  width: 3rem;
+  min-width: 3rem;
+  max-width: 3rem;
+  padding-left: 0.25rem !important;
+  padding-right: 0.25rem !important;
+  text-align: center;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  color: var(--text-faint);
+  font-size: 0.75rem;
+}
+.sort-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sort-link .bi { font-size: 0.6875rem; opacity: 0.45; transition: opacity 0.12s linear; }
+.sort-link:hover { color: var(--text); }
+.sort-link:hover .bi { opacity: 0.9; }
+.sort-link.is-active { color: var(--accent); }
+.sort-link.is-active .bi { opacity: 1; }
+
+@media (max-width: 575.98px) {
+  .list-search { flex-basis: 100%; }
+  .list-select { flex: 1 1 0; min-width: 0; }
+}
+
+/* --- Bot picker (Conversations) ------------------------------------------- */
+.bot-picker { flex: 0 1 auto; min-width: 0; }
+.bot-picker-toggle { text-align: left; min-width: 200px; max-width: 280px; display: flex; align-items: center; }
+.bot-picker-toggle[aria-expanded="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); }
+.bot-picker-menu { width: 300px; padding: 0; }
+.bot-picker-filter { padding: 0.375rem; border-bottom: 1px solid var(--border); }
+.bot-picker-list { max-height: 320px; overflow-y: auto; padding: 0.25rem 0.3125rem; }
+.bot-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--r-sm);
+  font-size: 0.8125rem;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+.bot-picker-row:hover { background: var(--surface-2); }
+.bot-picker-row .form-check-input { margin: 0; flex-shrink: 0; cursor: pointer; }
+.bot-picker-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bot-picker-count { font-size: 0.6875rem; color: var(--text-faint); }
+.bot-picker-all { margin: 0.3125rem 0.3125rem 0; font-weight: 500; }
+.bot-picker-list { border-top: 1px solid var(--border); margin-top: 0.3125rem; }
+.bot-picker-group + .bot-picker-group { border-top: 1px solid var(--border); margin-top: 0.25rem; padding-top: 0.25rem; }
+.bot-picker-head .bot-picker-name {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.bot-picker-item { padding-left: 1.75rem; }
+.bot-picker-none { padding: 0.75rem; text-align: center; font-size: 0.78125rem; color: var(--text-faint); }
+.bot-picker-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  border-top: 1px solid var(--border);
+}
+.bot-picker-hint { font-size: 0.72rem; color: var(--text-faint); }
+.conv-workspace { font-size: 0.6875rem; color: var(--text-muted); }
+
+@media (max-width: 575.98px) {
+  .bot-picker { flex: 1 1 100%; }
+  .bot-picker-toggle { min-width: 0; max-width: none; width: 100%; }
+  .bot-picker-menu { width: min(300px, calc(100vw - 32px)); }
+}

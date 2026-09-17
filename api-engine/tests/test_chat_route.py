@@ -182,6 +182,18 @@ async def test_an_unknown_bot_is_not_found(factory, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_a_deleted_bot_is_not_found(factory, monkeypatch):
+    from datetime import datetime
+
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("Hi."))
+    await update_bot(factory, deleted_at=datetime.utcnow())
+
+    response, _ = await post(factory)
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_an_empty_answer_saves_no_assistant_row(factory, monkeypatch):
     monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering())
 

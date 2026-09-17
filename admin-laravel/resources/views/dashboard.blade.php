@@ -109,11 +109,11 @@
                                         </div>
                                     </td>
                                     <td>
-                                        <div class="d-flex align-items-center gap-1.5 mb-0.5">
+                                        <div class="bot-model mb-0.5">
                                             <span class="chip">{{ $bot->provider?->name ?? 'No provider' }}</span>
-                                            <span class="figure-mono">{{ $bot->model_name }}</span>
+                                            <span class="figure-mono bot-model-name">{{ $bot->model_name }}</span>
                                         </div>
-                                        <div class="figure-mono text-muted text-truncate" style="font-size: 0.6875rem; max-width: 240px;">{{ $bot->provider?->base_url ?? 'No endpoint set' }}</div>
+                                        <div class="figure-mono text-muted text-truncate" style="font-size: 0.6875rem; max-width: 240px;">{{ $bot->provider && !$bot->provider->isVisibleTo(auth()->user()) ? 'Set by ' . $bot->provider->ownerName() : ($bot->provider?->base_url ?? 'No endpoint set') }}</div>
                                     </td>
                                     <td>
                                         @if($bot->is_active)

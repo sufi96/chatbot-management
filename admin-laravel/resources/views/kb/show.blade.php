@@ -125,7 +125,9 @@
                                             </button>
                                         </form>
                                         <form action="{{ route('kb.sources.destroy', $source->id) }}" method="POST"
-                                              onsubmit="return confirm('Remove this source?');" class="d-inline m-0">
+                                              data-confirm="Remove this source?" data-confirm-subject="{{ $source->title }}"
+                                              data-confirm-message="Its indexed chunks go with it, so bots stop answering from it. This cannot be undone."
+                                              data-confirm-label="Remove source" class="d-inline m-0">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove">

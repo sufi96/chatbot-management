@@ -243,7 +243,8 @@ async def load_install():
     async with database.async_session_factory() as session:
         settings = await database.get_settings(session)
         bots = (await session.execute(
-            select(database.BotProfile).where(database.BotProfile.is_active.is_(True))
+            select(database.BotProfile).where(database.BotProfile.is_active.is_(True),
+                                              database.BotProfile.deleted_at.is_(None))
         )).scalars().all()
 
         targets: dict[tuple, AnswerTarget] = {}

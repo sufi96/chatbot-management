@@ -61,7 +61,10 @@
                                     <a href="{{ route('kb.show', $collection->id) }}" class="btn btn-sm btn-outline-primary">Open</a>
                                     @if(auth()->user()->canManageSystem($activeSystem->id, 'editor'))
                                         <form action="{{ route('kb.destroy', $collection->id) }}" method="POST"
-                                              onsubmit="return confirm('Delete {{ $collection->name }} and everything in it?');"
+                                              data-confirm="Delete this collection?" data-confirm-subject="{{ $collection->name }}"
+                                              data-confirm-detail="{{ $collection->sources_count }} {{ \Illuminate\Support\Str::plural('source', $collection->sources_count) }}"
+                                              data-confirm-message="Every source in it is deleted, so bots stop answering from them. This cannot be undone."
+                                              data-confirm-label="Delete collection"
                                               class="d-inline m-0">
                                             @csrf
                                             @method('DELETE')

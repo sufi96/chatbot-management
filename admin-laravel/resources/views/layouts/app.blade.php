@@ -147,15 +147,63 @@
                         @endif
                     </a>
                 @endforeach
+
+                {{-- Bot profiles above is one workspace; this is all of them,
+                     deleted bots included. --}}
+                <a href="{{ route('admin.bots.index') }}"
+                   class="sidebar-link sidebar-link-settings {{ request()->routeIs('admin.bots.*') ? 'active' : '' }}">
+                    <i class="bi bi-robot"></i>
+                    <span>Bots</span>
+                </a>
             @endif
         </nav>
 
-        <div class="sidebar-foot d-flex align-items-center justify-content-between gap-2">
-            <span class="d-inline-flex align-items-center gap-2">
-                <span class="state-dot is-live"></span>
-                <span>Streaming engine</span>
-            </span>
-            <span class="figure-mono">:8000</span>
+        @php
+            $engineUrl = \App\Services\EngineClient::baseUrl();
+            $enginePort = parse_url($engineUrl, PHP_URL_PORT) ?? (parse_url($engineUrl, PHP_URL_SCHEME) === 'https' ? 443 : 80);
+        @endphp
+        <div class="sidebar-foot">
+            <div class="dropup">
+                <button class="sidebar-user" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <span class="avatar-chip">{{ strtoupper(substr(auth()->user()->name, 0, 1)) }}</span>
+                    <span class="sidebar-user-text">
+                        <span class="text-truncate">{{ auth()->user()->name }}</span>
+                        <span class="text-truncate sidebar-user-email">{{ auth()->user()->email }}</span>
+                    </span>
+                    <i class="bi bi-chevron-expand" style="font-size: 0.75rem; color: var(--text-faint);"></i>
+                </button>
+                <ul class="dropdown-menu w-100">
+                    <li class="px-2 py-1">
+                        <div class="text-muted" style="font-size: 0.6875rem;">Signed in as</div>
+                        <div class="text-truncate" style="font-size: 0.8125rem;">{{ auth()->user()->email }}</div>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <form action="{{ route('logout') }}" method="POST">
+                            @csrf
+                            <button type="submit" class="dropdown-item d-flex align-items-center gap-2" style="color: var(--danger);">
+                                <i class="bi bi-box-arrow-right"></i> Sign out
+                            </button>
+                        </form>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="sidebar-status">
+                {{-- The engine is asked for /health from the browser, so the badge
+                     says what this operator can actually reach. --}}
+                <span class="engine-status is-checking" id="engine-status" tabindex="0"
+                      data-health-url="{{ $engineUrl }}/health" aria-describedby="engine-status-info">
+                    <span class="state-dot"></span>
+                    <span class="engine-status-label">Checking</span>
+                    <span class="engine-status-pop" id="engine-status-info" role="tooltip">
+                        <span class="kv-row"><span>Streaming engine</span><span class="figure-mono">:{{ $enginePort }}</span></span>
+                        <span class="kv-row"><span>FastAPI</span><span class="figure-mono">:{{ $enginePort }}</span></span>
+                        <span class="kv-row"><span>Database</span><span class="figure-mono" data-engine-db>-</span></span>
+                    </span>
+                </span>
+                <span class="version-badge figure-mono">v{{ config('app.version') }}</span>
+            </div>
         </div>
     </aside>
 
@@ -168,29 +216,6 @@
                         title="Switch between dark and light" aria-label="Switch between dark and light">
                     <i class="bi bi-circle-half"></i>
                 </button>
-
-                <div class="dropdown">
-                    <button class="btn btn-outline-secondary d-flex align-items-center gap-2 px-2" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <span class="avatar-chip">{{ strtoupper(substr(auth()->user()->name, 0, 1)) }}</span>
-                        <span class="d-none d-sm-inline text-truncate" style="max-width: 160px;">{{ auth()->user()->name }}</span>
-                        <i class="bi bi-chevron-down" style="font-size: 0.7rem; color: var(--text-faint);"></i>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end" style="min-width: 220px;">
-                        <li class="px-2 py-1">
-                            <div class="text-muted" style="font-size: 0.6875rem;">Signed in as</div>
-                            <div class="text-truncate" style="font-size: 0.8125rem;">{{ auth()->user()->email }}</div>
-                        </li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li>
-                            <form action="{{ route('logout') }}" method="POST">
-                                @csrf
-                                <button type="submit" class="dropdown-item d-flex align-items-center gap-2" style="color: var(--danger);">
-                                    <i class="bi bi-box-arrow-right"></i> Sign out
-                                </button>
-                            </form>
-                        </li>
-                    </ul>
-                </div>
             </div>
         </header>
 
@@ -227,6 +252,40 @@
         </main>
     </div>
 
+    {{-- Every confirmation and notice in the console, asked through
+         confirmDialog() / noticeDialog() below or a form's data-confirm,
+         rather than the browser's own prompt. --}}
+    <div class="modal fade" id="confirmDialog" tabindex="-1" aria-labelledby="confirmDialogTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered confirm-dialog">
+            <div class="modal-content">
+                <div class="modal-body">
+                    <div class="d-flex align-items-start gap-3">
+                        <span class="confirm-icon" id="confirmDialogIcon"><i class="bi bi-trash3"></i></span>
+                        <div class="min-w-0 flex-grow-1">
+                            <h5 class="confirm-title" id="confirmDialogTitle">Are you sure?</h5>
+                            <div class="confirm-subject" id="confirmDialogSubject" hidden>
+                                <div class="confirm-subject-name" id="confirmDialogSubjectName"></div>
+                                <div class="confirm-subject-detail" id="confirmDialogSubjectDetail"></div>
+                            </div>
+                            <p class="confirm-message" id="confirmDialogMessage"></p>
+                            <div class="confirm-type" id="confirmDialogType" hidden>
+                                <label class="form-label" for="confirmDialogTypeInput">
+                                    Type <strong id="confirmDialogTypeValue"></strong> to confirm.
+                                </label>
+                                <input type="text" class="form-control" id="confirmDialogTypeInput"
+                                       autocomplete="off" autocapitalize="off" spellcheck="false">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" id="confirmDialogCancel" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmDialogOk">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
     <script>
         (function () {
@@ -239,6 +298,174 @@
                 try { localStorage.setItem('console-theme', next); } catch (e) { /* not persisted */ }
             });
         })();
+
+        (function () {
+            var badge = document.getElementById('engine-status');
+            if (!badge) return;
+            var label = badge.querySelector('.engine-status-label');
+            var db = badge.querySelector('[data-engine-db]');
+
+            function show(state, text) {
+                badge.className = 'engine-status is-' + state;
+                label.textContent = text;
+            }
+
+            function check() {
+                var ctrl = window.AbortController ? new AbortController() : null;
+                var timer = ctrl && setTimeout(function () { ctrl.abort(); }, 5000);
+                fetch(badge.dataset.healthUrl, { cache: 'no-store', signal: ctrl && ctrl.signal })
+                    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+                    .then(function (h) {
+                        db.textContent = h.database || '-';
+                        if (h.status === 'ok') show('online', 'Online');
+                        else show('degraded', 'Degraded');
+                    })
+                    .catch(function () {
+                        db.textContent = '-';
+                        show('offline', 'Offline');
+                    })
+                    .finally(function () { if (timer) clearTimeout(timer); });
+            }
+
+            check();
+            setInterval(function () { if (!document.hidden) check(); }, 30000);
+        })();
+
+        // Asks before something happens. Resolves true only when the confirm
+        // button was pressed; Cancel, Escape and the backdrop are no.
+        //
+        // tone: 'danger' (default) for what cannot be taken back, 'primary'
+        // for what is merely heavy, 'info' for a notice with one button.
+        //
+        // typeToConfirm: text that has to be typed exactly before the confirm
+        // button unlocks. The promise then resolves with what was typed.
+        var dialogTones = {
+            danger:  { icon: 'bi-trash3',               button: 'btn-danger' },
+            primary: { icon: 'bi-question-circle',      button: 'btn-brand' },
+            info:    { icon: 'bi-exclamation-circle',   button: 'btn-brand' },
+        };
+
+        function confirmDialog(options) {
+            var el = document.getElementById('confirmDialog');
+            var ok = document.getElementById('confirmDialogOk');
+            var cancel = document.getElementById('confirmDialogCancel');
+            var icon = document.getElementById('confirmDialogIcon');
+            var subject = document.getElementById('confirmDialogSubject');
+            var modal = bootstrap.Modal.getOrCreateInstance(el);
+            var toneName = dialogTones[options.tone] ? options.tone : 'danger';
+            var tone = dialogTones[toneName];
+
+            document.getElementById('confirmDialogTitle').textContent = options.title || 'Are you sure?';
+            document.getElementById('confirmDialogMessage').textContent = options.message || '';
+            document.getElementById('confirmDialogSubjectName').textContent = options.subject || '';
+            document.getElementById('confirmDialogSubjectDetail').textContent = options.detail || '';
+            subject.hidden = !options.subject;
+
+            icon.className = 'confirm-icon is-' + toneName;
+            icon.innerHTML = '<i class="bi ' + tone.icon + '"></i>';
+            ok.className = 'btn ' + tone.button;
+            ok.textContent = options.confirmLabel || (toneName === 'info' ? 'OK' : 'Delete');
+            cancel.hidden = toneName === 'info';
+
+            var typeBox = document.getElementById('confirmDialogType');
+            var typeInput = document.getElementById('confirmDialogTypeInput');
+            var mustType = options.typeToConfirm || '';
+            typeBox.hidden = !mustType;
+            typeInput.value = '';
+            document.getElementById('confirmDialogTypeValue').textContent = mustType;
+            ok.disabled = !!mustType;
+
+            return new Promise(function (resolve) {
+                var confirmed = false;
+                function matches() { return typeInput.value === mustType; }
+                function onOk() {
+                    if (mustType && !matches()) return;
+                    confirmed = true;
+                    modal.hide();
+                }
+                function onType() { ok.disabled = !matches(); }
+                function onTypeKey(event) {
+                    if (event.key === 'Enter') { event.preventDefault(); onOk(); }
+                }
+                function onShown() { (mustType ? typeInput : ok).focus(); }
+                function onHidden() {
+                    ok.removeEventListener('click', onOk);
+                    typeInput.removeEventListener('input', onType);
+                    typeInput.removeEventListener('keydown', onTypeKey);
+                    el.removeEventListener('shown.bs.modal', onShown);
+                    el.removeEventListener('hidden.bs.modal', onHidden);
+                    ok.disabled = false;
+                    resolve(confirmed && mustType ? typeInput.value : confirmed);
+                }
+                ok.addEventListener('click', onOk);
+                if (mustType) {
+                    typeInput.addEventListener('input', onType);
+                    typeInput.addEventListener('keydown', onTypeKey);
+                }
+                el.addEventListener('shown.bs.modal', onShown);
+                el.addEventListener('hidden.bs.modal', onHidden);
+                modal.show();
+            });
+        }
+
+        // A notice with a single button, in place of window.alert.
+        function noticeDialog(options) {
+            return confirmDialog(Object.assign({ tone: 'info' }, options));
+        }
+
+        // A form, or the button that submits it, carrying data-confirm asks
+        // first. The attributes are escaped by Blade, so a name holding a
+        // quote no longer breaks the prompt the way an inline confirm() did.
+        //   data-confirm          the question (title)
+        //   data-confirm-subject  what it acts on, shown boxed
+        //   data-confirm-detail   a second, smaller line under the subject
+        //   data-confirm-message  what follows from saying yes
+        //   data-confirm-label    the confirm button's text
+        //   data-confirm-tone     danger (default) or primary
+        //   data-confirm-type     text to type before confirming; sent with
+        //                         the form as confirm_name
+        document.addEventListener('submit', function (event) {
+            var form = event.target;
+            var submitter = event.submitter || null;
+            var source = submitter && submitter.hasAttribute('data-confirm') ? submitter
+                : (form.hasAttribute('data-confirm') ? form : null);
+            if (!source) return;
+
+            if (form.dataset.confirmed === '1') {
+                delete form.dataset.confirmed;
+                return;
+            }
+
+            event.preventDefault();
+            confirmDialog({
+                title: source.dataset.confirm,
+                subject: source.dataset.confirmSubject,
+                detail: source.dataset.confirmDetail,
+                message: source.dataset.confirmMessage,
+                confirmLabel: source.dataset.confirmLabel,
+                tone: source.dataset.confirmTone,
+                typeToConfirm: source.dataset.confirmType,
+            }).then(function (confirmed) {
+                if (!confirmed) return;
+                if (typeof confirmed === 'string') {
+                    var typed = form.querySelector('input[name="confirm_name"]');
+                    if (!typed) {
+                        typed = document.createElement('input');
+                        typed.type = 'hidden';
+                        typed.name = 'confirm_name';
+                        form.appendChild(typed);
+                    }
+                    typed.value = confirmed;
+                }
+                form.dataset.confirmed = '1';
+                if (form.requestSubmit) {
+                    form.requestSubmit(submitter && submitter.form === form ? submitter : undefined);
+                } else {
+                    if (submitter && submitter.formAction) form.action = submitter.formAction;
+                    form.submit();
+                }
+            });
+        }, true);
 
         // Used by the embed modal, which appears on several screens.
         function copyEmbedSnippet(botId) {

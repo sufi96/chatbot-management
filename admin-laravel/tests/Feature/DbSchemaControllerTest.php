@@ -9,11 +9,12 @@ use App\Models\System;
 use App\Models\User;
 use App\Services\Schema\ProbeConnection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\WithoutConsoleDatabase;
 use Tests\TestCase;
 
 class DbSchemaControllerTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, WithoutConsoleDatabase;
 
     private string $path;
 

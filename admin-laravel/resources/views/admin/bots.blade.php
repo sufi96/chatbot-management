@@ -50,7 +50,7 @@
     </form>
 </div>
 
-@if($bots->isEmpty())
+@if($bots->isEmpty() && !$consoleBot)
     <div class="card">
         <div class="empty">
             @if($filtered)
@@ -66,6 +66,61 @@
     </div>
 @else
     <div class="row g-3">
+        {{-- The console's own assistant, first in the grid and in the same card
+             as every other bot, tinted blue: it belongs to this platform, cannot
+             be deleted, and is the chat widget super admins see here. --}}
+        @if($consoleBot)
+            <div class="col-12 col-lg-6 col-xxl-4">
+                <div class="card h-100 d-flex flex-column bot-card-console">
+
+                    {{-- Its analytics, like every other card's head. It is left out
+                         of "All bot profiles" there, so the link picks it alone. --}}
+                    <a href="{{ route('analytics.index', ['console' => 'only']) }}"
+                       class="bot-card-head p-3 d-flex align-items-start justify-content-between gap-2 bot-console-head"
+                       title="Analytics for {{ $consoleBot->name }}">
+                        <div class="d-flex align-items-center gap-2.5 min-w-0">
+                            @if($consoleBot->bot_avatar_url)
+                                <img src="{{ $consoleBot->bot_avatar_url }}" alt="" class="identity identity-lg">
+                            @else
+                                <span class="identity identity-lg">{{ strtoupper(substr($consoleBot->name, 0, 1)) }}</span>
+                            @endif
+                            <div class="min-w-0">
+                                <div class="fw-semibold text-truncate">{{ $consoleBot->name }}</div>
+                                <div class="text-truncate bot-console-scope" style="font-size: 0.75rem;">
+                                    <i class="bi bi-pin-angle"></i> Built in, for super admins
+                                </div>
+                                <div class="figure-mono text-muted text-truncate" style="font-size: 0.6875rem;">{{ $consoleBot->id }}</div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
+                            @if(!$consoleBot->provider_id)
+                                <span class="badge bg-warning-subtle text-warning-emphasis">Needs a provider</span>
+                            @elseif($consoleBot->is_active)
+                                <span class="badge bg-success-subtle text-success-emphasis">Active</span>
+                            @else
+                                <span class="badge bg-danger-subtle text-danger-emphasis">Deactivated</span>
+                            @endif
+                        </div>
+                    </a>
+
+                    @include('bots._card-details', ['bot' => $consoleBot])
+
+                    <div class="card-footer d-flex align-items-center gap-1.5 p-2"
+                         style="border-radius: 0 0 var(--r-md) var(--r-md);">
+                        <a href="{{ route('logs.index', ['console' => 'only']) }}" class="btn btn-sm btn-outline-secondary"
+                           title="Conversations" aria-label="Conversations with {{ $consoleBot->name }}">
+                            <i class="bi bi-chat-left-text"></i>
+                        </a>
+                        <a href="{{ route('bots.edit', $consoleBot->id) }}" class="btn btn-sm btn-outline-secondary flex-grow-1">
+                            <i class="bi bi-gear"></i> Settings
+                        </a>
+                    </div>
+
+                </div>
+            </div>
+        @endif
+
         @foreach($bots as $bot)
             @php $deleted = $bot->trashed(); @endphp
             <div class="col-12 col-lg-6 col-xxl-4">
@@ -173,5 +228,13 @@
     .bot-card-head:hover, .bot-card-head:focus-visible { color: inherit; background-color: var(--surface-2); }
     .bot-card-head::after { content: '\F17C'; font-family: 'bootstrap-icons'; position: absolute; right: 1rem; bottom: 0.625rem; font-size: 0.875rem; color: var(--accent); opacity: 0; transition: opacity 0.12s linear; }
     .bot-card-head:hover::after, .bot-card-head:focus-visible::after { opacity: 1; }
+
+    /* The console assistant: the same card as every bot, in the info hue, so
+       it never reads as one more workspace bot. */
+    .bot-card-console { border-color: var(--info); background: linear-gradient(0deg, var(--info-soft), var(--info-soft)), var(--surface); }
+    .bot-card-console .bot-console-head { border-bottom: 1px solid color-mix(in srgb, var(--info) 45%, var(--border)); }
+    .bot-card-console .card-footer { background: color-mix(in srgb, var(--info) 8%, var(--surface-2)); border-top-color: color-mix(in srgb, var(--info) 45%, var(--border)); }
+    .bot-card-console .identity { border-color: var(--info); color: var(--info); }
+    .bot-console-scope { color: var(--info); }
 </style>
 @endpush

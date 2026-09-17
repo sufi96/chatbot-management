@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DbColumn;
 use App\Models\DbConnection;
 use App\Models\DbTable;
+use App\Services\Schema\ConsoleDatabase;
 use App\Services\Schema\SchemaIntrospector;
 use App\Services\Schema\SchemaSync;
 use Illuminate\Http\Request;
@@ -122,8 +123,9 @@ class DbSchemaController extends Controller
 
         $table->update([
             'description' => $validated['description'] ?? null,
-            // An unticked checkbox sends nothing at all, which means off.
-            'is_enabled' => $request->boolean('is_enabled'),
+            // An unticked checkbox sends nothing at all, which means off. A
+            // console table holding secrets stays off whatever was sent.
+            'is_enabled' => $request->boolean('is_enabled') && !ConsoleDatabase::isSecret($table),
         ]);
 
         $changed = $this->applyColumnEdits($table, $validated['columns'] ?? []);
@@ -195,6 +197,9 @@ class DbSchemaController extends Controller
         $count = (clone $tables)->count();
 
         $tables->update(['is_enabled' => $enabled]);
+        if ($enabled && ConsoleDatabase::is($connection)) {
+            (clone $tables)->whereIn('table_name', ConsoleDatabase::NEVER)->update(['is_enabled' => false]);
+        }
 
         // The table being read stays open, so the tick does not also lose a
         // person's place in the list.
@@ -284,12 +289,12 @@ class DbSchemaController extends Controller
             ->with('success', 'Column removed.');
     }
 
-    private function authorizeEditor(Request $request, string $systemId): void
+    private function authorizeEditor(Request $request, ?string $systemId): void
     {
         abort_unless($request->user()->canManageSystem($systemId, 'editor'), 403);
     }
 
-    private function authorizeViewer(Request $request, string $systemId): void
+    private function authorizeViewer(Request $request, ?string $systemId): void
     {
         abort_unless($request->user()->canManageSystem($systemId, 'viewer'), 403);
     }

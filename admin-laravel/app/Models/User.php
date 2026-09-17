@@ -54,10 +54,15 @@ class User extends Authenticatable
     /**
      * Get user's role in a given system.
      */
-    public function roleInSystem(string $systemId): ?string
+    public function roleInSystem(?string $systemId): ?string
     {
         if ($this->isSuperAdmin()) {
             return 'super_admin';
+        }
+
+        // No workspace means the platform itself, which only a super admin runs.
+        if ($systemId === null) {
+            return null;
         }
 
         $system = $this->systems->firstWhere('id', $systemId);
@@ -68,7 +73,7 @@ class User extends Authenticatable
      * Check if user has at least the required role in a given system.
      * Roles hierarchy: system_admin > editor > viewer
      */
-    public function canManageSystem(string $systemId, string $minRole = 'viewer'): bool
+    public function canManageSystem(?string $systemId, string $minRole = 'viewer'): bool
     {
         if ($this->isSuperAdmin()) {
             return true;

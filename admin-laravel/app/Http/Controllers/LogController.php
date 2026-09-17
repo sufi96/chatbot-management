@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BotProfile;
 use App\Models\ChatConversation;
+use App\Support\BotSelection;
 use App\Support\ConversationList;
 use Illuminate\Http\Request;
 
@@ -26,18 +27,11 @@ class LogController extends Controller
         // read what it said. See BotProfile::visibleTo.
         $bots = BotProfile::visibleTo($request->user())->whereIn('system_id', $systemIds)->orderBy('name')->get();
 
-        // Ticked bots, kept only if this user may see them. None ticked, or
-        // every one ticked, both mean all.
-        $selectedBots = collect((array) $request->query('bots', []))
-            ->filter(fn ($id) => is_string($id))
-            ->intersect($bots->pluck('id'))
-            ->unique()->values();
-        if ($selectedBots->count() === $bots->count()) {
-            $selectedBots = collect();
-        }
+        // The picked bots. The console assistant only when a super admin
+        // ticks it: "All bot profiles" means the workspaces' bots.
+        $selection = BotSelection::fromRequest($request, $bots, $request->user());
 
-        $list = ConversationList::fromRequest(
-            $request, $selectedBots->isNotEmpty() ? $selectedBots->all() : $bots->pluck('id')->all());
+        $list = ConversationList::fromRequest($request, $selection->scope->pluck('id')->all());
 
         return view('logs.index', $list + [
             // Workspaces by name, each with its bots, for the picker.
@@ -45,7 +39,10 @@ class LogController extends Controller
                 ->map(fn ($system) => ['system' => $system, 'bots' => $bots->where('system_id', $system->id)->values()])
                 ->filter(fn ($group) => $group['bots']->isNotEmpty())
                 ->values(),
-            'selectedBots' => $selectedBots->all(),
+            'selectedBots' => $selection->selectedBots,
+            'consoleBot' => $selection->consoleBot,
+            'console' => $selection->console,
+            'botQuery' => $selection->query(),
             'multiWorkspace' => $systems->count() > 1,
             'activeSystem' => $activeSystem,
         ]);

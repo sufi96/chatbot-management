@@ -33,6 +33,14 @@
                            placeholder="Not needed for local Ollama" maxlength="500" autocomplete="off">
                 </div>
 
+                {{-- For a gateway that silently drops system messages: the bot then
+                     answers without its prompt, its knowledge or its database. --}}
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="providerMergeSystem">
+                    <label class="form-check-label" for="providerMergeSystem">Send instructions inside the message</label>
+                    <div class="form-text">Tick only if bots on this provider ignore their prompt, knowledge base or database. Some gateways drop system messages.</div>
+                </div>
+
                 <div id="providerModalResult" class="small fw-medium" aria-live="polite"></div>
             </div>
             <div class="modal-footer justify-content-between">
@@ -222,6 +230,7 @@
         document.getElementById('providerName').value = provider ? provider.name : '';
         document.getElementById('providerBaseUrl').value = provider ? provider.base_url : '';
         document.getElementById('providerApiKey').value = provider ? (provider.api_key || '') : '';
+        document.getElementById('providerMergeSystem').checked = !!(provider && provider.merge_system_prompt);
         document.getElementById('providerModalResult').textContent = '';
 
         modal.show();
@@ -236,6 +245,7 @@
             name: document.getElementById('providerName').value.trim(),
             base_url: document.getElementById('providerBaseUrl').value.trim(),
             api_key: document.getElementById('providerApiKey').value.trim(),
+            merge_system_prompt: document.getElementById('providerMergeSystem').checked,
         };
     }
 

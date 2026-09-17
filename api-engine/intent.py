@@ -138,7 +138,8 @@ async def understand(bot, message: str, history: list[dict], settings: dict,
         base_url=endpoint.base_url, api_key=endpoint.api_key,
         model_name=endpoint.model, system_prompt=PROMPT,
         user_message=build_input(message, history),
-        max_tokens=200, response_format={"type": "json_object"})
+        max_tokens=200, response_format={"type": "json_object"},
+        merge_system=endpoint.merge_system)
 
     parsed = parse(raw, message)
     if parsed is None:

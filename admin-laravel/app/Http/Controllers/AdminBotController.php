@@ -27,6 +27,8 @@ class AdminBotController extends Controller
 
         $bots = BotProfile::withTrashed()
             ->with(['system', 'provider'])
+            // The console assistant has a card of its own above the list.
+            ->where('is_platform', false)
             ->when($workspace !== '', fn ($q) => $q->where('system_id', $workspace))
             ->when($search !== '', function ($q) use ($search) {
                 $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], mb_strtolower($search)) . '%';
@@ -43,6 +45,7 @@ class AdminBotController extends Controller
 
         return view('admin.bots', [
             'bots' => $bots,
+            'consoleBot' => BotProfile::with('provider')->find(BotProfile::CONSOLE_ID),
             'workspaces' => System::orderBy('name')->get(),
             'workspace' => $workspace,
             'search' => $search,
@@ -54,6 +57,7 @@ class AdminBotController extends Controller
     public function destroy(Request $request, string $id)
     {
         $bot = BotProfile::findOrFail($id);
+        abort_if($bot->is_platform, 403, 'The console assistant cannot be deleted.');
 
         if ($request->input('confirm_name') !== $bot->name) {
             return back()->with('error', 'The name typed did not match, so the bot was not deleted.');

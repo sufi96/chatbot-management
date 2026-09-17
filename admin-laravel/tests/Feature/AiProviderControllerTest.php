@@ -259,7 +259,8 @@ class AiProviderControllerTest extends TestCase
             ])
             ->assertSessionHasErrors('provider_id');
 
-        $this->assertDatabaseCount('bot_profiles', 0);
+        // The console assistant is always there; no workspace bot was made.
+        $this->assertSame(0, BotProfile::where('is_platform', false)->count());
     }
 
     public function test_a_bot_saves_the_provider_it_was_pointed_at(): void
@@ -276,7 +277,7 @@ class AiProviderControllerTest extends TestCase
             ])
             ->assertSessionHasNoErrors();
 
-        $this->assertSame('aip_1', BotProfile::first()->provider_id);
+        $this->assertSame('aip_1', BotProfile::where('is_platform', false)->first()->provider_id);
     }
 
     private function superAdmin(): User
@@ -370,7 +371,7 @@ class AiProviderControllerTest extends TestCase
             ->post(route('bots.store'), $this->botPayload(['provider_id' => 'aip_platform']))
             ->assertSessionHasNoErrors();
 
-        $this->assertSame('aip_platform', BotProfile::first()->provider_id);
+        $this->assertSame('aip_platform', BotProfile::where('is_platform', false)->first()->provider_id);
     }
 
     public function test_an_editor_of_two_workspaces_may_use_either_workspaces_provider(): void
@@ -387,7 +388,7 @@ class AiProviderControllerTest extends TestCase
             ->post(route('bots.store'), $this->botPayload(['provider_id' => 'aip_other']))
             ->assertSessionHasNoErrors();
 
-        $this->assertSame('aip_other', BotProfile::first()->provider_id);
+        $this->assertSame('aip_other', BotProfile::where('is_platform', false)->first()->provider_id);
     }
 
     public function test_viewing_a_workspace_does_not_lend_its_providers(): void

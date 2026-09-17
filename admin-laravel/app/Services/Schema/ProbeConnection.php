@@ -33,6 +33,12 @@ final class ProbeConnection
 
     public static function open(DbConnection $connection): Connection
     {
+        // An in-memory SQLite database exists only on the connection that
+        // made it, as in the test suite, so the console's own is that one.
+        if (ConsoleDatabase::is($connection) && self::config($connection)['database'] === ':memory:') {
+            return DB::connection();
+        }
+
         Config::set('database.connections.' . self::NAME, self::config($connection));
 
         // Without the purge a second open in the same request would hand
@@ -46,6 +52,12 @@ final class ProbeConnection
     public static function config(DbConnection $c): array
     {
         $options = $c->options ?? [];
+
+        // The console's own database: the application's live settings, never
+        // copied into the record. See ConsoleDatabase.
+        if (ConsoleDatabase::is($c)) {
+            return config('database.connections.' . config('database.default'));
+        }
 
         return match ($c->driver) {
             'sqlite' => [

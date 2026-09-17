@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     PORTAL_BASE_URL: str = os.getenv("PORTAL_BASE_URL", "http://localhost:8080")
     PORTAL_INTERNAL_TOKEN: str = os.getenv("PORTAL_INTERNAL_TOKEN", "")
 
+    # The address a browser shows for the console, the one Origin the console
+    # assistant answers. Usually PORTAL_BASE_URL; set it apart when the engine
+    # reaches the portal by an internal name, as in Docker.
+    CONSOLE_ORIGIN: str = os.getenv("CONSOLE_ORIGIN", "")
+
     API_PORT: int = int(os.getenv("PORT", "8000"))
     API_HOST: str = os.getenv("HOST", "0.0.0.0")
     

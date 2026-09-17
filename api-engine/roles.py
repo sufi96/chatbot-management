@@ -22,7 +22,7 @@ the two in step.
 import json
 from dataclasses import dataclass
 
-from database import provider_endpoint
+from database import provider_endpoint, provider_merges_system
 
 GENERATIVE = ("sql", "intent", "guard", "vision")
 SPECIALIST = ("rerank",)
@@ -38,6 +38,8 @@ class Endpoint:
     # True only when Admin Settings named this role's endpoint. A borrowed or
     # empty endpoint is False, which is what a trace or a screen reports.
     configured: bool = False
+    # The provider drops system messages, so instructions go in the user turn.
+    merge_system: bool = False
 
     @property
     def available(self) -> bool:
@@ -60,14 +62,16 @@ def endpoint_for(role: str, bot, settings: dict) -> Endpoint:
     # Both halves, or neither. A URL with no model names nothing to call.
     if base_url and model:
         return Endpoint(role, base_url, settings.get(api_key_key) or "", model,
-                        configured=True)
+                        configured=True,
+                        merge_system=bool(settings.get(f"{role}_model_merge_system")))
 
     if role in SPECIALIST or bot is None:
         return Endpoint(role)
 
     bot_url, bot_key = provider_endpoint(bot)
 
-    return Endpoint(role, bot_url, bot_key, bot.model_name or "")
+    return Endpoint(role, bot_url, bot_key, bot.model_name or "",
+                    merge_system=provider_merges_system(bot))
 
 
 def model_trace(chat_model: str | None, used: dict[str, str]) -> str | None:

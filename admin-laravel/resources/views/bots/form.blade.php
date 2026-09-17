@@ -34,7 +34,7 @@
             @endif
         </div>
         <p class="mt-1">
-            {{ $isEdit ? 'Changes apply to every site running this bot as soon as you save.' : 'Configuring in workspace ' . $activeSystem->name . '.' }}
+            {{ $isEdit ? ($bot->is_platform ? 'The console assistant: the chat widget super admins see in this console. Changes apply as soon as you save.' : 'Changes apply to every site running this bot as soon as you save.') : 'Configuring in workspace ' . $activeSystem->name . '.' }}
         </p>
     </div>
 </div>
@@ -180,6 +180,7 @@
                                                     data-locked="1"
                                                 @else
                                                     data-base-url="{{ $provider->base_url }}"
+                                                    data-merge-system="{{ $provider->merge_system_prompt ? '1' : '0' }}"
                                                     data-has-key="{{ $provider->api_key ? '1' : '0' }}"
                                                 @endif
                                                 @selected(old('provider_id', $bot->provider_id) === $provider->id)>
@@ -514,7 +515,7 @@
 
             {{-- Danger zone. Forms cannot nest, so the button submits
                  botDeleteForm, which sits after this form, through form="". --}}
-            @if($isEdit && auth()->user()->canManageSystem($bot->system_id, 'system_admin'))
+            @if($isEdit && !$bot->is_platform && auth()->user()->canManageSystem($bot->system_id, 'system_admin'))
                 @php
                     // The bot is only marked, whoever deletes it. A workspace is
                     // told it is gone for good, and for its members it is: the bot,
@@ -734,7 +735,7 @@
     </div>
 </form>
 
-@if($isEdit && auth()->user()->canManageSystem($bot->system_id, 'system_admin'))
+@if($isEdit && !$bot->is_platform && auth()->user()->canManageSystem($bot->system_id, 'system_admin'))
     {{-- confirm_name is filled in by the confirm dialog from what was typed. --}}
     <form action="{{ route('bots.destroy', $bot->id) }}" method="POST" id="botDeleteForm" class="d-none">
         @csrf
@@ -793,6 +794,14 @@
                         <input class="form-check-input" type="checkbox" id="providerClearKey">
                         <label class="form-check-label" for="providerClearKey">Remove the saved key</label>
                     </div>
+                </div>
+
+                {{-- For a gateway that silently drops system messages: the bot then
+                     answers without its prompt, its knowledge or its database. --}}
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="providerMergeSystem">
+                    <label class="form-check-label" for="providerMergeSystem">Send instructions inside the message</label>
+                    <div class="form-text">Tick only if bots on this provider ignore their prompt, knowledge base or database. Some gateways drop system messages.</div>
                 </div>
 
                 <div id="providerModalResult" class="small fw-medium"></div>
@@ -1404,12 +1413,14 @@
             document.getElementById('providerName').value = option.dataset.name || '';
             document.getElementById('providerBaseUrl').value = option.dataset.baseUrl || '';
             setProviderKeyField(option.dataset.hasKey === '1');
+            document.getElementById('providerMergeSystem').checked = option.dataset.mergeSystem === '1';
         } else {
             document.getElementById('providerModalTitle').textContent = 'New provider';
             document.getElementById('providerEditId').value = '';
             document.getElementById('providerName').value = '';
             document.getElementById('providerBaseUrl').value = 'http://localhost:11434/v1';
             setProviderKeyField(false);
+            document.getElementById('providerMergeSystem').checked = false;
         }
 
         bootstrap.Modal.getOrCreateInstance(document.getElementById('providerModal')).show();
@@ -1459,7 +1470,8 @@
             headers: providerHeaders(),
             body: JSON.stringify({
                 system_id: providerRoutes.systemId, name: name, base_url: baseUrl, api_key: apiKey,
-                clear_api_key: !!id && document.getElementById('providerClearKey').checked
+                clear_api_key: !!id && document.getElementById('providerClearKey').checked,
+                merge_system_prompt: document.getElementById('providerMergeSystem').checked
             })
         })
         .then(function(res) {
@@ -1521,6 +1533,7 @@
         option.dataset.bots = option.dataset.bots || '0';
         option.dataset.baseUrl = provider.base_url;
         option.dataset.hasKey = provider.has_key ? '1' : '0';
+        option.dataset.mergeSystem = provider.merge_system_prompt ? '1' : '0';
 
         select.disabled = false;
         select.value = provider.id;

@@ -22,7 +22,13 @@ class AiProvider extends Model
     protected $keyType = 'string';
     public $incrementing = false;
 
-    protected $fillable = ['id', 'system_id', 'name', 'base_url', 'api_key'];
+    protected $fillable = ['id', 'system_id', 'name', 'base_url', 'api_key', 'merge_system_prompt'];
+
+    /**
+     * merge_system_prompt: the gateway drops system messages, so the engine
+     * puts instructions in the user message. See the migration that added it.
+     */
+    protected $casts = ['merge_system_prompt' => 'boolean'];
 
     public function scopePlatform(Builder $query): Builder
     {

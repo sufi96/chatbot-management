@@ -89,6 +89,8 @@ class AdminProviderController extends Controller
         ]);
 
         $validated['api_key'] = (string) ($validated['api_key'] ?? '');
+        // An unticked box sends nothing, which means the provider keeps system messages.
+        $validated['merge_system_prompt'] = $request->boolean('merge_system_prompt');
 
         return $validated;
     }

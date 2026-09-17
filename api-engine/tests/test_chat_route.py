@@ -400,3 +400,44 @@ async def test_an_answer_keeps_prompt_and_completion_tokens_apart(factory, monke
     answer = (await rows(factory))["assistant"]
 
     assert (answer.tokens_used, answer.tokens_in, answer.tokens_out) == (128, 120, 8)
+
+
+def test_the_console_origin_check_matches_the_portal_only():
+    portal = "http://localhost:8080"
+
+    assert chat.portal_origin_allowed("http://localhost:8080", portal)
+    assert chat.portal_origin_allowed("http://127.0.0.1:8080/", portal)
+    assert not chat.portal_origin_allowed("http://localhost:9000", portal)
+    assert not chat.portal_origin_allowed("https://shop.example.com", portal)
+    assert not chat.portal_origin_allowed("", portal)
+
+
+async def post_from(factory, origin, bot_id):
+    app = FastAPI()
+    app.include_router(chat.router)
+
+    async def session():
+        async with factory() as s:
+            yield s
+
+    app.dependency_overrides[get_db] = session
+    headers = {"origin": origin} if origin else {}
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        return await client.post("/api/v1/chat/stream", headers=headers, json={
+            "bot_id": bot_id, "session_id": "s1", "message": "hello", "history": []})
+
+
+@pytest.mark.asyncio
+async def test_the_console_assistant_answers_only_inside_the_console(factory, monkeypatch):
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("Hi."))
+    monkeypatch.setattr(chat.app_settings, "PORTAL_BASE_URL", "http://admin:8080")
+    monkeypatch.setattr(chat.app_settings, "CONSOLE_ORIGIN", "http://localhost:8080")
+    async with factory() as session:
+        session.add(BotProfile(id="bot_console_assistant", system_id=None, name="Console Assistant",
+                               provider_id="aip_1", model_name="qwen3.5:4b",
+                               is_active=True, is_platform=True))
+        await session.commit()
+
+    assert (await post_from(factory, "https://shop.example.com", "bot_console_assistant")).status_code == 403
+    assert (await post_from(factory, "", "bot_console_assistant")).status_code == 403
+    assert (await post_from(factory, "http://127.0.0.1:8080", "bot_console_assistant")).status_code == 200

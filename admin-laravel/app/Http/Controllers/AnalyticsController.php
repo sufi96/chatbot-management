@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BotProfile;
 use App\Services\Analytics;
+use App\Support\BotSelection;
 use App\Support\ConversationList;
 use DateTimeZone;
 use Illuminate\Http\Request;
@@ -39,16 +40,10 @@ class AnalyticsController extends Controller
         $bots = BotProfile::visibleTo($request->user())
             ->whereIn('system_id', $systems->pluck('id'))->with('system')->orderBy('name')->get();
 
-        // Ticked bots, kept only if this user may see them. None ticked, or
-        // every one ticked, both mean all.
-        $selectedBots = collect((array) $request->query('bots', []))
-            ->filter(fn ($id) => is_string($id))
-            ->intersect($bots->pluck('id'))
-            ->unique()->values();
-        if ($selectedBots->count() === $bots->count()) {
-            $selectedBots = collect();
-        }
-        $inScope = $selectedBots->isEmpty() ? $bots : $bots->whereIn('id', $selectedBots->all())->values();
+        // The picked bots. The console assistant only when a super admin
+        // ticks it: "All bot profiles" means the workspaces' bots.
+        $selection = BotSelection::fromRequest($request, $bots, $request->user());
+        $inScope = $selection->scope;
 
         $zone = $this->zone((string) $request->query('tz', ''));
         [$range, $from, $to] = $this->window($request, $zone);
@@ -58,13 +53,16 @@ class AnalyticsController extends Controller
         $list = ConversationList::fromRequest($request, $inScope->pluck('id')->all(), [$from, $to], 'conversations');
 
         return view('analytics.index', $list + [
-            'report' => $bots->isEmpty() ? null : (new Analytics($inScope, $from, $to, $zone))->report(),
+            'report' => $bots->isEmpty() && !$selection->consoleBot ? null : (new Analytics($inScope, $from, $to, $zone))->report(),
             'bots' => $inScope,
             'botGroups' => $systems->sortBy('name')
                 ->map(fn ($system) => ['system' => $system, 'bots' => $bots->where('system_id', $system->id)->values()])
                 ->filter(fn ($group) => $group['bots']->isNotEmpty())
                 ->values(),
-            'selectedBots' => $selectedBots->all(),
+            'selectedBots' => $selection->selectedBots,
+            'consoleBot' => $selection->consoleBot,
+            'console' => $selection->console,
+            'botQuery' => $selection->query(),
             'multiWorkspace' => $systems->count() > 1,
             'range' => $range,
             'from' => $from->copy()->setTimezone($zone),

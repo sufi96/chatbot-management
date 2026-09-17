@@ -530,8 +530,11 @@
                         @php $share = $k['visitor_messages'] ? $row['visitor_messages'] / $k['visitor_messages'] : 0; @endphp
                         <tr>
                             <td>
-                                <a href="{{ route('analytics.index', ['bots' => [$row['bot']->id], 'range' => $range, 'from' => $range === 'custom' ? $from->format('Y-m-d') : null, 'to' => $range === 'custom' ? $to->copy()->subSecond()->format('Y-m-d') : null, 'tz' => $zone]) }}"
+                                <a href="{{ route('analytics.index', ($row['bot']->is_platform ? ['console' => 'only'] : ['bots' => [$row['bot']->id]]) + ['range' => $range, 'from' => $range === 'custom' ? $from->format('Y-m-d') : null, 'to' => $range === 'custom' ? $to->copy()->subSecond()->format('Y-m-d') : null, 'tz' => $zone]) }}"
                                    class="fw-semibold an-bot-link" title="Only {{ $row['bot']->name }}">{{ $row['bot']->name }}</a>
+                                @if($row['bot']->is_platform)
+                                    <span class="badge bot-picker-builtin ms-1">Built in</span>
+                                @endif
                                 @if($row['bot']->trashed())
                                     <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">Deleted</span>
                                 @endif
@@ -565,7 +568,7 @@
         'listAction' => route('analytics.index'),
         // The bots and window above stay put while the table is searched.
         'listCarry' => array_filter([
-            'bots' => $selectedBots ?: null,
+            ...$botQuery,
             'range' => $range,
             'from' => $range === 'custom' ? $from->format('Y-m-d') : null,
             'to' => $range === 'custom' ? $to->copy()->subSecond()->format('Y-m-d') : null,
@@ -574,7 +577,7 @@
         'listShowPicker' => false,
         'listFiltered' => $search !== '',
         'listClearUrl' => route('analytics.index', array_filter([
-            'bots' => $selectedBots ?: null, 'range' => $range,
+            ...$botQuery, 'range' => $range,
             'from' => $range === 'custom' ? $from->format('Y-m-d') : null,
             'to' => $range === 'custom' ? $to->copy()->subSecond()->format('Y-m-d') : null,
             'tz' => $zone, 'sort' => $sort, 'dir' => $dir, 'per_page' => $perPage === 25 ? null : $perPage,

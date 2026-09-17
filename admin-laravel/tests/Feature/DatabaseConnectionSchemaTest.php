@@ -10,11 +10,12 @@ use App\Models\System;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Tests\Concerns\WithoutConsoleDatabase;
 use Tests\TestCase;
 
 class DatabaseConnectionSchemaTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, WithoutConsoleDatabase;
 
     private function makeSystem(): System
     {

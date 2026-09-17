@@ -5,7 +5,7 @@
 @section('content')
 
 @php
-    $filtered = $search !== '' || !empty($selectedBots);
+    $filtered = $search !== '' || !empty($selectedBots) || $console !== '';
 @endphp
 
 <div class="page-head page-head-wide mb-4">

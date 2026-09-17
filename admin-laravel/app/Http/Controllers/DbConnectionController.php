@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DbConnection;
 use App\Services\Schema\DraftConnection;
 use App\Services\Schema\SchemaIntrospector;
+use App\Services\Schema\ConsoleDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -51,6 +52,9 @@ class DbConnectionController extends Controller
     {
         $connection = DbConnection::findOrFail($id);
         $this->authorizeEditor($request, $connection->system_id);
+        // The console database follows the application's own settings; its
+        // address is not edited here and it is not deleted.
+        abort_if(ConsoleDatabase::is($connection), 403, 'The console database cannot be changed or deleted.');
 
         $validated = $this->validated($request);
 
@@ -70,6 +74,9 @@ class DbConnectionController extends Controller
     {
         $connection = DbConnection::findOrFail($id);
         $this->authorizeEditor($request, $connection->system_id);
+        // The console database follows the application's own settings; its
+        // address is not edited here and it is not deleted.
+        abort_if(ConsoleDatabase::is($connection), 403, 'The console database cannot be changed or deleted.');
 
         $connection->delete();
 
@@ -173,7 +180,7 @@ class DbConnectionController extends Controller
         return $validated;
     }
 
-    private function authorizeEditor(Request $request, string $systemId): void
+    private function authorizeEditor(Request $request, ?string $systemId): void
     {
         abort_unless($request->user()->canManageSystem($systemId, 'editor'), 403);
     }

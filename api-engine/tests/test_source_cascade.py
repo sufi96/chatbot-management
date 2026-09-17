@@ -159,3 +159,16 @@ def test_a_bot_with_no_source_at_all_is_never_told_the_answer_is_missing():
     assert sources.fallback_for(
         FallbackBot(), True,
         {"documents": False, "database": False, "web": False}) == "answer_anyway"
+
+
+def test_answer_kind_names_the_source_that_answered():
+    assert sources.answer_kind(SourceResult(kind="web", has_content=True), True, False) == "web"
+
+
+def test_answer_kind_tells_a_miss_from_no_search():
+    assert sources.answer_kind(None, True, False) == "none"
+    assert sources.answer_kind(None, False, False) == "model"
+
+
+def test_answer_kind_says_refused_before_anything_else():
+    assert sources.answer_kind(None, False, True) == "refused"

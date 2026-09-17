@@ -3,9 +3,16 @@
      follows the theme, and so the Models tab can read the live settings: a
      picture of which model does which job is wrong the day someone changes
      one. The long form lives in docs/architecture.md and
-     docs/model-stack-review.md. --}}
+     docs/model-stack-review.md.
+
+     Every signed-in user can open it from the top bar. The live column is
+     only drawn when $architectureLive is set, which the layout does for a
+     super admin on an Admin settings page; everyone else sees the plan. --}}
 @php
-    $providerNames = collect($providers)->pluck('name', 'id');
+    $architectureLive = $architectureLive ?? false;
+    $settings = $architectureLive ? $settings : [];
+    $modelRoles = $architectureLive ? $modelRoles : \App\Http\Controllers\AdminSettingsController::MODEL_ROLES;
+    $providerNames = $architectureLive ? collect($providers)->pluck('name', 'id') : collect();
 
     // What each job runs on right now, from the saved settings.
     $liveJob = function (string $providerKey, string $modelKey, string $blank) use ($settings, $providerNames) {
@@ -210,7 +217,9 @@
                             <thead>
                                 <tr>
                                     <th>Job</th>
-                                    <th>Now, from settings</th>
+                                    @if($architectureLive)
+                                        <th>Now, from settings</th>
+                                    @endif
                                     <th>On the DGX Sparks</th>
                                     <th class="text-center">Node</th>
                                 </tr>
@@ -219,15 +228,17 @@
                                 @foreach($jobs as $job)
                                     <tr>
                                         <td class="text-nowrap"><i class="bi {{ $job['icon'] }} me-2 text-muted"></i>{{ $job['label'] }}</td>
-                                        <td>
-                                            <span class="d-inline-flex align-items-center gap-2">
-                                                <span @class(['state-dot', 'is-live' => $job['now']['set']])></span>
-                                                <span>{{ $job['now']['where'] }}</span>
-                                                @if($job['now']['model'] !== '')
-                                                    <code class="small">{{ $job['now']['model'] }}</code>
-                                                @endif
-                                            </span>
-                                        </td>
+                                        @if($architectureLive)
+                                            <td>
+                                                <span class="d-inline-flex align-items-center gap-2">
+                                                    <span @class(['state-dot', 'is-live' => $job['now']['set']])></span>
+                                                    <span>{{ $job['now']['where'] }}</span>
+                                                    @if($job['now']['model'] !== '')
+                                                        <code class="small">{{ $job['now']['model'] }}</code>
+                                                    @endif
+                                                </span>
+                                            </td>
+                                        @endif
                                         <td class="font-monospace small">{{ $job['plan'] }}</td>
                                         <td class="text-center"><span class="chip">{{ $job['node'] }}</span></td>
                                     </tr>
@@ -237,7 +248,11 @@
                     </div>
                     <div class="settings-note">
                         <i class="bi bi-info-circle"></i>
-                        <span>A green dot is a job with its own provider. The plan column is the direction agreed for late 2026, to be confirmed against the golden question set before any model is chosen. Change what runs now under <a href="{{ route('admin.settings', 'models') }}">Models</a>.</span>
+                        @if($architectureLive)
+                            <span>A green dot is a job with its own provider. The plan column is the direction agreed for late 2026, to be confirmed against the golden question set before any model is chosen. Change what runs now under <a href="{{ route('admin.settings', 'models') }}">Models</a>.</span>
+                        @else
+                            <span>The plan column is the direction agreed for late 2026, to be confirmed against a set of test questions before any model is chosen.</span>
+                        @endif
                     </div>
                 </div>
 

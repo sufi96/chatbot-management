@@ -1956,27 +1956,26 @@ a.pager-btn:not([rel]) { font-family: var(--font-mono); }
   white-space: normal;
   overflow-wrap: anywhere;
 }
-/* An origin is a URL with few spaces, so it breaks anywhere; a long one
-   wraps to three lines at most, like the opening message. The floor keeps an
-   ordinary site address on one line rather than letting the table squeeze
-   the column down to a few characters. */
+/* An origin is a URL with few spaces, so it breaks anywhere; one longer than
+   the column wraps to three lines at most, like the opening message. The
+   floor stops the table squeezing it down to a few characters. */
 .origin-clamp {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
   line-clamp: 3;
   overflow: hidden;
-  min-width: 12rem;
-  max-width: 220px;
+  min-width: 8rem;
+  max-width: 200px;
   line-height: 1.45;
   white-space: normal;
   overflow-wrap: anywhere;
 }
-/* Wide enough for four digits (row 9999) and no wider. */
+/* Wide enough for three digits (row 999) and no wider. */
 .sortable-table .row-number {
-  width: 3rem;
-  min-width: 3rem;
-  max-width: 3rem;
+  width: 2.25rem;
+  min-width: 2.25rem;
+  max-width: 2.25rem;
   padding-left: 0.25rem !important;
   padding-right: 0.25rem !important;
   text-align: center;

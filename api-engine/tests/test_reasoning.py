@@ -150,9 +150,11 @@ def test_collector_keeps_the_token_total_from_a_meta_event():
     collector.observe({"content": "Hi"})
     collector.observe({"meta": {"model": "m", "tokens_in": 10, "tokens_out": 4}})
     assert collector.tokens == 14
+    assert (collector.tokens_in, collector.tokens_out) == (10, 4)
 
 
 def test_collector_reports_no_token_total_when_none_was_reported():
     collector = TranscriptCollector()
     collector.observe({"content": "Hi"})
     assert collector.tokens == 0
+    assert (collector.tokens_in, collector.tokens_out) == (None, None)

@@ -71,8 +71,12 @@
             <div class="col-12 col-lg-6 col-xxl-4">
                 <div class="card h-100 d-flex flex-column {{ $deleted ? 'bot-card-deleted' : '' }}">
 
-                    <div class="p-3 d-flex align-items-start justify-content-between gap-2"
-                         style="border-bottom: 1px solid var(--border);">
+                    {{-- The head opens the bot's analytics, deleted or not: a
+                         deleted bot's history stays readable here until it is
+                         erased for good. --}}
+                    <a href="{{ route('analytics.index', ['bots' => [$bot->id]]) }}"
+                       class="bot-card-head p-3 d-flex align-items-start justify-content-between gap-2"
+                       title="Analytics for {{ $bot->name }}">
                         <div class="d-flex align-items-center gap-2.5 min-w-0">
                             @if($bot->bot_avatar_url)
                                 <img src="{{ $bot->bot_avatar_url }}" alt="" class="identity identity-lg">
@@ -99,12 +103,16 @@
                                 <span class="badge bg-danger-subtle text-danger-emphasis">Deactivated</span>
                             @endif
                         </div>
-                    </div>
+                    </a>
 
                     @include('bots._card-details', ['bot' => $bot])
 
                     <div class="card-footer d-flex align-items-center gap-1.5 p-2"
                          style="border-radius: 0 0 var(--r-md) var(--r-md);">
+                        <a href="{{ route('logs.index', ['bots' => [$bot->id]]) }}" class="btn btn-sm btn-outline-secondary"
+                           title="Conversations" aria-label="Conversations with {{ $bot->name }}">
+                            <i class="bi bi-chat-left-text"></i>
+                        </a>
                         @if($deleted)
                             <form action="{{ route('admin.bots.restore', $bot->id) }}" method="POST" class="flex-grow-1 m-0"
                                   data-confirm="Restore this bot?" data-confirm-tone="primary"
@@ -121,7 +129,7 @@
                                   data-confirm="Erase this bot for good?"
                                   data-confirm-subject="{{ $bot->name }}"
                                   data-confirm-detail="{{ $bot->system?->name }}"
-                                  data-confirm-message="The bot and every conversation it had are erased. This cannot be undone."
+                                  data-confirm-message="The bot, every conversation it had and its analytics are erased. This cannot be undone."
                                   data-confirm-type="{{ $bot->name }}"
                                   data-confirm-label="Delete permanently">
                                 @csrf
@@ -157,3 +165,13 @@
 @endif
 
 @endsection
+
+@push('scripts')
+<style>
+    /* A card head that links to the bot's analytics, and says so on hover. */
+    .bot-card-head { color: inherit; text-decoration: none; border-bottom: 1px solid var(--border); border-radius: var(--r-md) var(--r-md) 0 0; position: relative; transition: background-color 0.12s linear; }
+    .bot-card-head:hover, .bot-card-head:focus-visible { color: inherit; background-color: var(--surface-2); }
+    .bot-card-head::after { content: '\F17C'; font-family: 'bootstrap-icons'; position: absolute; right: 1rem; bottom: 0.625rem; font-size: 0.875rem; color: var(--accent); opacity: 0; transition: opacity 0.12s linear; }
+    .bot-card-head:hover::after, .bot-card-head:focus-visible::after { opacity: 1; }
+</style>
+@endpush

@@ -9,6 +9,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\BotBrainController;
+use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AdminSettingsController;
 use App\Http\Controllers\AdminBotController;
 use App\Http\Controllers\AiProviderController;
@@ -104,6 +105,9 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     Route::post('/database-tables/{tableId}/columns', [DbSchemaController::class, 'storeColumn'])->name('databases.columns.store');
     Route::put('/database-columns/{columnId}', [DbSchemaController::class, 'updateColumn'])->name('databases.columns.update');
     Route::delete('/database-columns/{columnId}', [DbSchemaController::class, 'destroyColumn'])->name('databases.columns.destroy');
+
+    // Analytics across the bots of every workspace the user can open
+    Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics.index');
 
     // Conversation Logs & Transcripts
     Route::get('/logs', [LogController::class, 'index'])->name('logs.index');

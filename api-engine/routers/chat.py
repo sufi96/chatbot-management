@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 import uuid
 from typing import List, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -50,6 +51,13 @@ async def chat_stream(
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
+    # The visitor's wait starts when the message arrives, so the times saved
+    # with the answer include the intent, guard and source steps too.
+    started = time.monotonic()
+
+    def elapsed_ms() -> int:
+        return int((time.monotonic() - started) * 1000)
+
     # Retrieve bot profile and associated system
     stmt = select(BotProfile).where(BotProfile.id == req.bot_id, BotProfile.is_active.is_(True),
                                     BotProfile.deleted_at.is_(None))
@@ -175,25 +183,39 @@ async def chat_stream(
     if verdict.model:
         used_models["guard"] = verdict.model
 
+    searched = message_is_a_question and any(enabled.values())
+    answer_fields = {
+        "source_kind": sources.answer_kind(found, searched, blocked),
+        # What the widget was shown, so the page can count which documents
+        # and sites actually answer visitors.
+        "citations": json.dumps(found.citations) if (found and found.citations) else None,
+    }
+
     async def sse_event_stream():
         if blocked:
             # The refusal stands in for the answer, in the shape the widget
             # already draws. No sources, no model, no meta.
             refusal = guard.refusal_for(bot)
             yield f"data: {json.dumps({'content': refusal})}\n\n"
+            waited = elapsed_ms()
             # Written down before [DONE], for the reason given below.
             await save_assistant_message(
                 conv_id, content=refusal,
-                model_trace=roles.model_trace(None, used_models))
+                model_trace=roles.model_trace(None, used_models),
+                first_token_ms=waited, response_ms=waited, **answer_fields)
             yield "data: [DONE]\n\n"
             return
 
         transcript = TranscriptCollector()
         saved = False
+        first_token_ms = None
 
         async def finish():
             """Check the answer if the bot is guarded, then write it down."""
             nonlocal saved
+            # Taken before the guard checks the answer: the visitor already
+            # had the whole reply by then.
+            response_ms = elapsed_ms()
             full_text = transcript.answer
             if not full_text:
                 saved = True
@@ -216,6 +238,8 @@ async def chat_stream(
                 content=full_text,
                 reasoning=transcript.thinking,
                 tokens_used=transcript.tokens,
+                tokens_in=transcript.tokens_in,
+                tokens_out=transcript.tokens_out,
                 # An operator auditing a wrong answer needs the
                 # statement, not a guess at it.
                 db_sql=(found.sql or None) if found else None,
@@ -225,6 +249,9 @@ async def chat_stream(
                 model_trace=roles.model_trace(
                     transcript.model or bot.model_name, used_models),
                 guard_flag=flag,
+                first_token_ms=first_token_ms,
+                response_ms=response_ms,
+                **answer_fields,
             )
             saved = True
 
@@ -263,7 +290,11 @@ async def chat_stream(
                     if raw == "[DONE]":
                         continue
                     try:
-                        transcript.observe(json.loads(raw))
+                        payload = json.loads(raw)
+                        transcript.observe(payload)
+                        # Thinking counts: the widget shows it as it arrives.
+                        if first_token_ms is None and (payload.get("content") or payload.get("reasoning")):
+                            first_token_ms = elapsed_ms()
                     except Exception:
                         pass
                 yield chunk

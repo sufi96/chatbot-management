@@ -116,6 +116,11 @@
                 <span>Workspaces</span>
             </a>
 
+            <a href="{{ route('analytics.index') }}" class="sidebar-link {{ request()->routeIs('analytics.*') ? 'active' : '' }}">
+                <i class="bi bi-bar-chart-line"></i>
+                <span>Analytics</span>
+            </a>
+
             @if(auth()->user()->isSuperAdmin())
                 <a href="{{ route('users.index') }}" class="sidebar-link {{ request()->routeIs('users.*') ? 'active' : '' }}">
                     <i class="bi bi-person-gear"></i>
@@ -212,6 +217,11 @@
             <h1 class="topbar-title">@yield('page-title', 'Console')</h1>
 
             <div class="d-flex align-items-center gap-2">
+                {{-- How the system fits together, for anyone signed in. --}}
+                <button type="button" class="icon-button" data-bs-toggle="modal" data-bs-target="#architectureModal"
+                        title="How the system works" aria-label="How the system works">
+                    <i class="bi bi-info-circle"></i>
+                </button>
                 <button type="button" class="icon-button" id="theme-toggle"
                         title="Switch between dark and light" aria-label="Switch between dark and light">
                     <i class="bi bi-circle-half"></i>
@@ -285,6 +295,15 @@
             </div>
         </div>
     </div>
+
+    {{-- Opened from the info button in the top bar. Only a super admin on an
+         Admin settings page, where the live settings are loaded, sees which
+         models run each job right now. --}}
+    @auth
+        @include('partials._architecture-modal', [
+            'architectureLive' => auth()->user()->isSuperAdmin() && isset($settings, $providers, $modelRoles),
+        ])
+    @endauth
 
     <script src="{{ asset('vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
     <script>

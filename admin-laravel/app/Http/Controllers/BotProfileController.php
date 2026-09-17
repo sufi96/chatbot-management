@@ -224,10 +224,13 @@ class BotProfileController extends Controller
         }
 
         // Marks the bot only. It stops answering and leaves this workspace, and
-        // a super admin can restore or erase it from the Bots page.
+        // a super admin can restore or erase it from the Bots page. Everyone
+        // else is told it is gone for good, which for them it is.
         $bot->delete();
 
-        return redirect()->route('bots.index')->with('success', "{$bot->name} was deleted. A super admin can still restore it.");
+        return redirect()->route('bots.index')->with('success', $request->user()->isSuperAdmin()
+            ? "{$bot->name} was deleted. It can be restored from Bots under Admin settings."
+            : "{$bot->name} was deleted permanently.");
     }
 
     public function embed(Request $request, string $id)

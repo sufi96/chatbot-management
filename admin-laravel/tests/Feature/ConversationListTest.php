@@ -198,4 +198,56 @@ class ConversationListTest extends TestCase
             ->assertSee('q=Question', false)
             ->assertSee('per_page=10', false);
     }
+
+    /** Gives a conversation's first answer its token counts. */
+    private function tokens(string $conversationId, int $total, ?int $in, ?int $out): void
+    {
+        ChatMessage::where('conversation_id', $conversationId)->where('sender', 'assistant')->orderBy('created_at')->first()
+            ->forceFill(['tokens_used' => $total, 'tokens_in' => $in, 'tokens_out' => $out])->save();
+    }
+
+    public function test_each_row_shows_its_tokens_in_total_and_split(): void
+    {
+        $this->seedThree();
+        $this->tokens('conv_1', 1500, 1200, 300);
+        // Saved before the split was kept: a total and no halves.
+        $this->tokens('conv_2', 90, null, null);
+
+        $response = $this->actingAs($this->user)->get(route('logs.index'))->assertOk();
+        $rows = $response->viewData('conversations')->keyBy('id');
+
+        $this->assertSame([1500, 1200, 300], [(int) $rows['conv_1']->tokens_total, (int) $rows['conv_1']->tokens_in, (int) $rows['conv_1']->tokens_out]);
+        $this->assertNull($rows['conv_2']->tokens_in);
+        $response->assertSeeInOrder(['1,500', '<span>in</span> 1,200', '<span>out</span> 300'], false);
+    }
+
+    public function test_the_tokens_column_sorts_both_ways(): void
+    {
+        $this->seedThree();
+        $this->tokens('conv_1', 1500, 1200, 300);
+        $this->tokens('conv_2', 90, null, null);
+
+        $this->assertSame(['conv_1', 'conv_2', 'conv_3'], $this->listed(['sort' => 'tokens', 'dir' => 'desc']));
+        $this->assertSame(['conv_3', 'conv_2', 'conv_1'], $this->listed(['sort' => 'tokens', 'dir' => 'asc']));
+    }
+
+    public function test_the_analytics_page_draws_the_same_table_for_its_bots_and_window(): void
+    {
+        $this->seedThree();
+        Carbon::setTestNow('2026-09-12 12:00:00');
+
+        $response = $this->actingAs($this->user)
+            ->get(route('analytics.index', ['range' => '24h', 'bots' => ['bot_z'], 'q' => 'deals', 'tz' => 'UTC']))
+            ->assertOk()
+            ->assertSee('Sessions active in this window')
+            ->assertSee('id="conversations"', false);
+
+        $this->assertSame(['conv_2'], $response->viewData('conversations')->pluck('id')->all());
+        // A search that the bots or window rule out finds nothing.
+        $none = $this->actingAs($this->user)
+            ->get(route('analytics.index', ['range' => '24h', 'bots' => ['bot_a'], 'tz' => 'UTC']));
+        $this->assertSame([], $none->viewData('conversations')->pluck('id')->all());
+
+        Carbon::setTestNow();
+    }
 }

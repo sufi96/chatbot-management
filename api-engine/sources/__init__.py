@@ -40,6 +40,20 @@ def fallback_for(bot, message_is_a_question: bool, enabled: dict) -> str:
     return bot.retrieval_fallback or "say_unknown"
 
 
+def answer_kind(found: SourceResult | None, searched: bool, refused: bool) -> str:
+    """Where an answer came from, in one word, for the analytics page.
+
+    A source's own kind when one answered. "none" when the sources were asked
+    and had nothing, which is a gap in what the bot was given. "model" when no
+    source was asked at all, and "refused" when the guard answered instead.
+    """
+    if refused:
+        return "refused"
+    if found is not None:
+        return found.kind
+    return "none" if searched else "model"
+
+
 def build_attempts(session, bot, message: str, settings: dict, collection_ids) -> dict:
     return {
         "documents": partial(attempt_module.documents, session, bot, message,

@@ -166,47 +166,66 @@
                 <div class="card mb-3">
                     <div class="card-header">Generation</div>
                     <div class="p-3">
-                        <div class="row g-3">
-                            <div class="col-6 col-lg-3">
-                                <label for="top_p" class="form-label">Top p</label>
-                                <input type="number" step="0.05" min="0" max="1" name="top_p" id="top_p"
-                                       class="form-control font-monospace" value="{{ old('top_p', $bot->top_p) }}" required>
-                                <div class="form-text">Narrows word choice.</div>
+                        {{-- Thinking first: it changes speed and length more than any
+                             sampling setting below. One short line per level. One-line
+                             php directives, since Blade misreads a block form in a file
+                             that already uses the one-line form. --}}
+                        @php($thinking = old('thinking_level', $bot->thinking_level ?: 'off'))
+                        @php($thinkingHints = ['off' => 'Answers straight away. Fastest.', 'low' => 'Thinks briefly first.', 'medium' => 'Thinks through harder questions.', 'high' => 'Thinks longest. Slowest, most careful.'])
+                        <div class="mb-3">
+                            <div class="form-label" id="thinkingLabel">Thinking level</div>
+                            <div class="segmented" role="radiogroup" aria-labelledby="thinkingLabel">
+                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_off" value="off"
+                                           data-hint="Answers straight away. Fastest." @checked($thinking === 'off')>
+                                    <label for="thinking_off" class="segmented-opt"><i class="bi bi-lightning-charge"></i> Off</label>
+                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_low" value="low"
+                                           data-hint="Thinks briefly first." @checked($thinking === 'low')>
+                                    <label for="thinking_low" class="segmented-opt"><i class="bi bi-lightbulb"></i> Low</label>
+                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_medium" value="medium"
+                                           data-hint="Thinks through harder questions." @checked($thinking === 'medium')>
+                                    <label for="thinking_medium" class="segmented-opt"><i class="bi bi-lightbulb-fill"></i> Medium</label>
+                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_high" value="high"
+                                           data-hint="Thinks longest. Slowest, most careful." @checked($thinking === 'high')>
+                                    <label for="thinking_high" class="segmented-opt"><i class="bi bi-stars"></i> High</label>
                             </div>
-                            <div class="col-6 col-lg-3">
-                                <label for="top_k_sampling" class="form-label">Top k</label>
-                                <input type="number" min="1" max="200" name="top_k_sampling" id="top_k_sampling"
-                                       class="form-control font-monospace" value="{{ old('top_k_sampling', $bot->top_k_sampling) }}"
-                                       placeholder="unset">
-                                <div class="form-text">Blank leaves it to the model.</div>
-                            </div>
-                            <div class="col-6 col-lg-3">
-                                <label for="presence_penalty" class="form-label">Presence penalty</label>
-                                <input type="number" step="0.1" min="-2" max="2" name="presence_penalty" id="presence_penalty"
-                                       class="form-control font-monospace" value="{{ old('presence_penalty', $bot->presence_penalty) }}" required>
-                                <div class="form-text">Pushes toward new topics.</div>
-                            </div>
-                            <div class="col-6 col-lg-3">
-                                <label for="frequency_penalty" class="form-label">Frequency penalty</label>
-                                <input type="number" step="0.1" min="-2" max="2" name="frequency_penalty" id="frequency_penalty"
-                                       class="form-control font-monospace" value="{{ old('frequency_penalty', $bot->frequency_penalty) }}" required>
-                                <div class="form-text">Discourages repetition.</div>
-                            </div>
+                            <div class="form-text" id="thinkingHint">{{ $thinkingHints[$thinking] ?? $thinkingHints['off'] }}</div>
+                            <div class="form-text text-faint">Thinking shows folded above each answer. Some providers treat Low, Medium and High alike.</div>
                         </div>
 
-                        <div class="mt-3" style="max-width: 320px;">
-                            <label for="thinking_level" class="form-label">Thinking level</label>
-                            <select name="thinking_level" id="thinking_level" class="form-select">
-                                <option value="off" {{ old('thinking_level', $bot->thinking_level) === 'off' ? 'selected' : '' }}>Off</option>
-                                <option value="low" {{ old('thinking_level', $bot->thinking_level) === 'low' ? 'selected' : '' }}>Low</option>
-                                <option value="medium" {{ old('thinking_level', $bot->thinking_level) === 'medium' ? 'selected' : '' }}>Medium</option>
-                                <option value="high" {{ old('thinking_level', $bot->thinking_level) === 'high' ? 'selected' : '' }}>High</option>
-                            </select>
-                            <div class="form-text">
-                                Off stops a hybrid reasoning model such as Qwen3 from thinking at all, which keeps replies
-                                short and inside the token limit. Any other level lets it think, and the thinking appears
-                                folded above each answer. Only providers that grade reasoning effort tell low, medium and
-                                high apart; on a local vLLM server all three simply mean on.
+                        <div class="row g-3 pt-1 mt-2" style="border-top: 1px solid var(--border);">
+                            <div class="col-12 col-sm-6">
+                                @include('bots._slider', [
+                                    'name' => 'top_p', 'label' => 'Top p',
+                                    'min' => 0, 'max' => 1, 'step' => 0.05,
+                                    'value' => old('top_p', $bot->top_p ?? 1),
+                                    'ends' => ['Focused', 'Varied'],
+                                ])
+                            </div>
+                            <div class="col-12 col-sm-6">
+                                <label for="top_k_sampling" class="form-label slider-label">
+                                    <span>Top k</span>
+                                    <span class="text-faint" style="font-size: 0.75rem;">optional</span>
+                                </label>
+                                <input type="number" min="1" max="200" name="top_k_sampling" id="top_k_sampling"
+                                       class="form-control form-control-sm font-monospace" style="max-width: 140px;"
+                                       value="{{ old('top_k_sampling', $bot->top_k_sampling) }}" placeholder="Auto">
+                                <div class="form-text">Blank leaves it to the model.</div>
+                            </div>
+                            <div class="col-12 col-sm-6">
+                                @include('bots._slider', [
+                                    'name' => 'presence_penalty', 'label' => 'Presence penalty',
+                                    'min' => -2, 'max' => 2, 'step' => 0.1, 'decimals' => 1,
+                                    'value' => old('presence_penalty', $bot->presence_penalty ?? 0),
+                                    'ends' => ['Stay on topic', 'New topics'],
+                                ])
+                            </div>
+                            <div class="col-12 col-sm-6">
+                                @include('bots._slider', [
+                                    'name' => 'frequency_penalty', 'label' => 'Frequency penalty',
+                                    'min' => -2, 'max' => 2, 'step' => 0.1, 'decimals' => 1,
+                                    'value' => old('frequency_penalty', $bot->frequency_penalty ?? 0),
+                                    'ends' => ['Allow repeats', 'Avoid repeats'],
+                                ])
                             </div>
                         </div>
                     </div>
@@ -296,37 +315,57 @@
                                             <div class="form-text">Hybrid suits most content. Keywords only helps when exact codes matter.</div>
                                         </div>
                                         <div class="col-6">
-                                            <label for="retrieval_top_k" class="form-label">Passages used</label>
-                                            <input type="number" name="retrieval_top_k" id="retrieval_top_k" class="form-control font-monospace"
-                                                   min="1" max="20" value="{{ old('retrieval_top_k', $bot->retrieval_top_k) }}" required>
-                                            <div class="form-text">More context, slower answers.</div>
+                                            @include('bots._slider', [
+                                                'name' => 'retrieval_top_k', 'label' => 'Passages used',
+                                                'min' => 1, 'max' => 20, 'step' => 1, 'decimals' => 0,
+                                                'value' => old('retrieval_top_k', $bot->retrieval_top_k),
+                                                'hint' => 'More context, slower answers.',
+                                            ])
                                         </div>
                                         <div class="col-6">
-                                            <label for="retrieval_candidates" class="form-label">Candidates per branch</label>
-                                            <input type="number" name="retrieval_candidates" id="retrieval_candidates" class="form-control font-monospace"
-                                                   min="5" max="100" value="{{ old('retrieval_candidates', $bot->retrieval_candidates) }}" required>
-                                            <div class="form-text">Depth searched before merging.</div>
+                                            @include('bots._slider', [
+                                                'name' => 'retrieval_candidates', 'label' => 'Candidates per branch',
+                                                'min' => 5, 'max' => 100, 'step' => 5, 'decimals' => 0,
+                                                'value' => old('retrieval_candidates', $bot->retrieval_candidates),
+                                                'hint' => 'How deep each search looks.',
+                                            ])
+                                        </div>
+
+                                        {{-- The floors. Short hints here; the playground shows real
+                                             scores to tune against. Relevance scores sit near 0.016
+                                             for an unrelated hit and 0.033 for a good one, so its
+                                             track stops at 0.1 unless a saved value is higher. --}}
+                                        <div class="col-12">
+                                            @php($relevance = (float) old('retrieval_min_score', $bot->retrieval_min_score))
+                                            @include('bots._slider', [
+                                                'name' => 'retrieval_min_score', 'label' => 'Relevance floor',
+                                                'min' => 0, 'max' => max(0.1, $relevance), 'step' => 0.001, 'decimals' => 3,
+                                                'value' => $relevance,
+                                                'ends' => ['Keeps more', 'Stricter'],
+                                                'hint' => 'Drops weak passages. Keep it above 0.017; 0.020 suits most bots.',
+                                            ])
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            @include('bots._slider', [
+                                                'name' => 'retrieval_min_similarity', 'label' => 'Similarity floor',
+                                                'min' => 0, 'max' => 1, 'step' => 0.01, 'offAt' => 0,
+                                                'value' => old('retrieval_min_similarity', $bot->retrieval_min_similarity),
+                                                'hint' => 'Below this, ask the next source. 0.65 suits nomic-embed-text.',
+                                            ])
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            @include('bots._slider', [
+                                                'name' => 'rerank_min_score', 'label' => 'Reranker floor',
+                                                'min' => 0, 'max' => 1, 'step' => 0.01,
+                                                'value' => old('rerank_min_score', $bot->rerank_min_score),
+                                                'hint' => 'Replaces the floors above when a reranker is set.',
+                                            ])
                                         </div>
                                         <div class="col-12">
-                                            <label for="retrieval_min_score" class="form-label">Relevance floor</label>
-                                            <input type="number" step="0.001" name="retrieval_min_score" id="retrieval_min_score"
-                                                   class="form-control font-monospace" min="0" max="1"
-                                                   value="{{ old('retrieval_min_score', $bot->retrieval_min_score) }}" required>
-                                            <div class="form-text">Passages scoring below this are dropped. An unrelated top hit scores about 0.016, and a genuine one about 0.033 when both branches agree, so keep this above 0.017. Set it lower and every question looks answered, which also stops web search ever running.</div>
-                                        </div>
-                                        <div class="col-12">
-                                            <label for="retrieval_min_similarity" class="form-label">Similarity floor</label>
-                                            <input type="number" step="0.01" name="retrieval_min_similarity" id="retrieval_min_similarity"
-                                                   class="form-control font-monospace" min="0" max="1"
-                                                   value="{{ old('retrieval_min_similarity', $bot->retrieval_min_similarity) }}">
-                                            <div class="form-text">When no passage is at least this similar to the question, the knowledge base is treated as having no answer, and the next source in the order is asked. 0.65 suits nomic-embed-text; another embedding model needs its own value, found in the retrieval playground. Not used when a reranker is set. 0 turns it off.</div>
-                                        </div>
-                                        <div class="col-12">
-                                            <label for="rerank_min_score" class="form-label">Reranker floor</label>
-                                            <input type="number" step="0.01" name="rerank_min_score" id="rerank_min_score"
-                                                   class="form-control font-monospace" min="0" max="1"
-                                                   value="{{ old('rerank_min_score', $bot->rerank_min_score) }}">
-                                            <div class="form-text">Used instead of the relevance floor when a reranker is set in admin settings. A reranker scores how well a passage answers the question, from 0 to 1. Try values in the retrieval playground before raising this.</div>
+                                            <div class="form-text">
+                                                <i class="bi bi-lightbulb"></i>
+                                                Not sure? Try values in the <a href="{{ route('kb.playground') }}">retrieval playground</a> first.
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -466,6 +505,13 @@
 
 @push('scripts')
 <script>
+    // Thinking level: one line that follows the chosen level.
+    document.querySelectorAll('input[name="thinking_level"]').forEach(function (radio) {
+        radio.addEventListener('change', function () {
+            document.getElementById('thinkingHint').textContent = radio.dataset.hint;
+        });
+    });
+
     // Opens the real widget this page embeds, from the button in the head.
     function openTestWidget() {
         var host = document.querySelector('chat-widget');

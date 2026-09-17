@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiProvider;
+use App\Models\BotProfile;
+use App\Services\EngineClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -15,6 +17,10 @@ use Illuminate\Support\Str;
  *
  * Platform providers (no workspace) are Admin Settings' own, and are not
  * found from here, though a super admin may point a bot at one.
+ *
+ * A key goes in and never comes back out. Nothing here answers with one, and
+ * the model list and inference test look the key up on the server, so the
+ * browser only ever names a provider.
  */
 class AiProviderController extends Controller
 {
@@ -46,6 +52,13 @@ class AiProviderController extends Controller
         $this->authorizeEditor($request, $provider->system_id);
 
         $validated = $this->validated($request);
+
+        // The form never holds the saved key, so a blank one means "keep it".
+        // Removing a key is its own choice.
+        if ($validated['api_key'] === '' && !$request->boolean('clear_api_key')) {
+            $validated['api_key'] = (string) $provider->api_key;
+        }
+
         AiProvider::refuseLookalike($provider->system_id, $validated, $provider->id);
 
         $provider->update($validated);
@@ -86,6 +99,82 @@ class AiProviderController extends Controller
         return response()->json(['success' => true, 'message' => "{$name} deleted."]);
     }
 
+    /**
+     * What an endpoint publishes, for Fetch models and the modal's Test.
+     *
+     * A saved provider is named by id. A draft in the modal is sent as typed,
+     * with its workspace; when it is an edit and the key box was left blank,
+     * the saved key stands in, as it would on save.
+     */
+    public function models(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'provider_id' => ['nullable', 'string'],
+            'bot_id' => ['nullable', 'string'],
+            'system_id' => ['nullable', 'string'],
+            'base_url' => ['nullable', 'string', 'max:500'],
+            'api_key' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        if (empty($validated['base_url'])) {
+            $provider = $this->reachableProvider($request, $validated['provider_id'] ?? null, $validated['bot_id'] ?? null);
+
+            return response()->json(EngineClient::chatModels($provider->base_url, (string) $provider->api_key));
+        }
+
+        $systemId = (string) ($validated['system_id'] ?? view()->shared('activeSystem')?->id);
+        $this->authorizeEditor($request, $systemId);
+
+        $apiKey = (string) ($validated['api_key'] ?? '');
+        if ($apiKey === '' && !empty($validated['provider_id'])) {
+            $saved = AiProvider::whereNotNull('system_id')->find($validated['provider_id']);
+            if ($saved && $request->user()->canManageSystem($saved->system_id, 'editor')) {
+                $apiKey = (string) $saved->api_key;
+            }
+        }
+
+        return response()->json(EngineClient::chatModels($validated['base_url'], $apiKey));
+    }
+
+    /** Test inference against a saved provider, with its key looked up here. */
+    public function test(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'provider_id' => ['required', 'string'],
+            'bot_id' => ['nullable', 'string'],
+            'model_name' => ['required', 'string', 'max:255'],
+        ], [
+            'model_name.required' => 'Choose a model first, or fetch the list.',
+        ]);
+
+        $provider = $this->reachableProvider($request, $validated['provider_id'], $validated['bot_id'] ?? null);
+
+        return response()->json(EngineClient::testInference(
+            $provider->base_url, (string) $provider->api_key, $validated['model_name']));
+    }
+
+    /**
+     * A provider this user may call: one they could pick for a bot, or the one
+     * a bot they edit already points at, which a super admin may have set from
+     * outside their reach. Anything else is reported as missing.
+     */
+    private function reachableProvider(Request $request, ?string $providerId, ?string $botId): AiProvider
+    {
+        $user = $request->user();
+        $provider = $providerId ? AiProvider::usableBy($user)->find($providerId) : null;
+
+        if (!$provider && $providerId && $botId) {
+            $bot = BotProfile::find($botId);
+            if ($bot && $bot->provider_id === $providerId && $user->canManageSystem($bot->system_id, 'editor')) {
+                $provider = AiProvider::find($providerId);
+            }
+        }
+
+        abort_unless($provider, 404, 'That provider is not available to you.');
+
+        return $provider;
+    }
+
     private function validated(Request $request): array
     {
         $validated = $request->validate([
@@ -110,7 +199,7 @@ class AiProviderController extends Controller
             'id' => $provider->id,
             'name' => $provider->name,
             'base_url' => $provider->base_url,
-            'api_key' => $provider->api_key,
+            'has_key' => $provider->api_key !== null && $provider->api_key !== '',
             'label' => $provider->label(),
             'system_id' => $provider->system_id,
             'owner' => $provider->ownerName(),

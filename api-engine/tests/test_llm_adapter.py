@@ -258,3 +258,52 @@ async def test_an_endpoint_rejecting_stream_options_is_asked_again_without_it():
     assert "stream_options" not in bodies[1]
     assert {"content": "Hello"} in payloads
     assert not any("error" in p for p in payloads)
+
+
+# --- Test inference ---------------------------------------------------------
+# The bot form's Test inference button. Its failures name the endpoint and the
+# model that were actually called, since a provider is as often a hosted API
+# as a local Ollama.
+
+async def run_connection_test(handler, base_url="https://api.example.ai/v1", model="deepseek-v4-flash"):
+    return await LLMAdapter.test_connection(base_url=base_url, api_key="secret", model_name=model,
+                                            transport=httpx.MockTransport(handler))
+
+
+@pytest.mark.asyncio
+async def test_a_connection_test_calls_the_provider_it_was_given():
+    seen = []
+
+    def handler(request):
+        seen.append((str(request.url), request.headers.get("authorization"), json.loads(request.content)["model"]))
+        return httpx.Response(200, json={"choices": [{"message": {"content": "Hi"}}]})
+
+    result = await run_connection_test(handler)
+
+    assert result["success"] is True
+    assert seen == [("https://api.example.ai/v1/chat/completions", "Bearer secret", "deepseek-v4-flash")]
+
+
+@pytest.mark.asyncio
+async def test_a_timed_out_connection_test_names_the_host_and_model_not_ollama():
+    def handler(request):
+        raise httpx.ReadTimeout("timed out", request=request)
+
+    result = await run_connection_test(handler)
+
+    assert result["success"] is False
+    assert "api.example.ai" in result["message"]
+    assert "deepseek-v4-flash" in result["message"]
+    assert "Ollama" not in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_an_unreachable_connection_test_names_the_endpoint_not_ollama():
+    def handler(request):
+        raise httpx.ConnectError("refused", request=request)
+
+    result = await run_connection_test(handler)
+
+    assert result["success"] is False
+    assert "https://api.example.ai/v1/chat/completions" in result["message"]
+    assert "Ollama" not in result["message"]

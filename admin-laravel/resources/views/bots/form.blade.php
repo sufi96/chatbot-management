@@ -122,13 +122,19 @@
                          this line only takes space once there is something to say. --}}
                     <div id="testConnResult" class="test-conn-result"></div>
 
-                    <label for="provider_id" class="form-label">
-                        Provider <span style="color: var(--danger);">*</span>
-                    </label>
+                    <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
+                        <label for="providerTrigger" class="form-label mb-0">
+                            Provider <span style="color: var(--danger);">*</span>
+                        </label>
+                        <button type="button" class="btn btn-sm provider-new" onclick="openProviderModal('new')">
+                            <i class="bi bi-plus-lg"></i> New provider
+                        </button>
+                    </div>
                     {{-- The select is what the form submits and what the script reads;
-                         the picker beside it is how it is shown, two lines per endpoint
-                         so the URL, the key and the bots on it are all in sight. --}}
-                    <div class="d-flex align-items-stretch gap-2 mb-1">
+                         the picker is how it is shown: the name on one line, then whose
+                         it is, the URL, the key and the bots on it, wrapping rather than
+                         cutting anything off. --}}
+                    <div class="provider-field">
                         <div class="dropdown provider-picker">
                             <button type="button" class="provider-trigger" id="providerTrigger"
                                     data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="listbox"
@@ -154,7 +160,8 @@
                             {{-- Grouped by owner, and the owner repeated in each label so a
                                  closed select still tells two same-named endpoints apart.
                                  A locked entry is one a super admin set that this user
-                                 cannot pick, so it carries neither URL nor key. --}}
+                                 cannot pick, so it carries no URL. No entry carries its key:
+                                 only whether it has one. --}}
                             @foreach($providers->groupBy(fn ($p) => $p->system_id ?? '') as $ownerId => $group)
                                 <optgroup label="{{ $group->first()->ownerName() }}" data-system-id="{{ $ownerId }}">
                                     @foreach($group as $provider)
@@ -172,7 +179,7 @@
                                                     data-locked="1"
                                                 @else
                                                     data-base-url="{{ $provider->base_url }}"
-                                                    data-api-key="{{ $provider->api_key }}"
+                                                    data-has-key="{{ $provider->api_key ? '1' : '0' }}"
                                                 @endif
                                                 @selected(old('provider_id', $bot->provider_id) === $provider->id)>
                                             {{ $locked ? $provider->name : $provider->label() }} · {{ $provider->ownerName() }}
@@ -181,32 +188,28 @@
                                 </optgroup>
                             @endforeach
                         </select>
-                        <div class="provider-actions">
-                            <button type="button" class="btn btn-brand" onclick="openProviderModal('new')"
-                                    title="Add a provider">
-                                <i class="bi bi-plus-lg"></i> New
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary" id="btnEditProvider"
-                                    onclick="openProviderModal('edit')" title="Edit the selected provider"
-                                    aria-label="Edit the selected provider">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button type="button" class="btn btn-outline-danger" id="btnDeleteProvider"
-                                    onclick="deleteProvider()" title="Delete the selected provider"
-                                    aria-label="Delete the selected provider">
-                                <i class="bi bi-trash"></i>
-                            </button>
+                        {{-- Acts on the selected provider. One this user cannot change
+                             shows why instead of two dead buttons. --}}
+                        <div class="provider-toolbar">
+                            <div class="provider-toolbar-actions" id="providerActions">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnEditProvider"
+                                        onclick="openProviderModal('edit')">
+                                    <i class="bi bi-pencil"></i> Edit
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" id="btnDeleteProvider"
+                                        onclick="deleteProvider()">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            </div>
+                            <span class="provider-toolbar-note" id="providerLockedNote" hidden>
+                                <i class="bi bi-lock"></i> Managed in Admin Settings
+                            </span>
                         </div>
                     </div>
                     <div class="form-text mb-3" id="providerHint">
                         One saved endpoint, shared by every bot pointing at it. Edit it once when the
                         machine or the key changes.
                     </div>
-
-                    {{-- What the Fetch and Test buttons call. Not submitted: the bot stores
-                         provider_id, and these follow whichever provider is selected. --}}
-                    <input type="hidden" id="base_url">
-                    <input type="hidden" id="api_key">
 
                     <div class="mb-3">
                         <div class="d-flex align-items-center justify-content-between mb-1">
@@ -239,10 +242,19 @@
 
                     <div class="row g-3">
                         <div class="col-6">
-                            <label for="temperature" class="form-label">Temperature</label>
-                            <input type="number" step="0.1" min="0" max="2" name="temperature" id="temperature"
-                                   class="form-control font-monospace" value="{{ old('temperature', $bot->temperature) }}">
-                            <div class="form-text">Lower is more predictable.</div>
+                            {{-- 0 to 1, the range where a change is felt. A value saved
+                                 above 1 before the cap shows at 1 and saves as 1. --}}
+                            @php $temperature = min(1, max(0, (float) old('temperature', $bot->temperature ?? 0.7))); @endphp
+                            <label for="temperature" class="form-label d-flex align-items-center justify-content-between mb-1">
+                                <span>Temperature</span>
+                                <span class="figure-mono text-muted" id="temperatureOut">{{ number_format($temperature, 2) }}</span>
+                            </label>
+                            <input type="range" class="form-range" name="temperature" id="temperature"
+                                   min="0" max="1" step="0.05" value="{{ $temperature }}"
+                                   oninput="document.getElementById('temperatureOut').textContent = Number(this.value).toFixed(2)">
+                            <div class="form-text d-flex justify-content-between">
+                                <span>Predictable</span><span>Creative</span>
+                            </div>
                         </div>
                         <div class="col-6">
                             <label for="max_tokens" class="form-label">Max tokens</label>
@@ -762,11 +774,18 @@
                            placeholder="http://localhost:11434/v1" maxlength="500">
                 </div>
 
+                {{-- The saved key is never sent to the page. On an edit the box starts
+                     empty: blank keeps the saved key, a new one replaces it, and
+                     removing it is a separate tick. --}}
                 <div class="mb-3">
                     <label for="providerApiKey" class="form-label">API key</label>
                     <input type="password" id="providerApiKey" class="form-control font-monospace"
-                           placeholder="Not needed for local Ollama" maxlength="500">
-                    <div class="form-text">Leave blank for a local endpoint.</div>
+                           placeholder="Not needed for local Ollama" maxlength="500" autocomplete="new-password">
+                    <div class="form-text" id="providerApiKeyHelp">Leave blank for a local endpoint.</div>
+                    <div class="form-check mt-2" id="providerClearKeyWrap" hidden>
+                        <input class="form-check-input" type="checkbox" id="providerClearKey">
+                        <label class="form-check-label" for="providerClearKey">Remove the saved key</label>
+                    </div>
                 </div>
 
                 <div id="providerModalResult" class="small fw-medium"></div>
@@ -1088,8 +1107,7 @@
     }
 
     function fetchModelsFromBaseUrl() {
-        var baseUrl = document.getElementById('base_url').value.trim();
-        var apiKey = document.getElementById('api_key').value.trim();
+        var provider = selectedProviderOption();
         var currentModel = document.getElementById('model_name').value.trim();
         var btn = document.getElementById('btnFetchModels');
         var icon = document.getElementById('iconFetch');
@@ -1098,9 +1116,9 @@
         var dropdownList = document.getElementById('modelsDropdownList');
         var testConnResult = document.getElementById('testConnResult');
 
-        if (!baseUrl) {
+        if (!provider || !provider.value) {
             badge.className = 'text-danger';
-            badge.innerHTML = '<i class="bi bi-exclamation-circle"></i> Base URL is required';
+            badge.innerHTML = '<i class="bi bi-exclamation-circle"></i> Choose a provider first';
             return;
         }
 
@@ -1110,15 +1128,12 @@
         badge.className = 'text-muted';
         badge.innerHTML = '<i class="bi bi-hourglass-split"></i> Querying endpoint...';
 
-        fetch('http://localhost:8000/api/v1/bot/fetch-models', {
+        fetch(providerRoutes.models, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                base_url: baseUrl,
-                api_key: apiKey
-            })
+            headers: providerHeaders(),
+            body: JSON.stringify({ provider_id: provider.value, bot_id: providerRoutes.botId })
         })
-        .then(function(res) { return res.json(); })
+        .then(providerJson)
         .then(function(data) {
             btn.disabled = false;
             icon.className = 'bi bi-arrow-repeat';
@@ -1176,13 +1191,13 @@
             text.textContent = 'Fetch models';
 
             badge.className = 'text-danger';
-            badge.innerHTML = '<i class="bi bi-exclamation-circle"></i> Streaming engine unreachable';
+            badge.innerHTML = '<i class="bi bi-exclamation-circle"></i> Could not list models';
 
-            dropdownList.innerHTML = '<li><span class="dropdown-item-text text-danger small"><i class="bi bi-x-circle me-1"></i> FastAPI engine unreachable</span></li>';
+            dropdownList.innerHTML = '<li><span class="dropdown-item-text text-danger small"><i class="bi bi-x-circle me-1"></i> Could not list models</span></li>';
 
             if (testConnResult) {
                 testConnResult.className = 'test-conn-result text-danger';
-                testConnResult.textContent = 'Streaming engine on port 8000 is unreachable';
+                testConnResult.textContent = 'Could not list models: ' + err.message;
             }
         });
     }
@@ -1190,15 +1205,29 @@
     // ---- Providers -------------------------------------------------------
     //
     // The select is the source of truth for which endpoint this bot talks to.
-    // The hidden base_url/api_key inputs mirror the selected option, so the
-    // Fetch models and Test connection buttons keep working against a real
-    // endpoint without knowing anything about providers.
+    // No key ever reaches this page: Fetch models and Test inference name the
+    // selected provider, and the portal looks its key up and calls the engine.
 
     var providerRoutes = {
         store: '{{ route('providers.store') }}',
         base: '{{ url('/providers') }}',
+        models: '{{ route('providers.models') }}',
+        test: '{{ route('providers.test') }}',
         systemId: @json($providerSystemId),
+        // Lets a bot's editor test the provider it already uses, even one a
+        // super admin set from outside their reach.
+        botId: @json($isEdit ? $bot->id : null),
     };
+
+    // Reads a JSON answer, turning a refusal into an error with its message.
+    function providerJson(res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+            if (!res.ok && data && data.success === undefined) {
+                throw new Error(firstProviderError(data));
+            }
+            return data;
+        });
+    }
 
     function selectedProviderOption() {
         var select = document.getElementById('provider_id');
@@ -1209,14 +1238,11 @@
         var option = selectedProviderOption();
         var hasProvider = !!(option && option.value);
 
-        document.getElementById('base_url').value = hasProvider ? (option.dataset.baseUrl || '') : '';
-        document.getElementById('api_key').value = hasProvider ? (option.dataset.apiKey || '') : '';
-
         // Platform providers are edited in Admin Settings, and one set from
         // above is not this user's to change.
         var editable = hasProvider && option.dataset.editable === '1';
-        document.getElementById('btnEditProvider').disabled = !editable;
-        document.getElementById('btnDeleteProvider').disabled = !editable;
+        document.getElementById('providerActions').hidden = !editable;
+        document.getElementById('providerLockedNote').hidden = !hasProvider || editable;
 
         renderProviderPicker();
     }
@@ -1232,7 +1258,7 @@
         }
         var bots = parseInt(option.dataset.bots || '0', 10);
         return [
-            option.dataset.apiKey ? 'Key saved' : 'No key',
+            option.dataset.hasKey === '1' ? 'Key saved' : 'No key',
             bots === 0 ? 'No bots yet' : bots + (bots === 1 ? ' bot' : ' bots'),
         ];
     }
@@ -1241,22 +1267,22 @@
         var wrap = document.createElement('span');
         wrap.className = 'provider-entry';
 
-        var top = document.createElement('span');
-        top.className = 'provider-entry-top';
         var name = document.createElement('span');
         name.className = 'provider-entry-name';
         name.textContent = option.dataset.name;
-        top.appendChild(name);
-        if (withOwner) {
-            var owner = document.createElement('span');
-            owner.className = 'chip' + (option.dataset.own === '1' ? ' chip-accent' : '');
-            owner.textContent = option.dataset.owner;
-            top.appendChild(owner);
-        }
-        wrap.appendChild(top);
+        wrap.appendChild(name);
 
+        // Whose it is leads the second line as plain text, so a long workspace
+        // name wraps with the rest instead of being cut off in a badge.
         var sub = document.createElement('span');
         sub.className = 'provider-entry-sub';
+        if (withOwner) {
+            var owner = document.createElement('span');
+            owner.className = 'provider-entry-owner' + (option.dataset.own === '1' ? ' is-own' : '');
+            owner.innerHTML = '<i class="bi bi-diagram-3"></i> ';
+            owner.appendChild(document.createTextNode(option.dataset.owner));
+            sub.appendChild(owner);
+        }
         if (option.dataset.baseUrl) {
             var url = document.createElement('span');
             url.className = 'provider-entry-url';
@@ -1363,16 +1389,29 @@
             document.getElementById('providerEditId').value = option.value;
             document.getElementById('providerName').value = option.dataset.name || '';
             document.getElementById('providerBaseUrl').value = option.dataset.baseUrl || '';
-            document.getElementById('providerApiKey').value = option.dataset.apiKey || '';
+            setProviderKeyField(option.dataset.hasKey === '1');
         } else {
             document.getElementById('providerModalTitle').textContent = 'New provider';
             document.getElementById('providerEditId').value = '';
             document.getElementById('providerName').value = '';
             document.getElementById('providerBaseUrl').value = 'http://localhost:11434/v1';
-            document.getElementById('providerApiKey').value = '';
+            setProviderKeyField(false);
         }
 
         bootstrap.Modal.getOrCreateInstance(document.getElementById('providerModal')).show();
+    }
+
+    // The key box always starts empty. With a key already saved it says so,
+    // and offers to remove it.
+    function setProviderKeyField(hasSavedKey) {
+        var input = document.getElementById('providerApiKey');
+        input.value = '';
+        input.placeholder = hasSavedKey ? '•••••••• saved, type to replace' : 'Not needed for local Ollama';
+        document.getElementById('providerApiKeyHelp').textContent = hasSavedKey
+            ? 'The saved key is never shown. Leave blank to keep it.'
+            : 'Leave blank for a local endpoint.';
+        document.getElementById('providerClearKey').checked = false;
+        document.getElementById('providerClearKeyWrap').hidden = !hasSavedKey;
     }
 
     function providerHeaders() {
@@ -1404,7 +1443,10 @@
         fetch(id ? providerRoutes.base + '/' + id : providerRoutes.store, {
             method: id ? 'PUT' : 'POST',
             headers: providerHeaders(),
-            body: JSON.stringify({ system_id: providerRoutes.systemId, name: name, base_url: baseUrl, api_key: apiKey })
+            body: JSON.stringify({
+                system_id: providerRoutes.systemId, name: name, base_url: baseUrl, api_key: apiKey,
+                clear_api_key: !!id && document.getElementById('providerClearKey').checked
+            })
         })
         .then(function(res) {
             return res.json().then(function(data) { return { ok: res.ok, data: data }; });
@@ -1462,7 +1504,7 @@
         option.dataset.own = provider.system_id === providerRoutes.systemId ? '1' : '0';
         option.dataset.bots = option.dataset.bots || '0';
         option.dataset.baseUrl = provider.base_url;
-        option.dataset.apiKey = provider.api_key || '';
+        option.dataset.hasKey = provider.has_key ? '1' : '0';
 
         select.disabled = false;
         select.value = provider.id;
@@ -1530,6 +1572,8 @@
     function testProviderDraft() {
         var baseUrl = document.getElementById('providerBaseUrl').value.trim();
         var apiKey = document.getElementById('providerApiKey').value.trim();
+        var editId = document.getElementById('providerEditId').value;
+        var clearKey = !!editId && document.getElementById('providerClearKey').checked;
         var result = document.getElementById('providerModalResult');
         var btn = document.getElementById('btnTestProvider');
 
@@ -1543,12 +1587,17 @@
         result.className = 'small fw-medium text-secondary';
         result.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Querying endpoint...';
 
-        fetch('http://localhost:8000/api/v1/bot/fetch-models', {
+        // An edit with the key box blank is tested with the saved key, as it
+        // would be saved; ticking Remove tests it with none.
+        fetch(providerRoutes.models, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ base_url: baseUrl, api_key: apiKey })
+            headers: providerHeaders(),
+            body: JSON.stringify({
+                system_id: providerRoutes.systemId, base_url: baseUrl, api_key: apiKey,
+                provider_id: clearKey ? null : (editId || null)
+            })
         })
-        .then(function(res) { return res.json(); })
+        .then(providerJson)
         .then(function(data) {
             btn.disabled = false;
             if (data.success) {
@@ -1578,15 +1627,14 @@
     document.addEventListener('DOMContentLoaded', onProviderChange);
 
     function testConnection() {
-        var baseUrl = document.getElementById('base_url').value.trim();
-        var apiKey = document.getElementById('api_key').value.trim();
+        var provider = selectedProviderOption();
         var modelName = document.getElementById('model_name').value.trim();
         var statusEl = document.getElementById('testConnResult');
         var btn = document.getElementById('btnTestConn');
 
-        if (!baseUrl) {
+        if (!provider || !provider.value) {
             statusEl.className = 'test-conn-result fw-medium text-danger';
-            statusEl.textContent = 'Base URL is required';
+            statusEl.textContent = 'Choose a provider first.';
             return;
         }
 
@@ -1600,16 +1648,12 @@
         statusEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Testing inference response (model may be loading)...';
         btn.disabled = true;
 
-        fetch('http://localhost:8000/api/v1/bot/test-connection', {
+        fetch(providerRoutes.test, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                base_url: baseUrl,
-                api_key: apiKey,
-                model_name: modelName
-            })
+            headers: providerHeaders(),
+            body: JSON.stringify({ provider_id: provider.value, bot_id: providerRoutes.botId, model_name: modelName })
         })
-        .then(function(res) { return res.json(); })
+        .then(providerJson)
         .then(function(data) {
             btn.disabled = false;
             if (data.success) {
@@ -1623,7 +1667,7 @@
         .catch(function(err) {
             btn.disabled = false;
             statusEl.className = 'test-conn-result fw-medium text-danger';
-            statusEl.textContent = 'Could not reach the streaming engine on port 8000';
+            statusEl.textContent = 'Could not run the test: ' + err.message;
         });
     }
 

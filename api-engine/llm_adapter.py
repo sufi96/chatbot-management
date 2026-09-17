@@ -158,7 +158,7 @@ class LLMAdapter:
             yield "data: [DONE]\n\n"
 
         except httpx.ConnectError:
-            yield f"data: {json.dumps({'error': f'Cannot connect to LLM server at {endpoint}. Ensure Ollama or custom API is running.'})}\n\n"
+            yield f"data: {json.dumps({'error': f'Cannot connect to {endpoint}. Check that the provider is running and its base URL is right.'})}\n\n"
             yield "data: [DONE]\n\n"
         except httpx.TimeoutException:
             yield f"data: {json.dumps({'error': 'LLM request timed out. Please try again.'})}\n\n"
@@ -347,8 +347,11 @@ class LLMAdapter:
         }
 
     @classmethod
-    async def test_connection(cls, base_url: str, api_key: str, model_name: str) -> Dict[str, Any]:
-        """Test whether the LLM endpoint is reachable and responsive."""
+    async def test_connection(cls, base_url: str, api_key: str, model_name: str,
+                              transport=None) -> Dict[str, Any]:
+        """Test whether the LLM endpoint is reachable and responsive. A failure
+        names the host and model actually called, since a provider is as often
+        a hosted API as a local Ollama."""
         if not model_name or not model_name.strip():
             return {"success": False, "message": "Please specify or select a Model Name first."}
 
@@ -367,7 +370,7 @@ class LLMAdapter:
         # Generous 60s timeout for cold model weights loading in Ollama/vLLM
         client_timeout = httpx.Timeout(connect=10.0, read=60.0, write=10.0, pool=10.0)
         try:
-            async with httpx.AsyncClient(timeout=client_timeout) as client:
+            async with httpx.AsyncClient(timeout=client_timeout, transport=transport) as client:
                 res = await client.post(endpoint, headers=headers, json=payload)
                 if res.status_code == 200:
                     return {"success": True, "message": f"Connection successful! Model '{model_name}' responded."}
@@ -378,12 +381,14 @@ class LLMAdapter:
         except httpx.TimeoutException:
             return {
                 "success": False,
-                "message": f"Connection timed out (60s). Ollama may be loading large model weights '{model_name}' into memory. Please retry in a moment."
+                "message": (f"No reply from {httpx.URL(endpoint).host} within 60s for model '{model_name}'. "
+                            "The provider accepted the connection but sent no answer, so the model may be "
+                            "down or still loading. Try again, or try another model.")
             }
         except httpx.ConnectError:
             return {
                 "success": False,
-                "message": f"Cannot connect to server at {endpoint}. Ensure Ollama or your LLM service is running."
+                "message": f"Cannot connect to {endpoint}. Check that the provider is running and its base URL is right."
             }
         except Exception as e:
             err_msg = str(e) if str(e).strip() else type(e).__name__

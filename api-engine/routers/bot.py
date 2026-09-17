@@ -6,6 +6,7 @@ from typing import Optional
 
 from database import get_db, BotProfile, System
 from llm_adapter import LLMAdapter
+from routers.kb import require_admin_token
 
 router = APIRouter(prefix="/api/v1/bot", tags=["bot"])
 
@@ -46,7 +47,9 @@ class FetchModelsRequest(BaseModel):
     base_url: str
     api_key: Optional[str] = ""
 
-@router.post("/fetch-models")
+# These two carry a provider's API key and call whatever URL they are given, so
+# only the portal may use them. It looks the key up and sends its admin token.
+@router.post("/fetch-models", dependencies=[Depends(require_admin_token)])
 async def fetch_available_models(req: FetchModelsRequest):
     """Fetch available models from Ollama or OpenAI-compatible endpoint."""
     res = await LLMAdapter.fetch_models(
@@ -55,7 +58,7 @@ async def fetch_available_models(req: FetchModelsRequest):
     )
     return res
 
-@router.post("/test-connection")
+@router.post("/test-connection", dependencies=[Depends(require_admin_token)])
 async def test_llm_connection(req: ConnectionTestRequest):
     """Test connection to an Ollama or custom OpenAI-compatible endpoint."""
     res = await LLMAdapter.test_connection(

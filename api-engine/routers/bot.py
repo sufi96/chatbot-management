@@ -10,6 +10,11 @@ from routers.kb import require_admin_token
 
 router = APIRouter(prefix="/api/v1/bot", tags=["bot"])
 
+
+def opacity(value) -> int:
+    """A picture's opacity as a percentage. Unset is fully shown; 0 is kept."""
+    return 100 if value is None else max(0, min(100, int(value)))
+
 class ConnectionTestRequest(BaseModel):
     base_url: str
     api_key: Optional[str] = ""
@@ -32,6 +37,14 @@ async def get_bot_public_config(bot_id: str, db: AsyncSession = Depends(get_db))
         "widget_title": bot.widget_title or bot.name,
         "widget_greeting": bot.widget_greeting or "Hello! How can I help you today?",
         "widget_primary_color": bot.widget_primary_color or "#4F46E5",
+        # Empty means the header follows the widget colour.
+        "widget_header_color": bot.widget_header_color or "",
+        "widget_header_text_color": bot.widget_header_text_color or "#FFFFFF",
+        "widget_header_image_url": bot.widget_header_image_url or "",
+        "widget_header_image_opacity": opacity(bot.widget_header_image_opacity),
+        "widget_background_color": bot.widget_background_color or "#FAFAFA",
+        "widget_background_image_url": bot.widget_background_image_url or "",
+        "widget_background_image_opacity": opacity(bot.widget_background_image_opacity),
         "widget_position": bot.widget_position or "bottom-right",
         "launcher_icon_url": bot.launcher_icon_url or "",
         "launcher_shape": bot.launcher_shape or "circle",

@@ -60,6 +60,13 @@ class BotProfile(Base):
     widget_title = Column(String(255), default="AI Assistant")
     widget_greeting = Column(Text, default="Hello! How can I help you today?")
     widget_primary_color = Column(String(20), default="#4F46E5")
+    widget_header_color = Column(String(20), nullable=True)
+    widget_header_text_color = Column(String(20), default="#FFFFFF")
+    widget_header_image_url = Column(String(500), nullable=True)
+    widget_header_image_opacity = Column(Integer, default=100)
+    widget_background_color = Column(String(20), default="#FAFAFA")
+    widget_background_image_url = Column(String(500), nullable=True)
+    widget_background_image_opacity = Column(Integer, default=100)
     widget_position = Column(String(20), default="bottom-right")  # 'bottom-right' or 'bottom-left'
     launcher_icon_url = Column(String(500), nullable=True)
     launcher_shape = Column(String(30), default="circle")

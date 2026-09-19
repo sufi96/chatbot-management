@@ -112,6 +112,9 @@ size.
 - **Dual Custom Uploads:** Upload distinct images for the **Floating Launcher Button** and the **Chat Header Avatar**.
 - **Transparent Silhouette Cutout (`transparent_fit`):** Natural drop-shadow on the image contour with no circular clipping or background squares. Perfect for mascots, character PNGs, logos, and vehicles.
 - **Circle & Border Options:** Supports standard filled circles or circle outlines with transparent backgrounds.
+- **Cutout in a Circle (`cutout_circle`, `cutout_ring`):** The picture sits in a filled circle or a ring with its top rising out of the circle, for the launcher, the close button and the avatar.
+- **Header & Chat Background:** The header and the conversation each take a colour and an optional picture, with an opacity slider that lets the colour show through. The header colour follows the widget colour unless given its own. The header's text and icons (title, status, clear, expand, close) take their own colour; at 100% opacity every picture is shown exactly as uploaded.
+- **Notice & Footer:** An "AI can make mistakes" notice sits at the bottom of the conversation, just above the message box; the footer reads "Powered by C⁴".
 
 ### 4. 💬 Live Progress Indicator
 - While a reply is being prepared, the engine streams `status` events for each step it actually takes, and the widget's bubble shows them as they happen: *"Reading your message..."* (shown by the widget the moment the message is sent) ➔ *"Understanding intent..."* ➔ *"Consulting the knowledge base..."* / *"Retrieving records..."* / *"Researching the web..."* (each source in the bot's order, as it is tried) ➔ *"Composing a response..."*.

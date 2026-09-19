@@ -50,6 +50,8 @@ class BotProfileController extends Controller
                 'widget_title' => 'Support Assistant',
                 'widget_greeting' => 'Hello! How can I help you today?',
                 'widget_primary_color' => '#1f2937',
+                'widget_background_color' => '#FAFAFA',
+                'widget_header_text_color' => '#FFFFFF',
                 'widget_position' => 'bottom-right',
                 'launcher_shape' => 'circle',
                 'launcher_size' => 60,
@@ -81,15 +83,22 @@ class BotProfileController extends Controller
             'widget_title' => ['required', 'string', 'max:255'],
             'widget_greeting' => ['nullable', 'string'],
             'widget_primary_color' => ['required', 'string', 'max:20'],
+            'widget_header_color' => ['nullable', 'string', 'max:20'],
+            'widget_header_text_color' => ['nullable', 'string', 'max:20'],
+            'header_image' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'],
+            'header_image_opacity' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'widget_background_color' => ['nullable', 'string', 'max:20'],
+            'background_image' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'],
+            'background_image_opacity' => ['nullable', 'integer', 'min:0', 'max:100'],
             'widget_position' => ['required', 'in:bottom-right,bottom-left'],
             'launcher_icon' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'],
-            'launcher_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit'],
+            'launcher_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit,cutout_circle,cutout_ring'],
             'launcher_size' => ['nullable', 'integer', 'min:40', 'max:160'],
             'close_icon' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'],
-            'close_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit'],
+            'close_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit,cutout_circle,cutout_ring'],
             'close_size' => ['nullable', 'integer', 'min:32', 'max:120'],
             'bot_avatar' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'],
-            'avatar_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit'],
+            'avatar_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit,cutout_circle,cutout_ring'],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
@@ -101,6 +110,14 @@ class BotProfileController extends Controller
         $validated['close_shape'] = $request->input('close_shape', 'circle');
         $validated['launcher_size'] = (int) $request->input('launcher_size', 60);
         $validated['close_size'] = (int) $request->input('close_size', 52);
+        $validated['widget_background_color'] = $request->input('widget_background_color') ?: '#FAFAFA';
+        // Ticked, the header follows the widget colour wherever it goes next.
+        $validated['widget_header_color'] = $request->boolean('header_color_matches')
+            ? null
+            : ($request->input('widget_header_color') ?: null);
+        $validated['widget_header_text_color'] = $request->input('widget_header_text_color') ?: '#FFFFFF';
+        $validated['widget_header_image_opacity'] = (int) $request->input('header_image_opacity', 100);
+        $validated['widget_background_image_opacity'] = (int) $request->input('background_image_opacity', 100);
 
         // Handle Launcher Icon Upload
         if ($request->hasFile('launcher_icon')) {
@@ -118,6 +135,17 @@ class BotProfileController extends Controller
         if ($request->hasFile('bot_avatar')) {
             $path = $request->file('bot_avatar')->store('bots/avatars', 'public');
             $validated['bot_avatar_url'] = asset('storage/' . $path);
+        }
+
+        // Handle Header and Chat Background Uploads
+        if ($request->hasFile('header_image')) {
+            $path = $request->file('header_image')->store('bots/backgrounds', 'public');
+            $validated['widget_header_image_url'] = asset('storage/' . $path);
+        }
+
+        if ($request->hasFile('background_image')) {
+            $path = $request->file('background_image')->store('bots/backgrounds', 'public');
+            $validated['widget_background_image_url'] = asset('storage/' . $path);
         }
 
         $bot = BotProfile::create($validated);
@@ -161,15 +189,22 @@ class BotProfileController extends Controller
             'widget_title' => ['required', 'string', 'max:255'],
             'widget_greeting' => ['nullable', 'string'],
             'widget_primary_color' => ['required', 'string', 'max:20'],
+            'widget_header_color' => ['nullable', 'string', 'max:20'],
+            'widget_header_text_color' => ['nullable', 'string', 'max:20'],
+            'header_image' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'],
+            'header_image_opacity' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'widget_background_color' => ['nullable', 'string', 'max:20'],
+            'background_image' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'],
+            'background_image_opacity' => ['nullable', 'integer', 'min:0', 'max:100'],
             'widget_position' => ['required', 'in:bottom-right,bottom-left'],
             'launcher_icon' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'],
-            'launcher_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit'],
+            'launcher_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit,cutout_circle,cutout_ring'],
             'launcher_size' => ['nullable', 'integer', 'min:40', 'max:160'],
             'close_icon' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'],
-            'close_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit'],
+            'close_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit,cutout_circle,cutout_ring'],
             'close_size' => ['nullable', 'integer', 'min:32', 'max:120'],
             'bot_avatar' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'],
-            'avatar_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit'],
+            'avatar_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit,cutout_circle,cutout_ring'],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
@@ -179,6 +214,14 @@ class BotProfileController extends Controller
         $validated['close_shape'] = $request->input('close_shape', 'circle');
         $validated['launcher_size'] = (int) $request->input('launcher_size', 60);
         $validated['close_size'] = (int) $request->input('close_size', 52);
+        $validated['widget_background_color'] = $request->input('widget_background_color') ?: '#FAFAFA';
+        // Ticked, the header follows the widget colour wherever it goes next.
+        $validated['widget_header_color'] = $request->boolean('header_color_matches')
+            ? null
+            : ($request->input('widget_header_color') ?: null);
+        $validated['widget_header_text_color'] = $request->input('widget_header_text_color') ?: '#FFFFFF';
+        $validated['widget_header_image_opacity'] = (int) $request->input('header_image_opacity', 100);
+        $validated['widget_background_image_opacity'] = (int) $request->input('background_image_opacity', 100);
 
         // Handle Launcher Icon Upload or Reset
         if ($request->boolean('remove_launcher_icon')) {
@@ -202,6 +245,21 @@ class BotProfileController extends Controller
         } elseif ($request->hasFile('bot_avatar')) {
             $path = $request->file('bot_avatar')->store('bots/avatars', 'public');
             $validated['bot_avatar_url'] = asset('storage/' . $path);
+        }
+
+        // Handle Header and Chat Background Uploads or Reset
+        if ($request->boolean('remove_header_image')) {
+            $validated['widget_header_image_url'] = null;
+        } elseif ($request->hasFile('header_image')) {
+            $path = $request->file('header_image')->store('bots/backgrounds', 'public');
+            $validated['widget_header_image_url'] = asset('storage/' . $path);
+        }
+
+        if ($request->boolean('remove_background_image')) {
+            $validated['widget_background_image_url'] = null;
+        } elseif ($request->hasFile('background_image')) {
+            $path = $request->file('background_image')->store('bots/backgrounds', 'public');
+            $validated['widget_background_image_url'] = asset('storage/' . $path);
         }
 
         $bot->update($validated);

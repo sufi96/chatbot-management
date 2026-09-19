@@ -268,11 +268,31 @@
                 </div>
             </div>
 
-            {{-- Appearance --}}
+            {{-- Appearance. One numbered section per part of the widget, so each
+                 setting sits beside the others that change the same thing. --}}
             <div class="card mb-3">
                 <div class="card-header">Widget appearance</div>
-                <div class="p-3">
-
+                <style>
+                    .appearance-section { padding: 1rem; }
+                    .appearance-section + .appearance-section { border-top: 1px solid var(--border); }
+                    .appearance-head { display: flex; align-items: flex-start; gap: 0.625rem; margin-bottom: 0.875rem; }
+                    .appearance-step { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+                        border: 1px solid var(--border-strong); display: inline-flex; align-items: center;
+                        justify-content: center; font-size: 0.6875rem; font-weight: 600; margin-top: 1px; }
+                    .appearance-title { font-size: 0.875rem; font-weight: 600; line-height: 1.3; }
+                    .appearance-hint { font-size: 0.75rem; }
+                    .appearance-part { font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+                        letter-spacing: 0.04em; margin-bottom: 0.5rem; }
+                    .appearance-split { border-top: 1px dashed var(--border); margin-top: 1rem; padding-top: 1rem; }
+                </style>
+                <section class="appearance-section">
+                    <div class="appearance-head">
+                        <span class="appearance-step">1</span>
+                        <div>
+                            <div class="appearance-title">Text and position</div>
+                            <div class="appearance-hint text-muted">What the chat says when it opens, and which corner it sits in.</div>
+                        </div>
+                    </div>
                     <div class="row g-3 mb-3">
                         <div class="col-12 col-sm-6">
                             <label for="widget_title" class="form-label">Header title</label>
@@ -288,13 +308,21 @@
                         </div>
                     </div>
 
-                    <div class="mb-3">
+                    <div>
                         <label for="widget_greeting" class="form-label">Opening greeting</label>
                         <input type="text" name="widget_greeting" id="widget_greeting" class="form-control"
                                value="{{ old('widget_greeting', $bot->widget_greeting) }}" oninput="updateLivePreview()">
                     </div>
-
-                    <div class="mb-3">
+                </section>
+                <section class="appearance-section">
+                    <div class="appearance-head">
+                        <span class="appearance-step">2</span>
+                        <div>
+                            <div class="appearance-title">Colours and backgrounds</div>
+                            <div class="appearance-hint text-muted">The brand colour, and what fills the header and the conversation behind the messages.</div>
+                        </div>
+                    </div>
+                    <div>
                         <label for="widget_primary_color" class="form-label">Widget colour</label>
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             <input type="color" name="widget_primary_color" id="widget_primary_color" class="form-control"
@@ -306,11 +334,115 @@
                                                border: 1px solid var(--border-strong); border-radius: var(--r-sm);"></button>
                             @endforeach
                         </div>
-                        <div class="form-text">Used for the launcher, the header and outgoing message bubbles.</div>
+                        <div class="form-text">Used for the launcher, the visitor's message bubbles and the send button, and for the header unless you give it a colour of its own.</div>
                     </div>
 
-                    <div class="row g-3" style="border-top: 1px solid var(--border); padding-top: 1rem;">
+                    <div class="row g-3 appearance-split">
+                        <div class="col-12 col-md-6">
+                            <div class="appearance-part text-muted">Header</div>
+                            @php $headerMatches = old('header_color_matches', $bot->widget_header_color ? null : '1'); @endphp
+                            <label for="widget_header_color" class="form-label">Header colour</label>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <input type="color" name="widget_header_color" id="widget_header_color" class="form-control"
+                                       value="{{ old('widget_header_color', $bot->widget_header_color ?: ($bot->widget_primary_color ?: '#1f2937')) }}"
+                                       oninput="updateLivePreview()" style="width: 52px;" {{ $headerMatches ? 'disabled' : '' }}>
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" type="checkbox" name="header_color_matches" value="1" id="header_color_matches"
+                                           {{ $headerMatches ? 'checked' : '' }} onchange="updateLivePreview()">
+                                    <label class="form-check-label" for="header_color_matches" style="font-size: 0.8125rem;">Same as the widget colour</label>
+                                </div>
+                            </div>
 
+                            <label for="widget_header_text_color" class="form-label mt-3">Text and icon colour</label>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <input type="color" name="widget_header_text_color" id="widget_header_text_color" class="form-control"
+                                       value="{{ old('widget_header_text_color', $bot->widget_header_text_color ?: '#FFFFFF') }}"
+                                       oninput="updateLivePreview()" style="width: 52px;">
+                                @foreach(['#FFFFFF' => 'White', '#F4F4F5' => 'Soft white', '#18181B' => 'Black', '#1f2937' => 'Graphite'] as $hex => $label)
+                                    <button type="button" onclick="setHeaderTextColor('{{ $hex }}')" title="{{ $label }}"
+                                            style="width: 26px; height: 26px; padding: 0; background-color: {{ $hex }};
+                                                   border: 1px solid var(--border-strong); border-radius: var(--r-sm);"></button>
+                                @endforeach
+                            </div>
+                            <div class="form-text">The title, the "Online" line and the clear, expand and close icons. Pick a dark one for a light header picture.</div>
+
+                            <label for="header_image_input" class="form-label mt-3 mb-1">Header picture <span class="text-muted fw-normal">(optional)</span></label>
+                            <input type="file" name="header_image" id="header_image_input" accept=".png,.jpg,.jpeg,.gif,.svg,.webp"
+                                   class="form-control form-control-sm"
+                                   onchange="previewBackground(this, 'header')">
+                            @if($bot->widget_header_image_url)
+                                <div class="mt-2 d-flex align-items-center gap-2 p-2"
+                                     style="border: 1px solid var(--border); border-radius: var(--r-sm);">
+                                    <img src="{{ $bot->widget_header_image_url }}" alt="Current header picture" class="identity" style="object-fit: cover;">
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input" type="checkbox" name="remove_header_image" value="1" id="remove_header_image"
+                                               onchange="updateLivePreview()">
+                                        <label class="form-check-label" for="remove_header_image" style="font-size: 0.75rem;">Remove and use the colour</label>
+                                    </div>
+                                </div>
+                            @endif
+                            <div class="form-text">Behind the title, shown as uploaded. If the text is hard to read, lower the opacity or change the text colour.</div>
+                            <div class="mt-3">
+                                @include('bots._slider', [
+                                    'name' => 'header_image_opacity', 'label' => 'Picture opacity',
+                                    'min' => 0, 'max' => 100, 'step' => 5, 'decimals' => 0, 'unit' => '%',
+                                    'value' => old('header_image_opacity', $bot->widget_header_image_opacity ?? 100),
+                                    'ends' => ['Colour only', 'Picture only'],
+                                    'hint' => 'Lower it to let the header colour show through the picture.',
+                                ])
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="appearance-part text-muted">Conversation</div>
+                            <label for="widget_background_color" class="form-label">Background colour</label>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <input type="color" name="widget_background_color" id="widget_background_color" class="form-control"
+                                       value="{{ old('widget_background_color', $bot->widget_background_color ?: '#FAFAFA') }}"
+                                       oninput="updateLivePreview()" style="width: 52px;">
+                                @foreach(['#FAFAFA' => 'Paper', '#FFFFFF' => 'White', '#F1F5F9' => 'Mist', '#FDF6E3' => 'Cream', '#ECFDF5' => 'Mint'] as $hex => $label)
+                                    <button type="button" onclick="setBackgroundColor('{{ $hex }}')" title="{{ $label }}"
+                                            style="width: 26px; height: 26px; padding: 0; background-color: {{ $hex }};
+                                                   border: 1px solid var(--border-strong); border-radius: var(--r-sm);"></button>
+                                @endforeach
+                            </div>
+
+                            <label for="background_image_input" class="form-label mt-3 mb-1">Background picture <span class="text-muted fw-normal">(optional)</span></label>
+                            <input type="file" name="background_image" id="background_image_input" accept=".png,.jpg,.jpeg,.gif,.svg,.webp"
+                                   class="form-control form-control-sm"
+                                   onchange="previewBackground(this, 'body')">
+                            @if($bot->widget_background_image_url)
+                                <div class="mt-2 d-flex align-items-center gap-2 p-2"
+                                     style="border: 1px solid var(--border); border-radius: var(--r-sm);">
+                                    <img src="{{ $bot->widget_background_image_url }}" alt="Current background picture" class="identity" style="object-fit: cover;">
+                                    <div class="form-check mb-0">
+                                        <input class="form-check-input" type="checkbox" name="remove_background_image" value="1" id="remove_background_image"
+                                               onchange="updateLivePreview()">
+                                        <label class="form-check-label" for="remove_background_image" style="font-size: 0.75rem;">Remove and use the colour</label>
+                                    </div>
+                                </div>
+                            @endif
+                            <div class="form-text">Behind the messages. The colour shows while the picture loads and wherever it is transparent.</div>
+                            <div class="mt-3">
+                                @include('bots._slider', [
+                                    'name' => 'background_image_opacity', 'label' => 'Picture opacity',
+                                    'min' => 0, 'max' => 100, 'step' => 5, 'decimals' => 0, 'unit' => '%',
+                                    'value' => old('background_image_opacity', $bot->widget_background_image_opacity ?? 100),
+                                    'ends' => ['Colour only', 'Picture only'],
+                                    'hint' => 'Lower it to soften a busy picture so the messages stay easy to read.',
+                                ])
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section class="appearance-section">
+                    <div class="appearance-head">
+                        <span class="appearance-step">3</span>
+                        <div>
+                            <div class="appearance-title">Corner button</div>
+                            <div class="appearance-hint text-muted">The floating button: how it looks before the chat opens, and once it is open.</div>
+                        </div>
+                    </div>
+                    <div class="row g-3">
                         {{-- Launcher --}}
                         <div class="col-12 col-md-6">
                             <div class="fw-semibold mb-1" style="font-size: 0.8125rem;">Launcher button</div>
@@ -364,6 +496,18 @@
                                             <span class="text-muted" style="font-size: 0.6875rem;">Follows the PNG outline, no container</span>
                                         </span>
                                     </label>
+                                    @foreach(['cutout_circle' => ['Cutout in filled circle', 'The top of the picture rises out of a solid circle'],
+                                              'cutout_ring' => ['Cutout in outlined circle', 'The top of the picture rises out of a ring']] as $value => $option)
+                                        <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
+                                            <input type="radio" name="launcher_shape" id="launcher_shape_{{ $value }}" value="{{ $value }}"
+                                                   {{ old('launcher_shape', $bot->launcher_shape ?? 'circle') === $value ? 'checked' : '' }}
+                                                   onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
+                                            <span>
+                                                <span class="d-block fw-semibold" style="font-size: 0.78125rem;">{{ $option[0] }}</span>
+                                                <span class="text-muted" style="font-size: 0.6875rem;">{{ $option[1] }}</span>
+                                            </span>
+                                        </label>
+                                    @endforeach
                                 </div>
                             </div>
 
@@ -436,6 +580,18 @@
                                             <span class="text-muted" style="font-size: 0.6875rem;">Follows the PNG outline, no container</span>
                                         </span>
                                     </label>
+                                    @foreach(['cutout_circle' => ['Cutout in filled circle', 'The top of the picture rises out of a solid circle'],
+                                              'cutout_ring' => ['Cutout in outlined circle', 'The top of the picture rises out of a ring']] as $value => $option)
+                                        <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
+                                            <input type="radio" name="close_shape" id="close_shape_{{ $value }}" value="{{ $value }}"
+                                                   {{ old('close_shape', $bot->close_shape ?? 'circle') === $value ? 'checked' : '' }}
+                                                   onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
+                                            <span>
+                                                <span class="d-block fw-semibold" style="font-size: 0.78125rem;">{{ $option[0] }}</span>
+                                                <span class="text-muted" style="font-size: 0.6875rem;">{{ $option[1] }}</span>
+                                            </span>
+                                        </label>
+                                    @endforeach
                                 </div>
                             </div>
 
@@ -451,11 +607,19 @@
                                 <div class="form-text">Usually a little smaller than the launcher, so closing feels lighter than opening.</div>
                             </div>
                         </div>
-
+                    </div>
+                </section>
+                <section class="appearance-section">
+                    <div class="appearance-head">
+                        <span class="appearance-step">4</span>
+                        <div>
+                            <div class="appearance-title">Chat avatar</div>
+                            <div class="appearance-hint text-muted">Shown in the chat header and beside each reply.</div>
+                        </div>
+                    </div>
+                    <div class="row g-3">
                         {{-- Avatar --}}
                         <div class="col-12 col-md-6">
-                            <div class="fw-semibold mb-1" style="font-size: 0.8125rem;">Chat avatar</div>
-                            <p class="text-muted mb-2" style="font-size: 0.75rem;">Shown in the chat header and beside each reply.</p>
 
                             <label for="bot_avatar_input" class="visually-hidden">Avatar image</label>
                             <input type="file" name="bot_avatar" id="bot_avatar_input" accept=".png,.jpg,.jpeg,.gif,.svg,.webp"
@@ -505,12 +669,23 @@
                                             <span class="text-muted" style="font-size: 0.6875rem;">Tall or wide art without cropping</span>
                                         </span>
                                     </label>
+                                    @foreach(['cutout_circle' => ['Cutout in filled circle', 'The top of the picture rises out of a solid circle'],
+                                              'cutout_ring' => ['Cutout in outlined circle', 'The top of the picture rises out of a ring']] as $value => $option)
+                                        <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
+                                            <input type="radio" name="avatar_shape" id="avatar_shape_{{ $value }}" value="{{ $value }}"
+                                                   {{ old('avatar_shape', $bot->avatar_shape ?? 'circle') === $value ? 'checked' : '' }}
+                                                   onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
+                                            <span>
+                                                <span class="d-block fw-semibold" style="font-size: 0.78125rem;">{{ $option[0] }}</span>
+                                                <span class="text-muted" style="font-size: 0.6875rem;">{{ $option[1] }}</span>
+                                            </span>
+                                        </label>
+                                    @endforeach
                                 </div>
                             </div>
                         </div>
-
                     </div>
-                </div>
+                </section>
             </div>
 
             {{-- Danger zone. Forms cannot nest, so the button submits
@@ -577,15 +752,38 @@
                              It renders the customer-facing widget, so it keeps the
                              bot's own brand colour rather than the console palette. --}}
                         <div class="tab-pane fade show active" id="pane-preview" role="tabpanel">
-                            <div class="d-flex flex-column" style="height: 420px; background: #f4f4f5;">
+                            <style>
+                                /* The widget's cutout-in-a-circle, for the preview. The picture
+                                   sits in a clip whose bottom is the circle's lower half, so it
+                                   rises out of the top. Outside a cutout the clip does nothing. */
+                                #pane-preview .pv-clip { display: contents; }
+                                #pane-preview .pv-cutout { position: relative; overflow: visible !important;
+                                    background: transparent !important; border: none !important;
+                                    border-radius: 0 !important; box-shadow: none !important; }
+                                #pane-preview .pv-cutout::before, #pane-preview .pv-cutout-ring::after {
+                                    content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; }
+                                #pane-preview .pv-cutout::before { background: var(--pv-fill); z-index: 0; }
+                                #pane-preview .pv-cutout-ring::before { background: transparent; border: 2px solid var(--pv-line); }
+                                #pane-preview .pv-cutout-ring::after { border: 2px solid var(--pv-line);
+                                    clip-path: inset(50% 0 0 0); z-index: 2; }
+                                #pane-preview .pv-cutout > i { position: relative; z-index: 1; }
+                                #pane-preview .pv-cutout .pv-clip { display: flex; position: absolute; left: 0; right: 0;
+                                    bottom: 0; height: 135%; overflow: hidden; border-radius: 0 0 999px 999px;
+                                    align-items: flex-end; justify-content: center; z-index: 1; }
+                                #pane-preview .pv-cutout .pv-clip img { width: auto !important; height: auto !important;
+                                    max-width: 100% !important; max-height: 100% !important; border-radius: 0 !important;
+                                    filter: none !important; object-fit: contain !important; }
+                            </style>
+                            <div class="d-flex flex-column" style="height: 440px; background: #f4f4f5;">
                                 <div id="prevHeader" class="p-3 d-flex align-items-center justify-content-between flex-shrink-0"
+                                     data-image="{{ $bot->widget_header_image_url }}"
                                      style="background: {{ $bot->widget_primary_color ?: '#1f2937' }}; color: #ffffff;">
                                     <div class="d-flex align-items-center gap-2.5">
                                         <div id="prevAvatarContainer"
                                              class="d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0"
                                              style="width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,0.22);">
-                                            <img id="prevAvatarImg" src="{{ $bot->bot_avatar_url ?: '' }}" alt=""
-                                                 style="{{ $bot->bot_avatar_url ? 'display:block;' : 'display:none;' }} width: 100%; height: 100%; object-fit: contain;">
+                                            <span class="pv-clip"><img id="prevAvatarImg" src="{{ $bot->bot_avatar_url ?: '' }}" alt=""
+                                                 style="{{ $bot->bot_avatar_url ? 'display:block;' : 'display:none;' }} width: 100%; height: 100%; object-fit: contain;"></span>
                                             <i id="prevAvatarDefault" class="bi bi-robot"
                                                style="{{ $bot->bot_avatar_url ? 'display:none;' : 'display:block;' }} font-size: 1rem; color: #ffffff;"></i>
                                         </div>
@@ -594,16 +792,21 @@
                                             <div style="font-size: 0.6875rem; opacity: 0.75;">Online</div>
                                         </div>
                                     </div>
-                                    <i class="bi bi-x-lg" style="font-size: 0.8rem; opacity: 0.7;"></i>
+                                    <span class="d-flex align-items-center gap-2" style="opacity: 0.8;">
+                                        <i class="bi bi-trash3" style="font-size: 0.75rem;"></i>
+                                        <i class="bi bi-arrows-angle-expand" style="font-size: 0.75rem;"></i>
+                                        <i class="bi bi-x-lg" style="font-size: 0.8rem;"></i>
+                                    </span>
                                 </div>
 
-                                <div class="p-3 flex-grow-1 overflow-auto d-flex flex-column gap-2.5">
+                                <div id="prevBody" data-image="{{ $bot->widget_background_image_url }}" class="p-3 flex-grow-1 overflow-auto d-flex flex-column gap-2.5"
+                                     style="background-color: {{ $bot->widget_background_color ?: '#FAFAFA' }}; background-size: cover; background-position: center;">
                                     <div class="d-flex align-items-start gap-2" style="max-width: 88%;">
                                         <div id="prevMiniAvatar"
                                              class="d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0"
                                              style="width: 24px; height: 24px; border-radius: 50%; margin-top: 2px; color: #fff; background-color: {{ $bot->widget_primary_color ?: '#1f2937' }};">
-                                            <img id="prevMiniAvatarImg" src="{{ $bot->bot_avatar_url ?: '' }}" alt=""
-                                                 style="{{ $bot->bot_avatar_url ? 'display:block;' : 'display:none;' }} width: 100%; height: 100%; object-fit: contain;">
+                                            <span class="pv-clip"><img id="prevMiniAvatarImg" src="{{ $bot->bot_avatar_url ?: '' }}" alt=""
+                                                 style="{{ $bot->bot_avatar_url ? 'display:block;' : 'display:none;' }} width: 100%; height: 100%; object-fit: contain;"></span>
                                             <i id="prevMiniAvatarDefault" class="bi bi-robot"
                                                style="{{ $bot->bot_avatar_url ? 'display:none;' : 'display:block;' }} font-size: 0.7rem;"></i>
                                         </div>
@@ -626,9 +829,14 @@
                                             <span id="prevThinkingText">Reading your message...</span>
                                         </div>
                                     </div>
+
+                                    <div class="mt-auto align-self-center text-center"
+                                         style="margin-bottom: -0.625rem; font-size: 0.625rem; line-height: 1.4; color: #71717a; background: rgba(255,255,255,0.82); border-radius: 999px; padding: 0.1875rem 0.625rem;">
+                                        AI can make mistakes. Please verify important information.
+                                    </div>
                                 </div>
 
-                                <div class="p-2 d-flex align-items-center gap-2 flex-shrink-0"
+                                <div class="p-2 d-flex flex-wrap align-items-center gap-2 flex-shrink-0"
                                      style="background: #ffffff; border-top: 1px solid #e4e4e7;">
                                     <input type="text" aria-label="Message preview" disabled placeholder="Type a message"
                                            style="flex: 1; min-width: 0; background: #f4f4f5; color: #71717a; border: 1px solid #e4e4e7; border-radius: 6px; padding: 0.375rem 0.625rem; font-size: 0.78125rem;">
@@ -636,6 +844,9 @@
                                             style="border: none; border-radius: 6px; padding: 0.375rem 0.625rem; color: #fff; background-color: {{ $bot->widget_primary_color ?: '#1f2937' }};">
                                         <i class="bi bi-send" style="font-size: 0.75rem;"></i>
                                     </button>
+                                    <div class="w-100 text-center" style="font-size: 0.625rem; line-height: 1.4; color: #a1a1aa;">
+                                        Powered by C<sup>4</sup>
+                                    </div>
                                 </div>
                             </div>
 
@@ -646,8 +857,8 @@
                                             <div id="prevLauncherBtn"
                                                  class="d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0"
                                                  style="width: 48px; height: 48px; border-radius: 50%; color: #fff; background-color: {{ $bot->widget_primary_color ?: '#1f2937' }};">
-                                                <img id="prevLauncherImg" src="{{ $bot->launcher_icon_url ?: '' }}" alt=""
-                                                     style="{{ $bot->launcher_icon_url ? 'display:block;' : 'display:none;' }} width: 100%; height: 100%; object-fit: contain;">
+                                                <span class="pv-clip"><img id="prevLauncherImg" src="{{ $bot->launcher_icon_url ?: '' }}" alt=""
+                                                     style="{{ $bot->launcher_icon_url ? 'display:block;' : 'display:none;' }} width: 100%; height: 100%; object-fit: contain;"></span>
                                                 <i id="prevLauncherDefault" class="bi bi-chat-dots"
                                                    style="{{ $bot->launcher_icon_url ? 'display:none;' : 'display:block;' }} font-size: 1.05rem;"></i>
                                             </div>
@@ -660,8 +871,8 @@
                                             <div id="prevCloseBtn"
                                                  class="d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0"
                                                  style="width: 42px; height: 42px; border-radius: 50%; color: #fff; background-color: {{ $bot->widget_primary_color ?: '#1f2937' }};">
-                                                <img id="prevCloseImg" src="{{ $bot->close_icon_url ?: '' }}" alt=""
-                                                     style="{{ $bot->close_icon_url ? 'display:block;' : 'display:none;' }} width: 100%; height: 100%; object-fit: contain;">
+                                                <span class="pv-clip"><img id="prevCloseImg" src="{{ $bot->close_icon_url ?: '' }}" alt=""
+                                                     style="{{ $bot->close_icon_url ? 'display:block;' : 'display:none;' }} width: 100%; height: 100%; object-fit: contain;"></span>
                                                 <i id="prevCloseDefault" class="bi bi-x-lg"
                                                    style="{{ $bot->close_icon_url ? 'display:none;' : 'display:block;' }} font-size: 0.95rem;"></i>
                                             </div>
@@ -884,8 +1095,34 @@
      * a person from being squashed into a square. The widget applies the same
      * rule, so the preview and the live launcher agree.
      */
+    /**
+     * Draws a cutout-in-a-circle shape, or clears it when shape is anything
+     * else. Returns whether it drew one, so the caller can skip its own rules.
+     */
+    function applyCutout(el, shape, size, fill, line) {
+        el.classList.remove('pv-cutout', 'pv-cutout-circle', 'pv-cutout-ring');
+        if (shape !== 'cutout_circle' && shape !== 'cutout_ring') return false;
+
+        el.classList.add('pv-cutout', shape === 'cutout_ring' ? 'pv-cutout-ring' : 'pv-cutout-circle');
+        el.style.width = size + 'px';
+        el.style.height = size + 'px';
+        el.style.setProperty('--pv-fill', fill);
+        el.style.setProperty('--pv-line', line);
+        el.style.color = shape === 'cutout_ring' ? line : '#ffffff';
+        return true;
+    }
+
     function styleCornerButton(btn, img, defaultIcon, shape, size, color) {
         if (!btn) return;
+
+        if (applyCutout(btn, shape, size, color, color)) {
+            if (defaultIcon) {
+                defaultIcon.style.color = '';
+                defaultIcon.style.fontSize = Math.round(size * 0.42) + 'px';
+            }
+            return;
+        }
+        btn.style.color = '#fff';
 
         if (shape === 'transparent_fit') {
             btn.style.backgroundColor = 'transparent';
@@ -948,7 +1185,31 @@
 
         document.getElementById('prevTitle').textContent = title;
         document.getElementById('prevGreeting').textContent = greeting;
-        document.getElementById('prevHeader').style.background = color;
+        // The header follows the widget colour until it is given its own.
+        var headerPicker = document.getElementById('widget_header_color');
+        var headerMatches = document.getElementById('header_color_matches').checked;
+        headerPicker.disabled = headerMatches;
+        if (headerMatches) headerPicker.value = color;
+        var headerColor = headerPicker.value || color;
+
+        var header = document.getElementById('prevHeader');
+        var headerImage = header.dataset.image;
+        var removeHeader = document.getElementById('remove_header_image');
+        header.style.backgroundColor = headerColor;
+        header.style.color = document.getElementById('widget_header_text_color').value || '#ffffff';
+        header.style.backgroundSize = 'cover';
+        header.style.backgroundPosition = 'center';
+        header.style.backgroundImage = (headerImage && !(removeHeader && removeHeader.checked && !header.dataset.fresh))
+            ? pictureLayers(headerImage, headerColor, readRange('header_image_opacity', 100))
+            : 'none';
+
+        var body = document.getElementById('prevBody');
+        var bodyImage = body.dataset.image;
+        var removeBody = document.getElementById('remove_background_image');
+        var bodyColor = document.getElementById('widget_background_color').value || '#FAFAFA';
+        body.style.backgroundColor = bodyColor;
+        body.style.backgroundImage = (bodyImage && !(removeBody && removeBody.checked && !body.dataset.fresh))
+            ? pictureLayers(bodyImage, bodyColor, readRange('background_image_opacity', 100)) : 'none';
         document.getElementById('prevUserMsg').style.backgroundColor = color;
         document.getElementById('prevSendBtn').style.backgroundColor = color;
 
@@ -980,6 +1241,13 @@
         var avatarImg = document.getElementById('prevAvatarImg');
         var miniAvatar = document.getElementById('prevMiniAvatar');
         var miniAvatarImg = document.getElementById('prevMiniAvatarImg');
+
+        var headerCutout = applyCutout(avatarContainer, avatarShape, 38, 'rgba(255,255,255,0.22)', 'rgba(255,255,255,0.75)');
+        var miniCutout = applyCutout(miniAvatar, avatarShape, 28, color, color);
+        if (headerCutout || miniCutout) {
+            return;
+        }
+        miniAvatar.style.color = avatarShape === 'circle_transparent' ? color : '#fff';
 
         if (avatarShape === 'transparent_fit') {
             avatarContainer.style.background = 'transparent';
@@ -1072,6 +1340,54 @@
     function setColor(hex) {
         document.getElementById('widget_primary_color').value = hex;
         updateLivePreview();
+    }
+
+    /**
+     * A picture at an opacity over its colour, drawn as a wash of the colour
+     * on top of it. The widget uses the same rule.
+     */
+    function pictureLayers(url, color, opacity) {
+        var m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(color || '');
+        var wash = (100 - Number(opacity)) / 100;
+        var layers = [];
+        if (m && wash > 0) {
+            var rgba = 'rgba(' + parseInt(m[1], 16) + ',' + parseInt(m[2], 16) + ',' + parseInt(m[3], 16) + ',' + wash + ')';
+            layers.push('linear-gradient(' + rgba + ', ' + rgba + ')');
+        }
+        layers.push('url("' + url + '")');
+        return layers.join(', ');
+    }
+
+    // The opacity sliders come from a shared partial, so they are listened
+    // to here rather than given an oninput of their own.
+    document.addEventListener('input', function (event) {
+        if (event.target.id === 'header_image_opacity' || event.target.id === 'background_image_opacity') {
+            updateLivePreview();
+        }
+    });
+
+    function setHeaderTextColor(hex) {
+        document.getElementById('widget_header_text_color').value = hex;
+        updateLivePreview();
+    }
+
+    function setBackgroundColor(hex) {
+        document.getElementById('widget_background_color').value = hex;
+        updateLivePreview();
+    }
+
+    // A picture picked here replaces the stored one in the preview. Marked
+    // fresh, so ticking "Remove" on the old one does not hide the new one.
+    function previewBackground(input, target) {
+        if (!input.files || !input.files[0]) return;
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var el = document.getElementById(target === 'header' ? 'prevHeader' : 'prevBody');
+            el.dataset.image = e.target.result;
+            el.dataset.fresh = '1';
+            updateLivePreview();
+        };
+        reader.readAsDataURL(input.files[0]);
     }
 
     function previewUpload(input, imgId, defaultIconId, miniImgId) {

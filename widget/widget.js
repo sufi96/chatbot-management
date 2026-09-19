@@ -1593,41 +1593,31 @@
 
         isStreaming = true;
 
-        // Dynamic thinking animation that rotates phrases every few seconds so user knows it's working
-        var thinkingPhrases = [
-            "Thinking...",
-            "Analyzing request...",
-            "Checking knowledge...",
-            "Formulating answer...",
-            "Crafting response..."
-        ];
-        var phraseIndex = 0;
-        var thinkingInterval = null;
-
+        // The engine says which step it is on (reading the message, searching
+        // a source, writing the reply), so the bubble shows that rather than
+        // guessing. An engine too old to say keeps the first line throughout.
         var botBubble = appendMessage("bot", "");
-        botBubble.innerHTML = '<div class="thinking-box"><span class="thinking-pulse-ring"></span><span class="thinking-text fade-in">Thinking...</span></div>';
+        botBubble.innerHTML = '<div class="thinking-box"><span class="thinking-pulse-ring"></span><span class="thinking-text fade-in">Reading your message...</span></div>';
         var thinkingTextEl = botBubble.querySelector(".thinking-text");
+        var statusSwap = null;
 
-        thinkingInterval = setInterval(function () {
-            phraseIndex = (phraseIndex + 1) % thinkingPhrases.length;
-            if (thinkingTextEl) {
-                thinkingTextEl.classList.remove("fade-in");
-                thinkingTextEl.classList.add("fade-out");
-                setTimeout(function () {
-                    if (thinkingTextEl) {
-                        thinkingTextEl.textContent = thinkingPhrases[phraseIndex];
-                        thinkingTextEl.classList.remove("fade-out");
-                        thinkingTextEl.classList.add("fade-in");
-                    }
-                }, 220);
-            }
-        }, 2500);
+        function showStatus(text) {
+            if (!thinkingTextEl || !text) return;
+            clearTimeout(statusSwap);
+            thinkingTextEl.classList.remove("fade-in");
+            thinkingTextEl.classList.add("fade-out");
+            statusSwap = setTimeout(function () {
+                if (thinkingTextEl) {
+                    thinkingTextEl.textContent = text;
+                    thinkingTextEl.classList.remove("fade-out");
+                    thinkingTextEl.classList.add("fade-in");
+                }
+            }, 220);
+        }
 
         function stopThinking() {
-            if (thinkingInterval) {
-                clearInterval(thinkingInterval);
-                thinkingInterval = null;
-            }
+            clearTimeout(statusSwap);
+            thinkingTextEl = null;
         }
 
         chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -1717,7 +1707,9 @@
                             }
                             try {
                                 var parsed = JSON.parse(dataStr);
-                                if (parsed.type === "sources") {
+                                if (parsed.type === "status") {
+                                    showStatus(parsed.text);
+                                } else if (parsed.type === "sources") {
                                     pendingSources = parsed.sources || [];
                                     pendingSourceKind = parsed.kind || "";
                                 } else if (parsed.meta) {

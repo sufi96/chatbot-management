@@ -2,6 +2,7 @@ import asyncio
 import json
 import time
 import uuid
+from dataclasses import dataclass
 from typing import List, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -22,6 +23,58 @@ from reasoning import TranscriptCollector
 
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
+
+# What the widget shows while the visitor waits, one line per step the engine
+# actually takes. An older widget ignores an event type it does not know.
+STATUS_TEXT = {
+    "reading": "Understanding intent...",
+    "documents": "Consulting the knowledge base...",
+    "database": "Retrieving records...",
+    "web": "Researching the web...",
+    "writing": "Composing a response...",
+}
+
+
+def status(stage: str) -> str:
+    payload = {"type": "status", "stage": stage, "text": STATUS_TEXT[stage]}
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+@dataclass
+class Consulted:
+    found: object
+
+
+async def consult(order: list, enabled: dict, attempts: dict):
+    """Runs the source cascade, yielding each source's name as it is tried.
+
+    The cascade itself stays unaware of the widget: each attempt is wrapped to
+    announce itself on a queue, and this reads the queue while the cascade
+    runs. The last thing yielded is the cascade's result.
+    """
+    tried = asyncio.Queue()
+
+    def announced(name, attempt):
+        async def run():
+            tried.put_nowait(name)
+            return await attempt()
+        return run
+
+    cascade = asyncio.ensure_future(sources.resolve(
+        order, enabled, {name: announced(name, attempt) for name, attempt in attempts.items()}))
+    try:
+        while True:
+            waiting = asyncio.ensure_future(tried.get())
+            await asyncio.wait({cascade, waiting}, return_when=asyncio.FIRST_COMPLETED)
+            if waiting.done():
+                yield waiting.result()
+                continue
+            waiting.cancel()
+            break
+        yield Consulted(cascade.result())
+    finally:
+        # A visitor who leaves mid-search takes the search with them.
+        cascade.cancel()
 
 class ChatStreamRequest(BaseModel):
     bot_id: str
@@ -140,82 +193,91 @@ async def chat_stream(
 
     conv_id = conversation.id
 
-    engine_settings = await get_settings(db)
-    enabled = sources.enabled_for(bot)
-
-    guarding = bool(bot.guard_enabled)
-
-    # Whether to search, and for what. A greeting is settled by word rules and
-    # costs nothing. A bot told to understand follow-ups also has the intent
-    # model rewrite the question, so the sources search what the visitor meant.
-    # On a guarded bot the input check runs beside it rather than before it,
-    # so the visitor waits for the slower of the two, not both in turn.
-    reading = intent.decide(bot, req.message, req.history or [], engine_settings, enabled)
-    if guarding:
-        decision, verdict = await asyncio.gather(
-            reading, guard.check(bot, req.message, engine_settings))
-    else:
-        decision, verdict = await reading, guard.Verdict()
-
-    blocked = not verdict.safe
-    # A refused message consults nothing: searching for it would only put
-    # material about the harm in front of a model that is not going to answer.
-    message_is_a_question = decision.is_question and not blocked
-
-    if decision.intent or blocked:
-        if decision.intent:
-            # Kept on the visitor's own row, beside the words it was read from.
-            user_msg.intent = decision.intent
-            user_msg.intent_query = decision.query if decision.query != req.message else None
-        if blocked:
-            user_msg.guard_flag = verdict.category or "unsafe"
-        await db.commit()
-
-    # The sources are consulted in the operator's order until one of them has
-    # something. Nothing here decides which source suits the question; that was
-    # a router, and an order is what an operator can actually configure.
-    found = None
-    if message_is_a_question and any(enabled.values()):
-        rows = await db.execute(
-            select(BotKbCollection.collection_id).where(BotKbCollection.bot_id == bot.id))
-        collection_ids = list(rows.scalars().all())
-
-        found = await sources.resolve(
-            sources.normalise(bot.source_order),
-            enabled,
-            sources.build_attempts(db, bot, decision.query, engine_settings, collection_ids))
-
-    context_block = found.context_block if found else ""
-    fallback = sources.fallback_for(bot, message_is_a_question, enabled)
-
-    final_prompt = augment_system_prompt(bot.system_prompt or "", context_block, fallback)
-
-    # Read once, outside the generator: the endpoint belongs to the provider
-    # the bot points at, not to the bot.
-    bot_base_url, bot_api_key = provider_endpoint(bot)
-
-    # Resolved once, for the trace only. The database attempt resolves the same
-    # endpoint for itself; this records which model that was.
-    sql_model = roles.endpoint_for("sql", bot, engine_settings).model
-
-    # The model behind each job that ran, for the trace written after the stream.
-    used_models = {"intent": decision.model}
-    if found and found.sql:
-        used_models["sql"] = sql_model
-    if found and found.reranked_by:
-        used_models["rerank"] = found.reranked_by
-    if verdict.model:
-        used_models["guard"] = verdict.model
-
-    searched = message_is_a_question and any(enabled.values())
-    answer_fields = {
-        "source_kind": sources.answer_kind(found, searched, blocked),
-        # What the widget was shown, so the page can count which documents
-        # and sites actually answer visitors.
-        "citations": json.dumps(found.citations) if (found and found.citations) else None,
-    }
-
+    # Everything from here on happens inside the stream, so the headers go out
+    # at once and the widget can say which step the visitor is waiting on
+    # instead of guessing. The request's session stays open until the response
+    # has been sent, which FastAPI has guaranteed since 0.118.
     async def sse_event_stream():
+        engine_settings = await get_settings(db)
+        enabled = sources.enabled_for(bot)
+
+        guarding = bool(bot.guard_enabled)
+
+        # Whether to search, and for what. A greeting is settled by word rules and
+        # costs nothing. A bot told to understand follow-ups also has the intent
+        # model rewrite the question, so the sources search what the visitor meant.
+        # On a guarded bot the input check runs beside it rather than before it,
+        # so the visitor waits for the slower of the two, not both in turn.
+        yield status("reading")
+        reading = intent.decide(bot, req.message, req.history or [], engine_settings, enabled)
+        if guarding:
+            decision, verdict = await asyncio.gather(
+                reading, guard.check(bot, req.message, engine_settings))
+        else:
+            decision, verdict = await reading, guard.Verdict()
+
+        blocked = not verdict.safe
+        # A refused message consults nothing: searching for it would only put
+        # material about the harm in front of a model that is not going to answer.
+        message_is_a_question = decision.is_question and not blocked
+
+        if decision.intent or blocked:
+            if decision.intent:
+                # Kept on the visitor's own row, beside the words it was read from.
+                user_msg.intent = decision.intent
+                user_msg.intent_query = decision.query if decision.query != req.message else None
+            if blocked:
+                user_msg.guard_flag = verdict.category or "unsafe"
+            await db.commit()
+
+        # The sources are consulted in the operator's order until one of them has
+        # something. Nothing here decides which source suits the question; that was
+        # a router, and an order is what an operator can actually configure.
+        found = None
+        if message_is_a_question and any(enabled.values()):
+            rows = await db.execute(
+                select(BotKbCollection.collection_id).where(BotKbCollection.bot_id == bot.id))
+            collection_ids = list(rows.scalars().all())
+
+            consulting = consult(
+                sources.normalise(bot.source_order),
+                enabled,
+                sources.build_attempts(db, bot, decision.query, engine_settings, collection_ids))
+            async for step in consulting:
+                if isinstance(step, str):
+                    yield status(step)
+                else:
+                    found = step.found
+
+        context_block = found.context_block if found else ""
+        fallback = sources.fallback_for(bot, message_is_a_question, enabled)
+
+        final_prompt = augment_system_prompt(bot.system_prompt or "", context_block, fallback)
+
+        # The endpoint belongs to the provider the bot points at, not to the bot.
+        bot_base_url, bot_api_key = provider_endpoint(bot)
+
+        # Resolved once, for the trace only. The database attempt resolves the same
+        # endpoint for itself; this records which model that was.
+        sql_model = roles.endpoint_for("sql", bot, engine_settings).model
+
+        # The model behind each job that ran, for the trace written after the stream.
+        used_models = {"intent": decision.model}
+        if found and found.sql:
+            used_models["sql"] = sql_model
+        if found and found.reranked_by:
+            used_models["rerank"] = found.reranked_by
+        if verdict.model:
+            used_models["guard"] = verdict.model
+
+        searched = message_is_a_question and any(enabled.values())
+        answer_fields = {
+            "source_kind": sources.answer_kind(found, searched, blocked),
+            # What the widget was shown, so the page can count which documents
+            # and sites actually answer visitors.
+            "citations": json.dumps(found.citations) if (found and found.citations) else None,
+        }
+
         if blocked:
             # The refusal stands in for the answer, in the shape the widget
             # already draws. No sources, no model, no meta.
@@ -289,6 +351,7 @@ async def chat_stream(
             payload = {"type": "sources", "kind": found.kind,
                        "sources": found.citations}
             yield f"data: {json.dumps(payload)}\n\n"
+        yield status("writing")
         try:
             async for chunk in LLMAdapter.stream_chat(
                 base_url=bot_base_url,

@@ -623,7 +623,7 @@
                                     <div class="d-flex align-items-center gap-2" style="max-width: 88%;">
                                         <div style="width: 24px; height: 24px; flex-shrink: 0;"></div>
                                         <div style="background: #ffffff; color: #71717a; border: 1px solid #e4e4e7; border-radius: 10px 10px 10px 3px; padding: 0.4375rem 0.75rem; font-size: 0.75rem;">
-                                            <span id="prevThinkingText">Thinking...</span>
+                                            <span id="prevThinkingText">Reading your message...</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1700,8 +1700,8 @@
         });
     }
 
-    // Dynamic Thinking Indicator rotation for live preview demo
-    var thinkingWords = ["Thinking...", "Analyzing...", "Drafting response...", "Almost ready..."];
+    // The preview walks through the steps the engine reports while a visitor waits
+    var thinkingWords = ["Reading your message...", "Understanding intent...", "Consulting the knowledge base...", "Composing a response..."];
     var thinkingIndex = 0;
     setInterval(function() {
         var el = document.getElementById('prevThinkingText');

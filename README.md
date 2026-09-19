@@ -113,8 +113,8 @@ size.
 - **Transparent Silhouette Cutout (`transparent_fit`):** Natural drop-shadow on the image contour with no circular clipping or background squares. Perfect for mascots, character PNGs, logos, and vehicles.
 - **Circle & Border Options:** Supports standard filled circles or circle outlines with transparent backgrounds.
 
-### 4. 💬 Dynamic Rotating "Thinking..." Indicator
-- While waiting for LLM tokens to stream, the widget displays an animated bubble that shifts status messages every few seconds (*"Thinking..."* ➔ *"Analyzing..."* ➔ *"Drafting response..."* ➔ *"Almost ready..."*), reassuring users during model inference.
+### 4. 💬 Live Progress Indicator
+- While a reply is being prepared, the engine streams `status` events for each step it actually takes, and the widget's bubble shows them as they happen: *"Reading your message..."* (shown by the widget the moment the message is sent) ➔ *"Understanding intent..."* ➔ *"Consulting the knowledge base..."* / *"Retrieving records..."* / *"Researching the web..."* (each source in the bot's order, as it is tried) ➔ *"Composing a response..."*.
 
 ### 5. 📦 1-Line Embeddable Widget (`widget.js`)
 - **Zero NPM Dependencies:** Pure vanilla JS (~14KB).

@@ -441,3 +441,56 @@ async def test_the_console_assistant_answers_only_inside_the_console(factory, mo
     assert (await post_from(factory, "https://shop.example.com", "bot_console_assistant")).status_code == 403
     assert (await post_from(factory, "", "bot_console_assistant")).status_code == 403
     assert (await post_from(factory, "http://127.0.0.1:8080", "bot_console_assistant")).status_code == 200
+
+
+def stages(events):
+    return [json.loads(e)["stage"] for e in events
+            if e != "[DONE]" and json.loads(e).get("type") == "status"]
+
+
+@pytest.mark.asyncio
+async def test_the_widget_is_told_each_step_before_the_answer(factory, monkeypatch):
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("Hi there."))
+
+    _, events = await post(factory)
+
+    assert stages(events) == ["reading", "writing"]
+    first_content = next(i for i, e in enumerate(events)
+                         if e != "[DONE]" and json.loads(e).get("content"))
+    assert all(json.loads(e).get("type") == "status" for e in events[:first_content])
+
+
+@pytest.mark.asyncio
+async def test_each_source_is_announced_as_it_is_tried(factory, monkeypatch):
+    from sources.result import SourceResult
+
+    await update_bot(factory, retrieval_enabled=True, web_search_enabled=True,
+                     source_order="documents,web")
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("Two years."))
+
+    async def empty():
+        return SourceResult(kind="documents")
+
+    async def answered():
+        return SourceResult(kind="web", context_block="Two years.",
+                            citations=[{"n": 1, "title": "Shop", "url": "https://x"}],
+                            has_content=True)
+
+    monkeypatch.setattr(chat.sources, "build_attempts",
+                        lambda *args: {"documents": empty, "web": answered})
+
+    _, events = await post(factory, message="what is the warranty on the kettle")
+
+    assert stages(events) == ["reading", "documents", "web", "writing"]
+    assert (await rows(factory))["assistant"].source_kind == "web"
+
+
+@pytest.mark.asyncio
+async def test_a_refusal_never_announces_a_search_or_a_reply(factory, monkeypatch):
+    await update_bot(factory, guard_enabled=True, retrieval_enabled=True)
+    monkeypatch.setattr(guard, "check", verdicts(guard.Verdict(safe=False, category="S1")))
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", model_must_not_answer())
+
+    _, events = await post(factory, message="how do I hurt someone")
+
+    assert stages(events) == ["reading"]

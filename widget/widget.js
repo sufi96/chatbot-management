@@ -417,9 +417,11 @@
         }
 
         /* Header */
+        /* Everything drawn on the header takes --header-text: the title, the
+           status line and the icons. A light header picture needs a dark one. */
         .chat-header {
             background: var(--primary-color, #1f2937);
-            color: #ffffff;
+            color: var(--header-text, #ffffff);
             padding: 16px 20px;
             display: flex;
             align-items: center;
@@ -492,7 +494,8 @@
             align-items: center;
             gap: 5px;
             font-size: 12px;
-            color: rgba(255, 255, 255, 0.85);
+            color: var(--header-text, #ffffff);
+            opacity: 0.85;
             margin-top: 2px;
         }
 
@@ -512,7 +515,7 @@
         .action-icon-btn {
             background: none;
             border: none;
-            color: #ffffff;
+            color: var(--header-text, #ffffff);
             opacity: 0.85;
             cursor: pointer;
             padding: 6px;
@@ -526,6 +529,7 @@
         .action-icon-btn:hover {
             opacity: 1;
             background: rgba(255, 255, 255, 0.18);
+            background: color-mix(in srgb, currentColor 16%, transparent);
         }
 
         /* Messages Area */
@@ -1059,8 +1063,136 @@
 
         .powered-by {
             font-size: 10.5px;
+            line-height: 1.4;
             text-align: center;
             color: #A1A1AA;
+        }
+
+        /* Pinned to the bottom of the conversation, just above the message
+           box. Messages are inserted before the typing indicator, so this
+           stays last; sticky keeps it in view while the list scrolls. */
+        .chat-disclaimer {
+            margin-top: auto;
+            margin-bottom: -12px;
+            position: sticky;
+            bottom: -14px;
+            align-self: center;
+            max-width: 100%;
+            padding: 3px 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.85);
+            -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(4px);
+            font-size: 10.5px;
+            line-height: 1.4;
+            text-align: center;
+            color: #71717A;
+            z-index: 3;
+        }
+
+        .powered-by sup {
+            font-size: 0.7em;
+            line-height: 0;
+        }
+
+        /* --- Cutout in a circle ---------------------------------------------
+           The picture rises out of a circle: the circle sits behind it, and
+           the picture is clipped to a box as wide as the circle whose bottom
+           is the circle's lower half, so the body stays inside while the head
+           comes out of the top. The ring variant draws its lower arc again
+           in front, so the picture looks like it sits in the ring. */
+        .cutout {
+            position: relative;
+            overflow: visible !important;
+            background: transparent !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+        }
+
+        .cutout::before,
+        .cutout.cutout-ring::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .cutout::before {
+            background: var(--cut-fill, var(--primary-color, #1f2937));
+            box-shadow: var(--cut-shadow, none);
+            z-index: 0;
+        }
+
+        .cutout.cutout-ring::before {
+            background: transparent;
+            border: var(--cut-line-width, 2px) solid var(--cut-line, var(--primary-color, #1f2937));
+        }
+
+        .cutout.cutout-ring::after {
+            border: var(--cut-line-width, 2px) solid var(--cut-line, var(--primary-color, #1f2937));
+            clip-path: inset(50% 0 0 0);
+            z-index: 2;
+        }
+
+        .cutout > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .cutout.cutout-circle { color: #ffffff; }
+        .cutout.cutout-ring { color: var(--cut-line, var(--primary-color, #1f2937)); }
+
+        .cutout > .cutout-clip {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 135%;
+            overflow: hidden;
+            /* Large radii are scaled down to half the width, which makes the
+               bottom edge exactly the circle's lower half. */
+            border-radius: 0 0 999px 999px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        .cutout-clip img {
+            display: block;
+            width: auto !important;
+            height: auto !important;
+            max-width: 100% !important;
+            max-height: 100% !important;
+            object-fit: contain !important;
+            border-radius: 0 !important;
+            filter: none !important;
+        }
+
+        .widget-wrapper:not(.widget-open) .launcher-btn.shape-cutout,
+        .widget-open .launcher-btn.close-shape-cutout-circle,
+        .widget-open .launcher-btn.close-shape-cutout-ring {
+            background: transparent !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+        }
+
+        #launcher-inner.cutout,
+        #close-inner.cutout {
+            --cut-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
+        }
+
+        .avatar-circle.cutout {
+            --cut-fill: rgba(255, 255, 255, 0.2);
+            --cut-line: rgba(255, 255, 255, 0.75);
+            --cut-line-width: 1.5px;
+        }
+
+        .bot-mini-avatar.cutout {
+            --cut-line-width: 1.5px;
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -1115,6 +1247,7 @@
                     <span class="typing-dot"></span>
                     <span class="typing-dot"></span>
                 </div>
+                <div class="chat-disclaimer">AI can make mistakes. Please verify important information.</div>
             </div>
 
             <div class="chat-footer">
@@ -1124,7 +1257,7 @@
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                     </button>
                 </div>
-                <div class="powered-by">Powered by Chatbot Management Hub</div>
+                <div class="powered-by">Powered by C<sup>4</sup></div>
             </div>
 
             <div class="chat-confirm" id="chat-confirm" role="alertdialog" aria-modal="true"
@@ -1161,6 +1294,7 @@
     var launcherInner = shadowRoot.getElementById("launcher-inner");
     var closeInner = shadowRoot.getElementById("close-inner");
     var headerAvatar = shadowRoot.getElementById("header-avatar");
+    var chatHeader = shadowRoot.querySelector(".chat-header");
     var btnCloseHeader = shadowRoot.getElementById("btn-close-header");
     var btnClear = shadowRoot.getElementById("btn-clear");
     var btnExpand = shadowRoot.getElementById("btn-expand");
@@ -1177,6 +1311,56 @@
     function updateColors(hex) {
         if (!hex) return;
         wrapper.style.setProperty("--primary-color", hex);
+    }
+
+    function cssUrl(url) {
+        return 'url("' + String(url).replace(/["\\\n]/g, "\\$&") + '")';
+    }
+
+    function hexToRgb(hex) {
+        var m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(hex || "").trim());
+        return m ? parseInt(m[1], 16) + ", " + parseInt(m[2], 16) + ", " + parseInt(m[3], 16) : null;
+    }
+
+    /**
+     * Background layers for a picture shown at an opacity over a colour. A
+     * wash of the colour on top of the picture looks the same as the picture
+     * faded over it, and works on a scrolling area where a faded layer would not.
+     */
+    function pictureLayers(url, color, opacity) {
+        var layers = [];
+        var rgb = hexToRgb(color);
+        var wash = (100 - opacity) / 100;
+        if (rgb && wash > 0) {
+            layers.push("linear-gradient(rgba(" + rgb + ", " + wash + "), rgba(" + rgb + ", " + wash + "))");
+        }
+        layers.push(cssUrl(url));
+        return layers.join(", ");
+    }
+
+    function readOpacity(value) {
+        var n = parseInt(value, 10);
+        return isNaN(n) ? 100 : Math.max(0, Math.min(100, n));
+    }
+
+    function isCutout(shape) {
+        return shape === "cutout_circle" || shape === "cutout_ring";
+    }
+
+    /**
+     * Puts a picture into el. A cutout shape wraps it in the clip that lets
+     * it rise out of the circle; without a picture the shape falls back to
+     * the plain circle it is drawn on, with the default icon inside.
+     */
+    function fillShape(el, shape, url, imgClass, alt) {
+        el.classList.remove("cutout", "cutout-circle", "cutout-ring");
+        if (isCutout(shape)) {
+            el.classList.add("cutout", shape === "cutout_ring" ? "cutout-ring" : "cutout-circle");
+        }
+        if (!url) return;
+
+        var img = '<img src="' + url + '"' + (imgClass ? ' class="' + imgClass + '"' : "") + ' alt="' + alt + '">';
+        el.innerHTML = isCutout(shape) ? '<span class="cutout-clip">' + img + '</span>' : img;
     }
 
     // The renderer is served in the same script as this widget. Should it
@@ -1209,11 +1393,8 @@
                 miniAvatar.classList.add("shape-circle-transparent");
             }
 
-            if (botConfig.botAvatarUrl) {
-                miniAvatar.innerHTML = '<img src="' + botConfig.botAvatarUrl + '" alt="Bot">';
-            } else {
-                miniAvatar.innerHTML = DEFAULT_AVATAR_SVG;
-            }
+            miniAvatar.innerHTML = DEFAULT_AVATAR_SVG;
+            fillShape(miniAvatar, botConfig.avatarShape, botConfig.botAvatarUrl, "", "Bot");
             row.appendChild(miniAvatar);
         }
 
@@ -1431,6 +1612,15 @@
                 botConfig.title = data.widget_title || data.name || botConfig.title;
                 botConfig.greeting = data.widget_greeting || botConfig.greeting;
                 botConfig.primaryColor = data.widget_primary_color || botConfig.primaryColor;
+                botConfig.headerColor = data.widget_header_color || "";
+                if (data.widget_header_text_color) {
+                    chatHeader.style.setProperty("--header-text", data.widget_header_text_color);
+                }
+                botConfig.headerImageUrl = data.widget_header_image_url || "";
+                botConfig.headerImageOpacity = readOpacity(data.widget_header_image_opacity);
+                botConfig.backgroundImageOpacity = readOpacity(data.widget_background_image_opacity);
+                botConfig.backgroundColor = data.widget_background_color || "";
+                botConfig.backgroundImageUrl = data.widget_background_image_url || "";
                 botConfig.position = data.widget_position || botConfig.position;
                 botConfig.launcherIconUrl = data.launcher_icon_url || "";
                 botConfig.botAvatarUrl = data.bot_avatar_url || "";
@@ -1444,23 +1634,45 @@
                 botTitleEl.textContent = botConfig.title;
                 updateColors(botConfig.primaryColor);
 
+                // A picture at 100% is shown exactly as uploaded. Readability
+                // is the operator's call: the opacity slider and the header
+                // text colour are there for that.
+                var headerColor = botConfig.headerColor || botConfig.primaryColor;
+                if (botConfig.headerColor) {
+                    chatHeader.style.backgroundColor = botConfig.headerColor;
+                }
+                if (botConfig.headerImageUrl) {
+                    chatHeader.style.backgroundImage =
+                        pictureLayers(botConfig.headerImageUrl, headerColor, botConfig.headerImageOpacity);
+                    chatHeader.style.backgroundSize = "cover";
+                    chatHeader.style.backgroundPosition = "center";
+                }
+
+                if (botConfig.backgroundColor) {
+                    chatMessages.style.backgroundColor = botConfig.backgroundColor;
+                }
+                if (botConfig.backgroundImageUrl) {
+                    chatMessages.style.backgroundImage = pictureLayers(
+                        botConfig.backgroundImageUrl, botConfig.backgroundColor || "#FAFAFA", botConfig.backgroundImageOpacity);
+                    chatMessages.style.backgroundSize = "cover";
+                    chatMessages.style.backgroundPosition = "center";
+                }
+
                 // Set launcher image and shape if configured
                 if (botConfig.launcherShape === "transparent_fit") {
                     launcherBtn.classList.add("shape-transparent-fit");
                 } else if (botConfig.launcherShape === "circle_transparent") {
                     launcherBtn.classList.add("shape-circle-transparent");
+                } else if (isCutout(botConfig.launcherShape)) {
+                    launcherBtn.classList.add("shape-cutout");
                 }
 
-                if (botConfig.launcherIconUrl) {
-                    launcherInner.innerHTML = '<img src="' + botConfig.launcherIconUrl + '" class="launcher-custom-img" alt="">';
-                }
+                fillShape(launcherInner, botConfig.launcherShape, botConfig.launcherIconUrl, "launcher-custom-img", "");
 
                 // Close button: its own shape, size and optional artwork.
                 launcherBtn.classList.add("close-shape-" + botConfig.closeShape.replace(/_/g, "-"));
 
-                if (botConfig.closeIconUrl) {
-                    closeInner.innerHTML = '<img src="' + botConfig.closeIconUrl + '" class="close-custom-img" alt="">';
-                }
+                fillShape(closeInner, botConfig.closeShape, botConfig.closeIconUrl, "close-custom-img", "");
 
                 wrapper.style.setProperty("--launcher-size", botConfig.launcherSize + "px");
                 wrapper.style.setProperty("--close-size", botConfig.closeSize + "px");
@@ -1472,9 +1684,7 @@
                     headerAvatar.classList.add("shape-circle-transparent");
                 }
 
-                if (botConfig.botAvatarUrl) {
-                    headerAvatar.innerHTML = '<img src="' + botConfig.botAvatarUrl + '" alt="Avatar">';
-                }
+                fillShape(headerAvatar, botConfig.avatarShape, botConfig.botAvatarUrl, "", "Avatar");
 
                 if (botConfig.position === "bottom-left") {
                     wrapper.classList.add("position-bottom-left");

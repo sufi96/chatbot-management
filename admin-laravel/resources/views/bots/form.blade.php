@@ -317,7 +317,7 @@
                             <p class="text-muted mb-2" style="font-size: 0.75rem;">The floating button before anyone opens the chat.</p>
 
                             <label for="launcher_icon_input" class="visually-hidden">Launcher image</label>
-                            <input type="file" name="launcher_icon" id="launcher_icon_input" accept="image/*"
+                            <input type="file" name="launcher_icon" id="launcher_icon_input" accept=".png,.jpg,.jpeg,.gif,.svg,.webp"
                                    class="form-control form-control-sm"
                                    onchange="previewUpload(this, 'prevLauncherImg', 'prevLauncherDefault')">
 
@@ -389,7 +389,7 @@
                             <p class="text-muted mb-2" style="font-size: 0.75rem;">The same button once the chat is open. Leave it empty for a plain cross.</p>
 
                             <label for="close_icon_input" class="visually-hidden">Close image</label>
-                            <input type="file" name="close_icon" id="close_icon_input" accept="image/*"
+                            <input type="file" name="close_icon" id="close_icon_input" accept=".png,.jpg,.jpeg,.gif,.svg,.webp"
                                    class="form-control form-control-sm"
                                    onchange="previewUpload(this, 'prevCloseImg', 'prevCloseDefault')">
 
@@ -458,7 +458,7 @@
                             <p class="text-muted mb-2" style="font-size: 0.75rem;">Shown in the chat header and beside each reply.</p>
 
                             <label for="bot_avatar_input" class="visually-hidden">Avatar image</label>
-                            <input type="file" name="bot_avatar" id="bot_avatar_input" accept="image/*"
+                            <input type="file" name="bot_avatar" id="bot_avatar_input" accept=".png,.jpg,.jpeg,.gif,.svg,.webp"
                                    class="form-control form-control-sm"
                                    onchange="previewUpload(this, 'prevAvatarImg', 'prevAvatarDefault', 'prevMiniAvatarImg')">
 

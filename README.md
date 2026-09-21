@@ -19,7 +19,8 @@ a source's chunks, list or test embedding models, and run a retrieval preview
 for the playground. Those routes are guarded by a shared secret that lives only
 in gitignored `.env` files.
 
-- **Editable source:** [`docs/architecture.excalidraw`](docs/architecture.excalidraw) — open it at [excalidraw.com](https://excalidraw.com)
+- **In the portal:** the info button in the top bar opens the live version of this diagram, with tabs for answering, indexing, models and the DGX Sparks plan. The image above is its System tab.
+- **Earlier detailed diagram:** [`docs/architecture.excalidraw`](docs/architecture.excalidraw) — open it at [excalidraw.com](https://excalidraw.com)
 - **Written notes:** [`docs/architecture.md`](docs/architecture.md) — the reasoning behind each decision
 
 ### The short version of the retrieval design
@@ -193,8 +194,9 @@ a value that really is a placeholder, add it to `PLACEHOLDER` in
 
 ---
 
-### Step 2: One-Click Startup (Windows)
-If you are on Windows, simply double-click:
+### Step 2: One-Click Startup
+
+**Windows:** double-click:
 ```cmd
 start-dev.bat
 ```
@@ -202,8 +204,18 @@ or execute the PowerShell starter:
 ```powershell
 .\start-dev.ps1
 ```
-This automated script will:
+
+**Linux / macOS:** from the repository root:
+```bash
+./start-dev.sh
+```
+The engine's dependencies do not install on Python 3.14 yet. The script uses
+Python 3.10–3.13 if one is installed, otherwise [uv](https://docs.astral.sh/uv/)
+(`pip install --user uv`) to fetch 3.12. Press **Ctrl+C** to stop both services.
+
+Either script will:
 - Create the Python virtual environment (`api-engine/.venv`) and install dependencies.
+- Install Composer dependencies, create both `.env` files, generate the shared secrets, and migrate and seed the database.
 - Launch the **FastAPI Streaming Engine** on `http://127.0.0.1:8000`.
 - Launch the **Laravel 13 Admin Portal** on `http://127.0.0.1:8080`.
 

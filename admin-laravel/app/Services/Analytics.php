@@ -106,7 +106,7 @@ class Analytics
     }
 
     /** The empty buckets of the activity chart, keyed by their start. */
-    private function buckets(): array
+    public function buckets(): array
     {
         $hourly = $this->hourly();
         $cursor = $this->from->copy()->setTimezone($this->zone);

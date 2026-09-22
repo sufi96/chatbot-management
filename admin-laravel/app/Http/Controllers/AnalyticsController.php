@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\BotProfile;
+use App\Models\KbCollection;
 use App\Services\Analytics;
+use App\Services\KbAnalytics;
 use App\Support\BotSelection;
 use App\Support\ConversationList;
 use DateTimeZone;
@@ -52,8 +54,25 @@ class AnalyticsController extends Controller
         // this window, and linked back to its own place on the page.
         $list = ConversationList::fromRequest($request, $inScope->pluck('id')->all(), [$from, $to], 'conversations');
 
+        // Bot analytics, or the knowledge base tab. Only the open tab is built.
+        $tab = $request->query('tab') === 'kb' ? 'kb' : 'bots';
+        $canReport = $bots->isNotEmpty() || $selection->consoleBot;
+
+        $kbReport = null;
+        if ($canReport && $tab === 'kb') {
+            // Every collection when no bot is picked, else the picked bots' own.
+            $collections = KbCollection::query()->whereIn('system_id', $systems->pluck('id'))
+                ->when($selection->selectedBots || $selection->console,
+                    fn ($q) => $q->whereHas('bots', fn ($b) => $b->whereIn('bot_profiles.id', $inScope->pluck('id'))))
+                ->with('system')->withCount('bots')->orderBy('name')->get();
+            $kbReport = (new KbAnalytics($collections, $inScope, $from, $to, $zone))->report();
+        }
+
         return view('analytics.index', $list + [
-            'report' => $bots->isEmpty() && !$selection->consoleBot ? null : (new Analytics($inScope, $from, $to, $zone))->report(),
+            'tab' => $tab,
+            'canReport' => $canReport,
+            'kbReport' => $kbReport,
+            'report' => $canReport && $tab === 'bots' ? (new Analytics($inScope, $from, $to, $zone))->report() : null,
             'bots' => $inScope,
             'botGroups' => $systems->sortBy('name')
                 ->map(fn ($system) => ['system' => $system, 'bots' => $bots->where('system_id', $system->id)->values()])

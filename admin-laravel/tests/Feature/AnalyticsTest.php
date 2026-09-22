@@ -278,4 +278,85 @@ class AnalyticsTest extends TestCase
         $this->assertMatchesRegularExpression('/an-delta is-bad"[^>]*>\s*<i class="bi bi-arrow-up-short"><\/i>New/', $html);
         $this->assertMatchesRegularExpression('/an-delta is-good"[^>]*>\s*<i class="bi bi-arrow-up-short"><\/i>100%/', $html);
     }
+
+    /** A collection of $botId's with two documents, chunked and embedded. */
+    private function knowledgeBase(string $botId): void
+    {
+        \App\Models\KbCollection::create(['id' => 'kbc_1', 'system_id' => 'sys_mine', 'name' => 'Handbook']);
+        \Illuminate\Support\Facades\DB::table('bot_kb_collection')->insert(['bot_id' => $botId, 'collection_id' => 'kbc_1']);
+        foreach (['kbs_a' => 'Returns', 'kbs_b' => 'Shipping'] as $id => $title) {
+            \App\Models\KbSource::create(['id' => $id, 'collection_id' => 'kbc_1', 'title' => $title,
+                'status' => 'ready', 'chunk_count' => 2]);
+        }
+        \App\Models\KbSource::create(['id' => 'kbs_c', 'collection_id' => 'kbc_1', 'title' => 'Broken',
+            'status' => 'failed', 'error_message' => 'Could not read the file']);
+
+        $chunks = [['kbs_a', 300, [1, 0, 0]], ['kbs_a', 700, [0.9, 0.1, 0]], ['kbs_b', 1200, [0, 1, 0]], ['kbs_b', 2500, [0, 0.9, 0.2]]];
+        foreach ($chunks as $i => [$source, $size, $vector]) {
+            \Illuminate\Support\Facades\DB::table('kb_chunks')->insert([
+                'collection_id' => 'kbc_1', 'source_id' => $source, 'ordinal' => $i, 'content' => "chunk {$i}",
+                'char_count' => $size, 'embedding_model' => $i === 3 ? 'old-model' : 'nomic-embed-text',
+                'heading_path' => $i === 0 ? 'Policy > Returns' : null,
+                'embedding' => pack('g*', ...$vector),
+            ]);
+        }
+    }
+
+    public function test_the_knowledge_base_tab_reports_contents_chunking_and_hits(): void
+    {
+        $this->knowledgeBase('bot_mine');
+        $this->conversation('c1', 'bot_mine', '2026-09-16 09:00:00');
+        $this->message('m1', 'c1', 'user', '2026-09-16 09:00:01');
+        $this->message('m2', 'c1', 'assistant', '2026-09-16 09:00:02', ['source_kind' => 'documents',
+            'citations' => json_encode([['n' => 1, 'title' => 'Returns', 'source_id' => 'kbs_a'], ['n' => 2, 'title' => 'Returns', 'source_id' => 'kbs_a']])]);
+        $this->message('m3', 'c1', 'assistant', '2026-09-16 09:01:02', ['source_kind' => 'none']);
+
+        $response = $this->actingAs($this->viewer)->get(route('analytics.index', ['tab' => 'kb', 'tz' => 'UTC']))->assertOk();
+        $kb = $response->viewData('kbReport');
+
+        $this->assertNull($response->viewData('report'));
+        $this->assertSame(1, $kb['kpis']['collections']);
+        $this->assertSame(3, $kb['kpis']['sources']);
+        $this->assertSame(4, $kb['kpis']['chunks']);
+        $this->assertSame(4700, $kb['kpis']['chars']);
+        $this->assertSame(2, $kb['kpis']['hits']);
+        $this->assertSame(0.5, $kb['kpis']['hit_rate']);
+        $this->assertSame(0.5, $kb['kpis']['coverage']);
+        $this->assertSame('kbs_a', $kb['top_sources'][0]['id']);
+        $this->assertSame(['kbs_b'], $kb['uncited']->pluck('id')->all());
+        $this->assertSame(['kbs_c'], $kb['attention']->pluck('id')->all());
+        $this->assertSame([0, 1, 1, 1, 0, 1, 0], $kb['size_bands']);
+        $this->assertSame(1, $kb['stale']);
+        $this->assertSame(1, $kb['with_heading']);
+        $this->assertSame(2, $kb['collections'][0]['hits']);
+
+        // Every embedded chunk is drawn, on the unit square, the hit ones marked.
+        $this->assertCount(4, $kb['map']['points']);
+        foreach ($kb['map']['points'] as $point) {
+            $this->assertGreaterThanOrEqual(0, $point['x']);
+            $this->assertLessThanOrEqual(1, $point['y']);
+            $this->assertSame($point['title'] === 'Returns', $point['cited']);
+        }
+        $this->assertGreaterThan(0.9, $kb['map']['variance']);
+
+        $response->assertSee('Semantic map')->assertSee('Could not read the file')->assertSee('kb-dot', false);
+    }
+
+    public function test_the_knowledge_base_tab_follows_the_picked_bots(): void
+    {
+        $this->knowledgeBase('bot_mine');
+
+        $picked = $this->actingAs($this->viewer)
+            ->get(route('analytics.index', ['tab' => 'kb', 'bots' => ['bot_mine_2'], 'tz' => 'UTC']))->assertOk();
+
+        $this->assertSame(0, $picked->viewData('kbReport')['kpis']['collections']);
+        $picked->assertSee('The picked bots answer from no collection.');
+    }
+
+    public function test_an_embedding_reads_back_from_either_database(): void
+    {
+        $this->assertSame([1.5, -2.0], \App\Services\KbAnalytics::decode(pack('g*', 1.5, -2.0)));
+        $this->assertSame([0.25, 1.0], \App\Services\KbAnalytics::decode('[0.25,1]'));
+        $this->assertNull(\App\Services\KbAnalytics::decode(null));
+    }
 }

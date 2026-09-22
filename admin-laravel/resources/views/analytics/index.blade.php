@@ -100,8 +100,11 @@
         @endif
     </div>
 
-    @if($report)
+    @if($canReport)
         <input type="hidden" name="tz" value="{{ $zone }}" data-tz>
+        @if($tab === 'kb')
+            <input type="hidden" name="tab" value="kb">
+        @endif
         {{-- Sent by Apply in the bot picker. A window button pressed later in
              the form sends its own range, which wins. --}}
         <input type="hidden" name="range" value="{{ $range }}">
@@ -138,7 +141,19 @@
     @endif
 </form>
 
-@if(!$report)
+@if($canReport)
+    {{-- Links, not scripts: each tab is its own report, built only when open. --}}
+    <nav class="an-tabs mb-4" aria-label="Analytics">
+        @foreach(['bots' => ['Bot analytics', 'bi-robot'], 'kb' => ['Knowledge base', 'bi-journal-text']] as $key => [$tabLabel, $tabIcon])
+            <a href="{{ route('analytics.index', array_merge(request()->except(['tab', 'page']), $key === 'kb' ? ['tab' => 'kb'] : [])) }}"
+               class="{{ $tab === $key ? 'is-active' : '' }}" @if($tab === $key) aria-current="page" @endif>
+                <i class="bi {{ $tabIcon }}"></i> {{ $tabLabel }}
+            </a>
+        @endforeach
+    </nav>
+@endif
+
+@if(!$canReport)
     <div class="card">
         <div class="empty">
             <i class="bi bi-bar-chart-line"></i>
@@ -147,6 +162,8 @@
             <a href="{{ route('bots.index') }}" class="btn btn-brand">Bot profiles</a>
         </div>
     </div>
+@elseif($tab === 'kb')
+    @include('analytics._kb', ['kb' => $kbReport])
 @else
 
 
@@ -587,15 +604,20 @@
     ])
 </div>
 
-<div class="an-tip" id="anTip" role="tooltip" hidden></div>
-
 @include('logs._transcript')
 @endif
+
+<div class="an-tip" id="anTip" role="tooltip" hidden></div>
 
 @endsection
 
 @push('scripts')
 <style>
+    .an-tabs { display: flex; gap: 0.25rem; border-bottom: 1px solid var(--border); }
+    .an-tabs a { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.5rem 0.875rem; margin-bottom: -1px;
+        font-size: 0.8125rem; color: var(--text-muted); text-decoration: none; border-bottom: 2px solid transparent; }
+    .an-tabs a:hover { color: var(--text); }
+    .an-tabs a.is-active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
     .an-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
     .an-segment { display: inline-flex; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); padding: 2px; gap: 2px; }
     .an-segment button { border: 0; background: none; color: var(--text-muted); font-size: 0.78125rem; padding: 0.25rem 0.625rem; border-radius: var(--r-xs); font-family: var(--font-mono); }

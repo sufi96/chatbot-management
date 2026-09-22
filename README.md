@@ -65,6 +65,15 @@ size.
 - **Answers:** which source answered (knowledge base, database, web, nothing found, model only, refused), response times, the documents cited and the ready ones never cited, sites cited, and the model behind each job.
 - **Gaps and safety:** questions the sources had nothing for, and guard flags by category.
 - **By bot profile,** and the full conversations table for the bots and window chosen.
+- **Two tabs: Bot analytics and Knowledge base.** The bot picker and window apply to both; only the open tab is built.
+
+### 📚 Knowledge Base Analytics
+- **Headline figures:** collections, documents, chunks and how many are embedded, indexed text, average chunk size, hits in the window, hit rate, document coverage and citations per answer. A hit is one chunk cited in one answer.
+- **Usage:** hits over time, the most hit documents, and the ready ones never hit.
+- **Semantic map:** a sample of up to 600 chunks laid out by meaning (the two leading principal components of their embeddings), coloured by collection, with hit documents drawn solid. Beside it, how much each pair of collections overlaps.
+- **Collections table:** linked bots, documents with failed and pending counts, chunks, embedded share, average chunk, text size, hits and last indexed.
+- **Chunking and embedding:** the chunk size distribution, heading path coverage, the chunking settings, and chunks per embedding model, with a warning for chunks a re-index is owed.
+- **Documents and storage:** documents by type and status, the ones that need attention with their error, and the vector database: driver, vector type, search indexes, rows and size.
 
 ### 💬 Conversations
 - **Token column:** total, prompt tokens in and reply tokens out, sortable.

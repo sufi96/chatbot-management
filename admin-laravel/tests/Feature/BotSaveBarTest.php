@@ -10,7 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * The save bar on the Profile and Brain tabs waits for a change before it
+ * The save bar on the Profile and Behaviour tabs waits for a change before it
  * shows. The counting runs in the browser; these cover what the server
  * decides: hidden, tracked, or shown from the start.
  */
@@ -58,7 +58,7 @@ class BotSaveBarTest extends TestCase
             ->get(route('bots.brain', 'bot_1'))
             ->assertOk()
             ->assertSee('data-track-form="brainForm"', false)
-            ->assertSee('Save Brain changes')
+            ->assertSee('Save behaviour changes')
             ->assertSeeInOrder(['id="brainFormActions"', 'hidden', 'data-unsaved-text'], false);
     }
 

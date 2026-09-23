@@ -78,7 +78,7 @@ final class ConsoleDatabase
             'tokens_out' => 'Reply tokens of an answer.',
             'intent' => 'On a visitor message: facts for a question, chat for small talk.',
             'guard_flag' => 'Set when the guard refused a visitor message or flagged an answer; the category.',
-            'source_kind' => 'On an answer: documents, database, web, none (searched, found nothing), model (nothing searched) or refused.',
+            'source_kind' => 'On an answer: documents, database, web, combined (knowledge base and database together), none (searched, found nothing), model (nothing searched) or refused.',
             'first_token_ms' => 'Milliseconds until the answer started.',
             'response_ms' => 'Milliseconds until the answer finished.',
             'created_at' => 'When the message was sent, UTC.',

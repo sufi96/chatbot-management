@@ -172,3 +172,72 @@ def test_answer_kind_tells_a_miss_from_no_search():
 
 def test_answer_kind_says_refused_before_anything_else():
     assert sources.answer_kind(None, False, True) == "refused"
+
+
+def cited(kind, titles, **fields):
+    async def attempt():
+        return SourceResult(
+            kind=kind, context_block=f"{kind} block", has_content=True,
+            citations=[{"n": i + 1, "title": t} for i, t in enumerate(titles)], **fields)
+    return attempt
+
+
+@pytest.mark.asyncio
+async def test_combine_answers_from_the_knowledge_base_and_the_database_together():
+    result = await sources.resolve(
+        ["documents", "database", "web"], ALL_ON,
+        {"documents": cited("documents", ["Returns policy", "FAQ"]),
+         "database": cited("database", ["Shop DB"], sql="SELECT 1", row_count=1),
+         "web": never("web")},
+        combine=True)
+
+    assert result.kind == "combined"
+    assert [(c["n"], c["kind"]) for c in result.citations] == [
+        (1, "documents"), (2, "documents"), (3, "database")]
+    assert result.context_block == "documents block\n\n[3] Shop DB\ndatabase block"
+    assert result.sql == "SELECT 1" and result.row_count == 1
+
+
+@pytest.mark.asyncio
+async def test_combine_puts_the_first_source_in_the_order_first():
+    result = await sources.resolve(
+        ["database", "documents", "web"], ALL_ON,
+        {"documents": cited("documents", ["FAQ"]),
+         "database": cited("database", ["Shop DB"]), "web": never("web")},
+        combine=True)
+
+    assert result.context_block.startswith("[1] Shop DB\ndatabase block")
+
+
+@pytest.mark.asyncio
+async def test_combine_with_one_hit_is_that_source_alone():
+    result = await sources.resolve(
+        ["documents", "database", "web"], ALL_ON,
+        {"documents": miss("documents"), "database": hit("database"), "web": never("web")},
+        combine=True)
+
+    assert result.kind == "database"
+
+
+@pytest.mark.asyncio
+async def test_combine_falls_back_to_the_web_when_both_miss_or_fail():
+    async def broken():
+        raise RuntimeError("portal down")
+
+    result = await sources.resolve(
+        ["web", "documents", "database"], ALL_ON,
+        {"documents": miss("documents"), "database": broken, "web": hit("web")},
+        combine=True)
+
+    assert result.kind == "web"
+
+
+@pytest.mark.asyncio
+async def test_combine_never_asks_a_source_that_is_switched_off():
+    result = await sources.resolve(
+        ["documents", "database", "web"],
+        {"documents": True, "database": False, "web": False},
+        {"documents": hit("documents"), "database": never("database"), "web": never("web")},
+        combine=True)
+
+    assert result.kind == "documents"

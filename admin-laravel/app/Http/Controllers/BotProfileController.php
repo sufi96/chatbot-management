@@ -2,15 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AiProvider;
+use App\Http\Controllers\Concerns\PicksProviders;
 use App\Models\BotProfile;
 use App\Models\System;
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class BotProfileController extends Controller
 {
+    use PicksProviders;
+
     public function index(Request $request)
     {
         $activeSystem = view()->shared('activeSystem');
@@ -78,8 +79,6 @@ class BotProfileController extends Controller
             'system_prompt' => ['nullable', 'string'],
             'provider_id' => $this->providerRule($request->user()),
             'model_name' => ['required', 'string', 'max:255'],
-            'temperature' => ['required', 'numeric', 'min:0', 'max:1'],
-            'max_tokens' => ['required', 'integer', 'min:64', 'max:8192'],
             'widget_title' => ['required', 'string', 'max:255'],
             'widget_greeting' => ['nullable', 'string'],
             'widget_primary_color' => ['required', 'string', 'max:20'],
@@ -100,11 +99,20 @@ class BotProfileController extends Controller
             'bot_avatar' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'],
             'avatar_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit,cutout_circle,cutout_ring'],
             'is_active' => ['nullable', 'boolean'],
-        ]);
+            'offline_mode' => ['nullable', 'in:hide,message'],
+            'offline_message' => ['nullable', 'string', 'max:1000'],
+            'offline_subtitle' => ['nullable', 'string', 'max:120'],
+            'offline_hours' => ['nullable', 'string', 'max:160'],
+            'offline_icon' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'],
+            'offline_launcher_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit,cutout_circle,cutout_ring'],
+            'offline_close_icon' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'],
+            'offline_close_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit,cutout_circle,cutout_ring'],
+        ] + $this->offlineStyleRules());
 
         $validated['id'] = $this->makeBotId($activeSystem);
         $validated['system_id'] = $activeSystem->id;
         $validated['is_active'] = $request->boolean('is_active');
+        $validated['offline_mode'] = $request->input('offline_mode', 'hide');
         $validated['launcher_shape'] = $request->input('launcher_shape', 'circle');
         $validated['avatar_shape'] = $request->input('avatar_shape', 'circle');
         $validated['close_shape'] = $request->input('close_shape', 'circle');
@@ -123,6 +131,15 @@ class BotProfileController extends Controller
         if ($request->hasFile('launcher_icon')) {
             $path = $request->file('launcher_icon')->store('bots/icons', 'public');
             $validated['launcher_icon_url'] = asset('storage/' . $path);
+        }
+
+        if ($request->hasFile('offline_icon')) {
+            $path = $request->file('offline_icon')->store('bots/icons', 'public');
+            $validated['offline_icon_url'] = asset('storage/' . $path);
+        }
+        if ($request->hasFile('offline_close_icon')) {
+            $path = $request->file('offline_close_icon')->store('bots/icons', 'public');
+            $validated['offline_close_icon_url'] = asset('storage/' . $path);
         }
 
         // Handle Close Button Icon Upload
@@ -148,6 +165,8 @@ class BotProfileController extends Controller
             $validated['widget_background_image_url'] = asset('storage/' . $path);
         }
 
+        $validated['offline_style'] = $this->offlineStyle($request, []);
+
         $bot = BotProfile::create($validated);
 
         return redirect()->route('bots.edit', $bot->id)->with('success', 'Bot profile created. Its embed snippet is in the Embed tab.');
@@ -164,8 +183,6 @@ class BotProfileController extends Controller
 
         return view('bots.form', [
             'isEdit' => true,
-            'providers' => $this->providersFor($request->user(), $bot->system_id, $bot->provider_id),
-            'providerSystemId' => $bot->system_id,
             'bot' => $bot,
             'activeSystem' => $activeSystem,
             'apiHost' => $this->apiHost(),
@@ -182,10 +199,6 @@ class BotProfileController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'provider_id' => $this->providerRule($request->user(), $bot->provider_id),
-            'model_name' => ['required', 'string', 'max:255'],
-            'temperature' => ['required', 'numeric', 'min:0', 'max:1'],
-            'max_tokens' => ['required', 'integer', 'min:64', 'max:8192'],
             'widget_title' => ['required', 'string', 'max:255'],
             'widget_greeting' => ['nullable', 'string'],
             'widget_primary_color' => ['required', 'string', 'max:20'],
@@ -206,9 +219,18 @@ class BotProfileController extends Controller
             'bot_avatar' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'],
             'avatar_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit,cutout_circle,cutout_ring'],
             'is_active' => ['nullable', 'boolean'],
-        ]);
+            'offline_mode' => ['nullable', 'in:hide,message'],
+            'offline_message' => ['nullable', 'string', 'max:1000'],
+            'offline_subtitle' => ['nullable', 'string', 'max:120'],
+            'offline_hours' => ['nullable', 'string', 'max:160'],
+            'offline_icon' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'],
+            'offline_launcher_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit,cutout_circle,cutout_ring'],
+            'offline_close_icon' => ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'],
+            'offline_close_shape' => ['nullable', 'string', 'in:circle,circle_transparent,transparent_fit,cutout_circle,cutout_ring'],
+        ] + $this->offlineStyleRules());
 
         $validated['is_active'] = $request->boolean('is_active');
+        $validated['offline_mode'] = $request->input('offline_mode', 'hide');
         $validated['launcher_shape'] = $request->input('launcher_shape', 'circle');
         $validated['avatar_shape'] = $request->input('avatar_shape', 'circle');
         $validated['close_shape'] = $request->input('close_shape', 'circle');
@@ -229,6 +251,20 @@ class BotProfileController extends Controller
         } elseif ($request->hasFile('launcher_icon')) {
             $path = $request->file('launcher_icon')->store('bots/icons', 'public');
             $validated['launcher_icon_url'] = asset('storage/' . $path);
+        }
+
+        if ($request->boolean('remove_offline_icon')) {
+            $validated['offline_icon_url'] = null;
+        } elseif ($request->hasFile('offline_icon')) {
+            $path = $request->file('offline_icon')->store('bots/icons', 'public');
+            $validated['offline_icon_url'] = asset('storage/' . $path);
+        }
+
+        if ($request->boolean('remove_offline_close_icon')) {
+            $validated['offline_close_icon_url'] = null;
+        } elseif ($request->hasFile('offline_close_icon')) {
+            $path = $request->file('offline_close_icon')->store('bots/icons', 'public');
+            $validated['offline_close_icon_url'] = asset('storage/' . $path);
         }
 
         // Handle Close Button Icon Upload or Reset
@@ -261,6 +297,8 @@ class BotProfileController extends Controller
             $path = $request->file('background_image')->store('bots/backgrounds', 'public');
             $validated['widget_background_image_url'] = asset('storage/' . $path);
         }
+
+        $validated['offline_style'] = $this->offlineStyle($request, $bot->offline_style ?? []);
 
         $bot->update($validated);
 
@@ -315,47 +353,50 @@ class BotProfileController extends Controller
      * for the suffix. Existing profiles keep the ids they were created with,
      * because embed snippets already deployed on customer sites point at them.
      */
-    /**
-     * The endpoints this user may choose from: the bot's own workspace first,
-     * then other workspaces by name, then the platform's.
-     *
-     * The bot's current provider stays even when this user could not pick it
-     * (a super admin set it), flagged so the form names it without its URL or key.
-     */
-    private function providersFor(User $user, ?string $systemId, ?string $currentId = null)
+    private const OFFLINE_STYLE_TEXT = ['title', 'position', 'header_bg', 'header_text', 'body_bg', 'body_text', 'footer_bg', 'footer_text',
+                                        'avatar_source', 'avatar_emoji', 'avatar_shape'];
+    private const OFFLINE_STYLE_OPACITY = ['header_image_opacity', 'body_image_opacity', 'footer_image_opacity'];
+    private const OFFLINE_STYLE_FILES = ['header_image' => 'offline_header_image', 'body_image' => 'offline_body_image',
+                                         'footer_image' => 'offline_footer_image', 'avatar_image' => 'offline_avatar'];
+
+    private function offlineStyleRules(): array
     {
-        $providers = AiProvider::usableBy($user)->with('system')->withCount('bots')->get();
-
-        if ($currentId && !$providers->contains('id', $currentId)) {
-            $current = AiProvider::with('system')->withCount('bots')->find($currentId);
-            if ($current) {
-                $current->setAttribute('locked', true);
-                $providers->push($current);
-            }
+        $rules = [
+            'offline_style' => ['nullable', 'array'],
+            'offline_style.title' => ['nullable', 'string', 'max:100'],
+            'offline_style.position' => ['nullable', 'in:bottom-right,bottom-left'],
+            'offline_style.avatar_source' => ['nullable', 'in:chat,image,text'],
+            'offline_style.avatar_emoji' => ['nullable', 'string', 'max:16'],
+            'offline_style.avatar_shape' => ['nullable', 'in:rounded,circle,circle_transparent,transparent_fit'],
+        ];
+        foreach (['header', 'body', 'footer'] as $part) {
+            $rules["offline_style.{$part}_bg"] = ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'];
+            $rules["offline_style.{$part}_text"] = ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'];
+            $rules["offline_style.{$part}_image_opacity"] = ['nullable', 'integer', 'min:0', 'max:100'];
         }
-
-        return $providers->sortBy(fn (AiProvider $p) => [
-            $p->system_id === $systemId ? 0 : ($p->system_id ? 1 : 2),
-            $p->ownerName(),
-            $p->name,
-        ])->values();
+        foreach (self::OFFLINE_STYLE_FILES as $field) {
+            $rules[$field] = ['nullable', 'image', 'mimes:png,jpg,jpeg,gif,svg,webp', 'max:2048'];
+        }
+        return $rules;
     }
 
-    /**
-     * A bot may point only at an endpoint this user may use, or keep the one
-     * it already has. Checking here is what stops a crafted form id from
-     * borrowing a key the user was never shown.
-     */
-    private function providerRule(User $user, ?string $currentId = null): array
+    /** The offline notice's look: the posted text, colours and choices, plus any new or removed pictures. */
+    private function offlineStyle(Request $request, array $style): array
     {
-        return ['required', 'string', function (string $attribute, $value, $fail) use ($user, $currentId) {
-            if ($value === $currentId) {
-                return;
+        foreach (self::OFFLINE_STYLE_TEXT as $key) {
+            $style[$key] = $request->input("offline_style.$key") ?: null;
+        }
+        foreach (self::OFFLINE_STYLE_OPACITY as $key) {
+            $style[$key] = $request->filled("offline_style.$key") ? (int) $request->input("offline_style.$key") : null;
+        }
+        foreach (self::OFFLINE_STYLE_FILES as $key => $field) {
+            if ($request->boolean("remove_$field")) {
+                $style[$key] = null;
+            } elseif ($request->hasFile($field)) {
+                $style[$key] = asset('storage/' . $request->file($field)->store('bots/offline', 'public'));
             }
-            if (!AiProvider::usableBy($user)->whereKey($value)->exists()) {
-                $fail('Pick a provider from the list.');
-            }
-        }];
+        }
+        return $style;
     }
 
     private function makeBotId(System $system): string

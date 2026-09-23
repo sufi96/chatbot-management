@@ -336,7 +336,7 @@ async def test_an_answer_keeps_the_source_and_citations_that_answered(factory, m
     await update_bot(factory, retrieval_enabled=True)
     monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("Two years."))
 
-    async def resolve(order, enabled, attempts):
+    async def resolve(order, enabled, attempts, combine=False):
         return SourceResult(kind="documents", context_block="Warranty: two years.",
                             citations=[{"n": 1, "title": "Handbook", "source_id": "src_1"}],
                             has_content=True)
@@ -354,7 +354,7 @@ async def test_a_search_that_found_nothing_is_kept_as_none(factory, monkeypatch)
     await update_bot(factory, retrieval_enabled=True)
     monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("I do not know."))
 
-    async def resolve(order, enabled, attempts):
+    async def resolve(order, enabled, attempts, combine=False):
         return None
     monkeypatch.setattr(chat.sources, "resolve", resolve)
 

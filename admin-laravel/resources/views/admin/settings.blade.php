@@ -178,7 +178,7 @@
                                       placeholder="competitor pricing&#10;legal advice&#10;medical diagnosis"
                                       aria-label="Blocked topics">{{ old('guard_topics', $settings['guard_topics']) }}</textarea>
                             @error('guard_topics')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                            <div class="form-text">One per line, in plain words. Each bot can add more under Brain.</div>
+                            <div class="form-text">One per line, in plain words. Each bot can add more under Behaviour.</div>
                         </div>
                     </div>
                 </div>
@@ -187,7 +187,7 @@
             <div class="settings-note mb-3">
                 <i class="bi bi-info-circle"></i>
                 <span>
-                    The guard runs only on bots that switch it on under Brain, on the Guard model set in
+                    The guard runs only on bots that switch it on under Behaviour, on the Guard model set in
                     <a href="{{ route('admin.settings', 'models') }}">Models</a> or each bot's main model. A dedicated
                     guard model such as Qwen3Guard judges its own categories only, so topics are then checked by the
                     bot's main model in a second call.
@@ -270,7 +270,7 @@
                         <span>
                             DuckDuckGo needs no key and is rate limited: a way to try the feature, not to rely on.
                             Tavily returns page text; Brave returns snippets. Each key is kept when you switch.
-                            Turn web search on, and place it in the answer source order, per bot under Brain.
+                            Turn web search on, and place it in the answer sources, per bot under Behaviour.
                         </span>
                     </div>
                 </div>

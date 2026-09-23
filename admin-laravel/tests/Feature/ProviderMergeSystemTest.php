@@ -78,7 +78,7 @@ class ProviderMergeSystemTest extends TestCase
             'base_url' => 'https://gateway.test/v1', 'api_key' => '', 'merge_system_prompt' => true]);
         BotProfile::create(['id' => 'bot_1', 'system_id' => 'sys_1', 'name' => 'Desk', 'provider_id' => 'aip_gw']);
 
-        $this->actingAs($editor)->get(route('bots.edit', 'bot_1'))
+        $this->actingAs($editor)->get(route('bots.brain', 'bot_1'))
             ->assertOk()
             ->assertSee('data-merge-system="1"', false)
             ->assertSee('id="providerMergeSystem"', false);

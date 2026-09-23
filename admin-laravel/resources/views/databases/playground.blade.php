@@ -1,20 +1,10 @@
 @extends('layouts.app')
 
-@section('page-title', 'Database playground')
+@section('page-title', 'Playground')
 
 @section('content')
 
-<div class="page-head mb-4">
-    <div>
-        <h1>Database playground</h1>
-        <p>
-            Run a statement the way a bot would, against the tables you have made
-            readable. Everything the bot is refused, you are refused here too, so
-            this is where you find out what your annotations are worth.
-        </p>
-    </div>
-    <a href="{{ route('databases.index') }}" class="btn btn-outline-secondary">Back</a>
-</div>
+@include('layouts._playground-tabs', ['intro' => 'Run a statement the way a bot would, against the tables you have made readable. Everything the bot is refused, you are refused here too, so this is where you find out what your annotations are worth.'])
 
 <div class="card mb-3">
     <div class="p-3">

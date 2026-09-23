@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page-title', 'Brain')
+@section('page-title', 'Behaviour')
 
 @section('content')
 <div style="max-width: 1200px;">
@@ -10,16 +10,9 @@
             <a href="{{ route('bots.edit', $bot->id) }}" class="d-inline-flex align-items-center gap-1.5 mb-2" style="font-size: 0.8125rem;">
                 <i class="bi bi-arrow-left"></i> {{ $bot->name }}
             </a>
-            <h1>Brain</h1>
+            <h1>Behaviour</h1>
             <p>What this bot knows and how it decides what to say.</p>
         </div>
-
-        {{-- The real widget is on this page. Opening it from the head means a
-             prompt change can be tried where it was made. --}}
-        <button type="button" class="btn btn-outline-primary d-inline-flex align-items-center gap-2"
-                onclick="openTestWidget()">
-            <i class="bi bi-chat-dots"></i> Open test widget
-        </button>
     </div>
 
     @include('bots._tabs')
@@ -61,11 +54,117 @@
                 @endphp
 
                 <div class="card mb-3">
-                    <div class="card-header">Answer source order</div>
+                    <div class="card-header">Generation</div>
                     <div class="p-3">
-                        <p class="text-muted mb-3" style="font-size: 0.8rem;">
-                            Each question goes to these in turn, and the first one with something
-                            to say answers it. A source that is switched off is passed over.
+                        {{-- Thinking first: it changes speed and length more than any
+                             sampling setting below. One short line per level. One-line
+                             php directives, since Blade misreads a block form in a file
+                             that already uses the one-line form. --}}
+                        @php($thinking = old('thinking_level', $bot->thinking_level ?: 'off'))
+                        @php($thinkingHints = ['off' => 'Answers straight away. Fastest.', 'low' => 'Thinks briefly first.', 'medium' => 'Thinks through harder questions.', 'high' => 'Thinks longest. Slowest, most careful.'])
+                        <div class="mb-3">
+                            <div class="form-label" id="thinkingLabel">Thinking level</div>
+                            <div class="segmented" role="radiogroup" aria-labelledby="thinkingLabel">
+                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_off" value="off"
+                                           data-hint="Answers straight away. Fastest." @checked($thinking === 'off')>
+                                    <label for="thinking_off" class="segmented-opt"><i class="bi bi-lightning-charge"></i> Off</label>
+                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_low" value="low"
+                                           data-hint="Thinks briefly first." @checked($thinking === 'low')>
+                                    <label for="thinking_low" class="segmented-opt"><i class="bi bi-lightbulb"></i> Low</label>
+                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_medium" value="medium"
+                                           data-hint="Thinks through harder questions." @checked($thinking === 'medium')>
+                                    <label for="thinking_medium" class="segmented-opt"><i class="bi bi-lightbulb-fill"></i> Medium</label>
+                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_high" value="high"
+                                           data-hint="Thinks longest. Slowest, most careful." @checked($thinking === 'high')>
+                                    <label for="thinking_high" class="segmented-opt"><i class="bi bi-stars"></i> High</label>
+                            </div>
+                            <div class="form-text" id="thinkingHint">{{ $thinkingHints[$thinking] ?? $thinkingHints['off'] }}</div>
+                            <div class="form-text text-faint">Thinking shows folded above each answer. Some providers treat Low, Medium and High alike.</div>
+                        </div>
+
+                        <div class="row g-3 pt-1 mt-2" style="border-top: 1px solid var(--border);">
+                            <div class="col-12 col-sm-6">
+                                {{-- 0 to 1, the range where a change is felt. A value saved
+                                     above 1 before the cap shows at 1 and saves as 1. --}}
+                                @include('bots._slider', [
+                                    'name' => 'temperature', 'label' => 'Temperature',
+                                    'min' => 0, 'max' => 1, 'step' => 0.05,
+                                    'value' => old('temperature', $bot->temperature ?? 0.7),
+                                    'ends' => ['Predictable', 'Creative'],
+                                ])
+                            </div>
+                            <div class="col-12 col-sm-6">
+                                <label for="max_tokens" class="form-label slider-label"><span>Max tokens</span></label>
+                                <input type="number" step="64" min="64" max="8192" name="max_tokens" id="max_tokens"
+                                       class="form-control form-control-sm font-monospace" style="max-width: 140px;"
+                                       value="{{ old('max_tokens', $bot->max_tokens ?? 1024) }}">
+                                <div class="form-text">Ceiling on one reply.</div>
+                            </div>
+                            <div class="col-12 col-sm-6">
+                                @include('bots._slider', [
+                                    'name' => 'top_p', 'label' => 'Top p',
+                                    'min' => 0, 'max' => 1, 'step' => 0.05,
+                                    'value' => old('top_p', $bot->top_p ?? 1),
+                                    'ends' => ['Focused', 'Varied'],
+                                ])
+                            </div>
+                            <div class="col-12 col-sm-6">
+                                <label for="top_k_sampling" class="form-label slider-label">
+                                    <span>Top k</span>
+                                    <span class="text-faint" style="font-size: 0.75rem;">optional</span>
+                                </label>
+                                <input type="number" min="1" max="200" name="top_k_sampling" id="top_k_sampling"
+                                       class="form-control form-control-sm font-monospace" style="max-width: 140px;"
+                                       value="{{ old('top_k_sampling', $bot->top_k_sampling) }}" placeholder="Auto">
+                                <div class="form-text">Blank leaves it to the model.</div>
+                            </div>
+                            <div class="col-12 col-sm-6">
+                                @include('bots._slider', [
+                                    'name' => 'presence_penalty', 'label' => 'Presence penalty',
+                                    'min' => -2, 'max' => 2, 'step' => 0.1, 'decimals' => 1,
+                                    'value' => old('presence_penalty', $bot->presence_penalty ?? 0),
+                                    'ends' => ['Stay on topic', 'New topics'],
+                                ])
+                            </div>
+                            <div class="col-12 col-sm-6">
+                                @include('bots._slider', [
+                                    'name' => 'frequency_penalty', 'label' => 'Frequency penalty',
+                                    'min' => -2, 'max' => 2, 'step' => 0.1, 'decimals' => 1,
+                                    'value' => old('frequency_penalty', $bot->frequency_penalty ?? 0),
+                                    'ends' => ['Allow repeats', 'Avoid repeats'],
+                                ])
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-header">Answer sources</div>
+                    <div class="p-3">
+                        @php($combine = (bool) old('combine_sources', $bot->combine_sources))
+                        <div class="form-check mb-1">
+                            <input class="form-check-input" type="radio" name="combine_sources" value="1"
+                                   id="combine_sources_on" {{ $combine ? 'checked' : '' }}>
+                            <label class="form-check-label fw-semibold" for="combine_sources_on">Combined</label>
+                            <div class="form-text mt-0">
+                                The knowledge base and database are asked together and the answer draws on both,
+                                so "is my order still inside the return window?" gets the policy and the order.
+                                Web search is asked only when both have nothing. Every question runs a database
+                                query, and each source gets half the context budget.
+                            </div>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="radio" name="combine_sources" value="0"
+                                   id="combine_sources_off" {{ $combine ? '' : 'checked' }}>
+                            <label class="form-check-label fw-semibold" for="combine_sources_off">Source order</label>
+                            <div class="form-text mt-0">
+                                Each question goes to the sources below in turn, and the first one with something
+                                to say answers it. Cheaper and faster, but a question needing two sources gets one.
+                            </div>
+                        </div>
+
+                        <p class="text-muted small mb-2" id="sourceOrderNote">
+                            A source that is switched off is passed over.
                         </p>
 
                         <input type="hidden" name="source_order" id="source_order"
@@ -128,6 +227,39 @@
                 </div>
 
                 <div class="card mb-3">
+                    <div class="card-header">Web search</div>
+                    <div class="p-3">
+                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-2">
+                            <input class="form-check-input" type="checkbox" role="switch" name="web_search_enabled" value="1"
+                                   id="web_search_enabled" {{ old('web_search_enabled', $bot->web_search_enabled) ? 'checked' : '' }}>
+                            <label class="form-check-label" for="web_search_enabled">Search the web</label>
+                        </div>
+                        <div class="form-text mb-3">
+                            Asked only when the knowledge base and database both had nothing when
+                            combined, or at its place in the source order otherwise.
+                            The provider and its key are set in admin settings.
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <label for="web_search_max_results" class="form-label">Results used</label>
+                                <input type="number" name="web_search_max_results" id="web_search_max_results"
+                                       class="form-control font-monospace" min="1" max="10"
+                                       value="{{ old('web_search_max_results', $bot->web_search_max_results) }}" required>
+                                <div class="form-text">More results cost more and crowd the prompt.</div>
+                            </div>
+                            <div class="col-6">
+                                <label for="web_search_country" class="form-label">Favour country</label>
+                                <input type="text" name="web_search_country" id="web_search_country"
+                                       class="form-control font-monospace text-uppercase" maxlength="2" placeholder="MY"
+                                       value="{{ old('web_search_country', $bot->web_search_country) }}">
+                                <div class="form-text">Two-letter code. Leave empty for no bias.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
                     <div class="card-header">Safety</div>
                     <div class="p-3">
                         <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
@@ -163,78 +295,12 @@
                     </div>
                 </div>
 
-                <div class="card mb-3">
-                    <div class="card-header">Generation</div>
-                    <div class="p-3">
-                        {{-- Thinking first: it changes speed and length more than any
-                             sampling setting below. One short line per level. One-line
-                             php directives, since Blade misreads a block form in a file
-                             that already uses the one-line form. --}}
-                        @php($thinking = old('thinking_level', $bot->thinking_level ?: 'off'))
-                        @php($thinkingHints = ['off' => 'Answers straight away. Fastest.', 'low' => 'Thinks briefly first.', 'medium' => 'Thinks through harder questions.', 'high' => 'Thinks longest. Slowest, most careful.'])
-                        <div class="mb-3">
-                            <div class="form-label" id="thinkingLabel">Thinking level</div>
-                            <div class="segmented" role="radiogroup" aria-labelledby="thinkingLabel">
-                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_off" value="off"
-                                           data-hint="Answers straight away. Fastest." @checked($thinking === 'off')>
-                                    <label for="thinking_off" class="segmented-opt"><i class="bi bi-lightning-charge"></i> Off</label>
-                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_low" value="low"
-                                           data-hint="Thinks briefly first." @checked($thinking === 'low')>
-                                    <label for="thinking_low" class="segmented-opt"><i class="bi bi-lightbulb"></i> Low</label>
-                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_medium" value="medium"
-                                           data-hint="Thinks through harder questions." @checked($thinking === 'medium')>
-                                    <label for="thinking_medium" class="segmented-opt"><i class="bi bi-lightbulb-fill"></i> Medium</label>
-                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_high" value="high"
-                                           data-hint="Thinks longest. Slowest, most careful." @checked($thinking === 'high')>
-                                    <label for="thinking_high" class="segmented-opt"><i class="bi bi-stars"></i> High</label>
-                            </div>
-                            <div class="form-text" id="thinkingHint">{{ $thinkingHints[$thinking] ?? $thinkingHints['off'] }}</div>
-                            <div class="form-text text-faint">Thinking shows folded above each answer. Some providers treat Low, Medium and High alike.</div>
-                        </div>
-
-                        <div class="row g-3 pt-1 mt-2" style="border-top: 1px solid var(--border);">
-                            <div class="col-12 col-sm-6">
-                                @include('bots._slider', [
-                                    'name' => 'top_p', 'label' => 'Top p',
-                                    'min' => 0, 'max' => 1, 'step' => 0.05,
-                                    'value' => old('top_p', $bot->top_p ?? 1),
-                                    'ends' => ['Focused', 'Varied'],
-                                ])
-                            </div>
-                            <div class="col-12 col-sm-6">
-                                <label for="top_k_sampling" class="form-label slider-label">
-                                    <span>Top k</span>
-                                    <span class="text-faint" style="font-size: 0.75rem;">optional</span>
-                                </label>
-                                <input type="number" min="1" max="200" name="top_k_sampling" id="top_k_sampling"
-                                       class="form-control form-control-sm font-monospace" style="max-width: 140px;"
-                                       value="{{ old('top_k_sampling', $bot->top_k_sampling) }}" placeholder="Auto">
-                                <div class="form-text">Blank leaves it to the model.</div>
-                            </div>
-                            <div class="col-12 col-sm-6">
-                                @include('bots._slider', [
-                                    'name' => 'presence_penalty', 'label' => 'Presence penalty',
-                                    'min' => -2, 'max' => 2, 'step' => 0.1, 'decimals' => 1,
-                                    'value' => old('presence_penalty', $bot->presence_penalty ?? 0),
-                                    'ends' => ['Stay on topic', 'New topics'],
-                                ])
-                            </div>
-                            <div class="col-12 col-sm-6">
-                                @include('bots._slider', [
-                                    'name' => 'frequency_penalty', 'label' => 'Frequency penalty',
-                                    'min' => -2, 'max' => 2, 'step' => 0.1, 'decimals' => 1,
-                                    'value' => old('frequency_penalty', $bot->frequency_penalty ?? 0),
-                                    'ends' => ['Allow repeats', 'Avoid repeats'],
-                                ])
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
             </div>
 
             {{-- ============ Where its answers come from ============ --}}
             <div class="col-12 col-xl-6">
+
+                @include('bots._model-endpoint')
 
                 {{-- Documents and databases are the two stores this bot reads,
                      so they are one card with a tab each rather than two boxes
@@ -242,6 +308,7 @@
                      keeps its own card below. --}}
                 <div class="card mb-3">
                     <div class="card-header p-0">
+                        <div class="px-3 pt-2 d-flex align-items-center gap-1.5"><i class="bi bi-diagram-2"></i> Brain</div>
                         <ul class="nav nav-tabs px-2 pt-2" role="tablist" style="border-bottom: 0;">
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pane-kb"
@@ -445,39 +512,6 @@
                     </div>
                 </div>
 
-                <div class="card mb-3">
-                    <div class="card-header">Web search</div>
-                    <div class="p-3">
-                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-2">
-                            <input class="form-check-input" type="checkbox" role="switch" name="web_search_enabled" value="1"
-                                   id="web_search_enabled" {{ old('web_search_enabled', $bot->web_search_enabled) ? 'checked' : '' }}>
-                            <label class="form-check-label" for="web_search_enabled">Search the web</label>
-                        </div>
-                        <div class="form-text mb-3">
-                            Consulted in the order set on the left. Where it sits after the knowledge
-                            base, it runs only when your own documents had nothing.
-                            The provider and its key are set in admin settings.
-                        </div>
-
-                        <div class="row g-3">
-                            <div class="col-6">
-                                <label for="web_search_max_results" class="form-label">Results used</label>
-                                <input type="number" name="web_search_max_results" id="web_search_max_results"
-                                       class="form-control font-monospace" min="1" max="10"
-                                       value="{{ old('web_search_max_results', $bot->web_search_max_results) }}" required>
-                                <div class="form-text">More results cost more and crowd the prompt.</div>
-                            </div>
-                            <div class="col-6">
-                                <label for="web_search_country" class="form-label">Favour country</label>
-                                <input type="text" name="web_search_country" id="web_search_country"
-                                       class="form-control font-monospace text-uppercase" maxlength="2" placeholder="MY"
-                                       value="{{ old('web_search_country', $bot->web_search_country) }}">
-                                <div class="form-text">Two-letter code. Leave empty for no bias.</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
             </div>
         </div>
 
@@ -485,7 +519,7 @@
              settings; only the button names which half it saves. --}}
         @include('bots._save-bar', [
             'formId' => 'brainForm',
-            'saveLabel' => 'Save Brain changes',
+            'saveLabel' => 'Save behaviour changes',
             'track' => true,
         ])
     </form>
@@ -511,20 +545,6 @@
             document.getElementById('thinkingHint').textContent = radio.dataset.hint;
         });
     });
-
-    // Opens the real widget this page embeds, from the button in the head.
-    function openTestWidget() {
-        var host = document.querySelector('chat-widget');
-        var launcher = host && host.shadowRoot ? host.shadowRoot.getElementById('chat-launcher') : null;
-        if (launcher) {
-            launcher.click();
-        } else {
-            noticeDialog({
-                title: 'The widget is not ready',
-                message: 'The widget has not finished loading. Check that the streaming engine on port 8000 is running, then reload.',
-            });
-        }
-    }
 
     function setPromptPreset(type) {
         var el = document.getElementById('system_prompt');
@@ -568,6 +588,19 @@
     });
 
     sync();
+
+    // The order only decides who answers in Source order mode, so it is shown
+    // only there. Still submitted either way, so switching back keeps it.
+    var note = document.getElementById('sourceOrderNote');
+    function showOrder() {
+        var ordered = document.getElementById('combine_sources_off').checked;
+        list.hidden = !ordered;
+        note.hidden = !ordered;
+    }
+    document.querySelectorAll('input[name="combine_sources"]').forEach(function (radio) {
+        radio.addEventListener('change', showOrder);
+    });
+    showOrder();
 })();
 </script>
 

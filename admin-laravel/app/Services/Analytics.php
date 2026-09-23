@@ -27,6 +27,7 @@ class Analytics
         'documents' => 'Knowledge base',
         'database' => 'Live database',
         'web' => 'Web search',
+        'combined' => 'Knowledge base and database',
         'none' => 'Searched, nothing found',
         'model' => 'Model only, nothing searched',
         'refused' => 'Refused by the guard',
@@ -239,7 +240,7 @@ class Analytics
                 if (!empty($citation['url'])) {
                     $host = parse_url((string) $citation['url'], PHP_URL_HOST) ?: (string) $citation['url'];
                     $domains[$host] = ($domains[$host] ?? 0) + 1;
-                } elseif ($row->source_kind === 'documents' && !empty($citation['source_id'])) {
+                } elseif (in_array($row->source_kind, ['documents', 'combined'], true) && !empty($citation['source_id'])) {
                     $id = (string) $citation['source_id'];
                     $cited[$id] ??= ['title' => (string) ($citation['title'] ?? 'Untitled'), 'count' => 0];
                     $cited[$id]['count']++;
@@ -257,7 +258,7 @@ class Analytics
         $activeIds = array_keys($active);
         $bounced = $this->bounced($activeIds);
 
-        $searched = $sources['documents'] + $sources['database'] + $sources['web'] + $sources['none'];
+        $searched = $sources['documents'] + $sources['database'] + $sources['web'] + $sources['combined'] + $sources['none'];
 
         $kpis = [
             'conversations' => count($activeIds),
@@ -530,7 +531,7 @@ class Analytics
             } elseif ($row->sender === 'assistant') {
                 $f['replies'] += (int) $row->total;
                 $f['tokens'] += (int) $row->tokens;
-                if (in_array($row->source_kind, ['documents', 'database', 'web', 'none'], true)) {
+                if (in_array($row->source_kind, ['documents', 'database', 'web', 'combined', 'none'], true)) {
                     $f['searched'] += (int) $row->total;
                 }
                 if ($row->source_kind === 'none') {

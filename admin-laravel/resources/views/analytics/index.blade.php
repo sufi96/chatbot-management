@@ -319,7 +319,7 @@
                             'total' => $intentTotal,
                         ])
                         @if(!$report['intent_enabled'] && $report['intents']['unread'] > 0)
-                            <div class="an-footnote mt-2">Messages are only classified when intent is switched on in the bot's Brain settings.</div>
+                            <div class="an-footnote mt-2">Messages are only classified when intent is switched on in the bot's Behaviour settings.</div>
                         @endif
                     </div>
                 @endif

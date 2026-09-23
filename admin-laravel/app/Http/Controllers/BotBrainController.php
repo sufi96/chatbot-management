@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\PicksProviders;
 use App\Models\BotProfile;
 use App\Models\DbConnection;
 use App\Models\KbCollection;
@@ -10,6 +11,8 @@ use Illuminate\Http\Request;
 
 class BotBrainController extends Controller
 {
+    use PicksProviders;
+
     public function edit(Request $request, string $id)
     {
         $bot = BotProfile::with(['collections', 'dbConnections'])->findOrFail($id);
@@ -25,6 +28,8 @@ class BotBrainController extends Controller
             'dbConnections' => DbConnection::where('system_id', $bot->system_id)
                 ->orderBy('name')->get(),
             'attachedDbs' => $bot->dbConnections->pluck('id')->all(),
+            'providers' => $this->providersFor($request->user(), $bot->system_id, $bot->provider_id),
+            'providerSystemId' => $bot->system_id,
             // The real widget rides along on this page too, so a change to the
             // prompt or the sources can be tried without going anywhere.
             'apiHost' => env('API_HOST_URL', 'http://localhost:8000'),
@@ -37,6 +42,10 @@ class BotBrainController extends Controller
         abort_unless($request->user()->canManageSystem($bot->system_id, 'editor'), 403);
 
         $validated = $request->validate([
+            // Sometimes, so a client written before these moved here from the
+            // Profile tab still saves.
+            'provider_id' => ['sometimes', ...$this->providerRule($request->user(), $bot->provider_id)],
+            'model_name' => ['sometimes', 'required', 'string', 'max:255'],
             'system_prompt' => ['nullable', 'string'],
             'retrieval_mode' => ['required', 'in:hybrid,vector,keyword'],
             'retrieval_top_k' => ['required', 'integer', 'min:1', 'max:20'],
@@ -51,6 +60,10 @@ class BotBrainController extends Controller
             'retrieval_fallback' => ['required', 'in:say_unknown,answer_anyway'],
             'web_search_max_results' => ['required', 'integer', 'min:1', 'max:10'],
             'web_search_country' => ['nullable', 'string', 'size:2', 'alpha'],
+            // Sometimes, so a client written before these moved here from the
+            // Profile tab still saves.
+            'temperature' => ['sometimes', 'numeric', 'min:0', 'max:1'],
+            'max_tokens' => ['sometimes', 'integer', 'min:64', 'max:8192'],
             'top_p' => ['required', 'numeric', 'min:0', 'max:1'],
             'top_k_sampling' => ['nullable', 'integer', 'min:1', 'max:200'],
             'presence_penalty' => ['required', 'numeric', 'min:-2', 'max:2'],
@@ -69,6 +82,7 @@ class BotBrainController extends Controller
         $validated['web_search_enabled'] = $request->boolean('web_search_enabled');
         $validated['db_query_enabled'] = $request->boolean('db_query_enabled');
         $validated['intent_enabled'] = $request->boolean('intent_enabled');
+        $validated['combine_sources'] = $request->boolean('combine_sources');
         $validated['guard_enabled'] = $request->boolean('guard_enabled');
 
         // Normalised rather than refused. A hand made submission must not be
@@ -98,6 +112,6 @@ class BotBrainController extends Controller
             ->all();
         $bot->dbConnections()->sync($allowedDbs);
 
-        return redirect()->route('bots.brain', $bot->id)->with('success', 'Brain settings saved.');
+        return redirect()->route('bots.brain', $bot->id)->with('success', 'Behaviour settings saved.');
     }
 }

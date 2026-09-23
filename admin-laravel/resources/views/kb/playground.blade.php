@@ -1,19 +1,11 @@
 @extends('layouts.app')
 
-@section('page-title', 'Retrieval playground')
+@section('page-title', 'Playground')
 
 @section('content')
 <div style="max-width: 1100px;">
 
-    <div class="page-head mb-4">
-        <div>
-            <a href="{{ route('kb.index') }}" class="d-inline-flex align-items-center gap-1.5 mb-2" style="font-size: 0.8125rem;">
-                <i class="bi bi-arrow-left"></i> Knowledge base
-            </a>
-            <h1>Retrieval playground</h1>
-            <p>Ask what a bot would ask and see exactly which passages come back. When an answer is wrong, this tells you whether the right material was found and ignored, or never found at all.</p>
-        </div>
-    </div>
+    @include('layouts._playground-tabs', ['intro' => 'Ask what a bot would ask and see exactly which passages come back. When an answer is wrong, this tells you whether the right material was found and ignored, or never found at all.'])
 
     <form action="{{ route('kb.playground.run') }}" method="POST">
         @csrf
@@ -108,7 +100,7 @@
                             </div>
                         </div>
                         <div class="form-text mt-2">
-                            These are not saved. Once a combination works, set it on the bot's Brain page.
+                            These are not saved. Once a combination works, set it on the bot's Behaviour page.
                         </div>
                     </div>
                 </div>

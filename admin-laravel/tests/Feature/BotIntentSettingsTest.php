@@ -70,11 +70,12 @@ class BotIntentSettingsTest extends TestCase
         $this->assertTrue(Schema::hasColumn('chat_messages', 'intent_query'));
     }
 
-    public function test_it_is_off_by_default(): void
+    public function test_a_new_bot_has_it_on(): void
     {
-        // It costs a model call on every question. A bot that answers well
-        // today must not get slower because of an upgrade.
-        $this->assertFalse($this->bot()->fresh()->intent_enabled);
+        // A follow-up searched in the visitor's own words finds nothing, so a
+        // new bot starts with it on. The migration that made this the default
+        // leaves existing bots as their operators set them.
+        $this->assertTrue($this->bot()->fresh()->intent_enabled);
     }
 
     public function test_the_brain_page_offers_the_switch(): void

@@ -422,7 +422,7 @@ class AiProviderControllerTest extends TestCase
         $editor = $this->userWithRole('editor');
 
         $this->actingAs($editor)
-            ->get(route('bots.edit', 'bot_1'))
+            ->get(route('bots.brain', 'bot_1'))
             ->assertOk()
             ->assertSee('Platform Endpoint')
             ->assertDontSee('spark-secret')

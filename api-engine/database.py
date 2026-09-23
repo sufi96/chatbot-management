@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import AsyncGenerator
-from sqlalchemy import Column, String, Text, Integer, Float, DateTime, ForeignKey, select, Boolean
+from sqlalchemy import Column, String, Text, Integer, Float, DateTime, ForeignKey, select, Boolean, JSON
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base, relationship
 from config import settings
@@ -103,8 +103,11 @@ class BotProfile(Base):
     # Which source answers first. Read through sources.order.normalise, never
     # raw, because a hand written value must not make a source unreachable.
     source_order = Column(String(64), default="documents,database,web")
+    # Whether the knowledge base and the database are asked together and both
+    # answered from, rather than the first with something. See sources.resolve.
+    combine_sources = Column(Boolean, default=True)
     # Whether each question is read with the conversation before it. See intent.py.
-    intent_enabled = Column(Boolean, default=False)
+    intent_enabled = Column(Boolean, default=True)
     # Whether what comes in and what goes out is checked. See guard.py.
     guard_enabled = Column(Boolean, default=False)
     guard_refusal = Column(Text, nullable=True)
@@ -119,6 +122,16 @@ class BotProfile(Base):
     thinking_level = Column(String(10), default="off")
 
     is_active = Column(Boolean, default=True)
+    # While switched off, the widget either hides ('hide') or shows offline_message ('message').
+    offline_mode = Column(String(20), default="hide")
+    offline_message = Column(Text, nullable=True)
+    offline_subtitle = Column(String(120), nullable=True)  # under the name on the offline card
+    offline_hours = Column(String(160), nullable=True)  # the card's footer note
+    offline_style = Column(JSON, nullable=True)  # the card's colours, pictures and avatar; see the Laravel migration
+    offline_icon_url = Column(String(500), nullable=True)
+    offline_launcher_shape = Column(String(30), nullable=True)  # empty follows launcher_shape
+    offline_close_icon_url = Column(String(500), nullable=True)
+    offline_close_shape = Column(String(30), nullable=True)  # empty follows close_shape
     # The console's own assistant. Laravel creates it; it answers only on the
     # console's own pages. See portal_origin_allowed.
     is_platform = Column(Boolean, default=False)

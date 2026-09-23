@@ -69,6 +69,8 @@
     // Create Container and Shadow DOM to completely isolate styles
     var hostContainer = document.createElement("div");
     hostContainer.id = "chatbot-widget-container";
+    // Hidden until the config says the bot is live, so a switched-off bot never flashes a default box.
+    hostContainer.style.display = "none";
     document.body.appendChild(hostContainer);
 
     var shadowRoot = hostContainer.attachShadow({ mode: "open" });
@@ -489,22 +491,130 @@
             letter-spacing: -0.01em;
         }
 
+        /* Its own green pill, so it reads the same on any header colour or
+           picture and ignores the header text colour. */
         .status-badge {
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 5px;
-            font-size: 12px;
-            color: var(--header-text, #ffffff);
-            opacity: 0.85;
-            margin-top: 2px;
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1;
+            color: #15803D;
+            background: #DCFCE7;
+            border-radius: 999px;
+            padding: 3px 8px;
+            margin-top: 3px;
         }
 
         .status-dot {
-            width: 7px;
-            height: 7px;
+            width: 6px;
+            height: 6px;
             border-radius: 50%;
-            background: #10B981;
+            background: #16A34A;
         }
+
+        /* Switched off with a message: a small notice opens instead of the chat. */
+        .offline-box {
+            position: absolute;
+            bottom: 76px;
+            right: 0;
+            width: 300px;
+            max-width: calc(100vw - 32px);
+            background: #ffffff;
+            border: 1px solid rgba(226, 232, 240, 0.9);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.15);
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(12px) scale(0.96);
+            transform-origin: bottom right;
+            transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .position-bottom-left .offline-box { right: auto; left: 0; transform-origin: bottom left; }
+        .is-offline.widget-open .offline-box { opacity: 1; pointer-events: all; transform: none; }
+        .is-offline .chat-panel, .is-offline .chat-backdrop { display: none; }
+        /* Each part has its own colour and picture, set as --off-* variables from offline_style. */
+        .offline-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 14px 16px 12px;
+            border-bottom: 1px solid #F1F5F9;
+            background: var(--off-header-image, none) center / cover no-repeat, var(--off-header-bg, #ffffff);
+        }
+        .offline-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .offline-avatar {
+            position: relative;
+            flex-shrink: 0;
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--primary-color) 10%, #ffffff);
+            color: var(--primary-color);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 0 0 1px color-mix(in srgb, var(--primary-color) 15%, transparent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        .offline-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+        .offline-avatar.shape-circle { border-radius: 50%; background: var(--primary-color); color: #ffffff; box-shadow: none; }
+        .offline-avatar.shape-circle-transparent { border-radius: 50%; background: transparent; box-shadow: 0 0 0 2px var(--primary-color); }
+        .offline-avatar.shape-transparent-fit { border-radius: 0; background: transparent; box-shadow: none; }
+        .offline-avatar.shape-transparent-fit img { object-fit: contain; }
+        .offline-avatar::after {
+            content: "";
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #EF4444;
+            box-shadow: 0 0 0 2px #ffffff;
+        }
+        .offline-title { display: block; font-size: 13px; font-weight: 700; letter-spacing: -0.01em; color: var(--off-header-text, #0F172A); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .offline-subtitle { display: block; font-size: 11px; line-height: 1; color: var(--off-header-text, #0F172A); opacity: 0.65; margin-top: 3px; }
+        .offline-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #B91C1C;
+            background: #FEF2F2;
+            border: 1px solid rgba(254, 202, 202, 0.8);
+            border-radius: 999px;
+            padding: 4px 10px;
+            flex-shrink: 0;
+        }
+        .offline-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #EF4444; animation: offline-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes offline-pulse { 50% { opacity: 0.5; } }
+        @media (prefers-reduced-motion: reduce) { .offline-badge::before { animation: none; } }
+        .offline-text {
+            font-size: 13px;
+            line-height: 1.625;
+            color: var(--off-body-text, #475569);
+            white-space: pre-line;
+            margin: 0;
+            padding: 12px 16px 14px;
+            background: var(--off-body-image, none) center / cover no-repeat, var(--off-body-bg, #ffffff);
+        }
+        .offline-hours {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            color: var(--off-footer-text, #94A3B8);
+            padding: 8px 16px 10px;
+            border-top: 1px solid #F1F5F9;
+            background: var(--off-footer-image, none) center / cover no-repeat, var(--off-footer-bg, #ffffff);
+        }
+        .offline-box [hidden] { display: none; }
 
         .header-actions {
             display: flex;
@@ -1273,6 +1383,21 @@
             </div>
         </div>
 
+        <div class="offline-box" id="offline-box" role="status">
+            <div class="offline-head">
+                <div class="offline-who">
+                    <div class="offline-avatar" id="offline-avatar"></div>
+                    <div style="min-width: 0;">
+                        <span class="offline-title" id="offline-title"></span>
+                        <span class="offline-subtitle" id="offline-subtitle"></span>
+                    </div>
+                </div>
+                <span class="offline-badge">Offline</span>
+            </div>
+            <p class="offline-text" id="offline-text"></p>
+            <div class="offline-hours" id="offline-hours"></div>
+        </div>
+
         <button class="launcher-btn" id="launcher-btn" aria-label="Open Chat">
             <span id="launcher-inner">
                 <svg class="launcher-icon launcher-icon-chat" viewBox="0 0 24 24">
@@ -1484,11 +1609,13 @@
         heading.textContent = "Based on";
         row.appendChild(heading);
 
-        var known = SOURCE_MARKS[kind];
-
         for (var i = 0; i < sources.length; i++) {
             var title = sources[i].title || "Untitled";
             var url = sources[i].url;
+            // A combined answer names the kind on each source, since the
+            // knowledge base and the database answered it together.
+            var own = sources[i].kind || kind;
+            var known = SOURCE_MARKS[own];
 
             // A knowledge base source has no url and stays plain text. A web
             // result is something the visitor can and should go and check.
@@ -1498,7 +1625,7 @@
             // a screen reader and a hover both reach it.
             chip.title = (known ? known.label + ": " : "") + (url || title);
 
-            var mark = sourceMark(kind, sources[i]);
+            var mark = sourceMark(own, sources[i]);
             if (mark) chip.appendChild(mark);
 
             var text = document.createElement("span");
@@ -1605,10 +1732,17 @@
     function loadConfig() {
         fetch(apiHost + "/api/v1/bot/" + encodeURIComponent(botId) + "/config")
             .then(function (res) {
+                // 404 = bot switched off or deleted: show nothing on the host page.
+                if (res.status === 404) {
+                    hostContainer.remove();
+                    return null;
+                }
                 if (!res.ok) throw new Error("Status " + res.status);
                 return res.json();
             })
             .then(function (data) {
+                if (!data) return;
+                hostContainer.style.display = "";
                 botConfig.title = data.widget_title || data.name || botConfig.title;
                 botConfig.greeting = data.widget_greeting || botConfig.greeting;
                 botConfig.primaryColor = data.widget_primary_color || botConfig.primaryColor;
@@ -1630,6 +1764,51 @@
                 botConfig.closeIconUrl = data.close_icon_url || "";
                 botConfig.closeShape = data.close_shape || "circle";
                 botConfig.closeSize = parseInt(data.close_size, 10) || 52;
+
+                // Switched off but set to show a message: the launcher opens a
+                // small offline notice instead of the chat, and the corner
+                // button can wear its own pictures and shapes. Empty follows
+                // the online button.
+                if (data.offline) {
+                    wrapper.classList.add("is-offline");
+                    var style = data.offline_style || {};
+                    var offlineTitle = style.title || botConfig.title;
+                    botConfig.position = style.position || botConfig.position;
+                    shadowRoot.getElementById("offline-title").textContent = offlineTitle;
+                    shadowRoot.getElementById("offline-text").textContent = data.offline_message;
+                    [["offline-subtitle", data.offline_subtitle], ["offline-hours", data.offline_hours]].forEach(function (line) {
+                        var el = shadowRoot.getElementById(line[0]);
+                        el.textContent = line[1] || "";
+                        el.hidden = !line[1];
+                    });
+                    var offlineBox = shadowRoot.getElementById("offline-box");
+                    [["header", "#FFFFFF"], ["body", "#FFFFFF"], ["footer", "#FFFFFF"]].forEach(function (part) {
+                        var bg = style[part[0] + "_bg"] || part[1];
+                        offlineBox.style.setProperty("--off-" + part[0] + "-bg", bg);
+                        if (style[part[0] + "_text"]) offlineBox.style.setProperty("--off-" + part[0] + "-text", style[part[0] + "_text"]);
+                        if (style[part[0] + "_image"]) {
+                            offlineBox.style.setProperty("--off-" + part[0] + "-image",
+                                pictureLayers(style[part[0] + "_image"], bg, readOpacity(style[part[0] + "_image_opacity"])));
+                        }
+                    });
+                    // What the "Show" choice picks: the chat avatar, its own picture, or an
+                    // emoji or letter. Without a picture it falls back to the title's first letter.
+                    var source = style.avatar_source || (style.avatar_image ? "image" : style.avatar_emoji ? "text" : "chat");
+                    var offlineAvatar = shadowRoot.getElementById("offline-avatar");
+                    offlineAvatar.className = "offline-avatar shape-" + (style.avatar_shape || "rounded").replace(/_/g, "-");
+                    var avatarUrl = source === "image" ? style.avatar_image : source === "chat" ? botConfig.botAvatarUrl : "";
+                    offlineAvatar.textContent = (source === "text" && style.avatar_emoji) || (offlineTitle || "?").trim().charAt(0).toUpperCase();
+                    if (avatarUrl) {
+                        var avatarImg = document.createElement("img");
+                        avatarImg.src = avatarUrl;
+                        avatarImg.alt = "";
+                        offlineAvatar.replaceChildren(avatarImg);
+                    }
+                    botConfig.launcherIconUrl = data.offline_icon_url || botConfig.launcherIconUrl;
+                    botConfig.launcherShape = data.offline_launcher_shape || botConfig.launcherShape;
+                    botConfig.closeIconUrl = data.offline_close_icon_url || botConfig.closeIconUrl;
+                    botConfig.closeShape = data.offline_close_shape || botConfig.closeShape;
+                }
 
                 botTitleEl.textContent = botConfig.title;
                 updateColors(botConfig.primaryColor);
@@ -1695,6 +1874,7 @@
             })
             .catch(function (err) {
                 console.warn("[ChatbotWidget] Could not load remote bot config, using defaults:", err);
+                hostContainer.style.display = "";
                 appendMessage("bot", botConfig.greeting);
             });
     }
@@ -1709,7 +1889,9 @@
 
         if (isOpen) {
             wrapper.classList.add("widget-open");
-            setTimeout(function () { chatInput.focus(); }, 150);
+            if (!wrapper.classList.contains("is-offline")) {
+                setTimeout(function () { chatInput.focus(); }, 150);
+            }
         } else {
             wrapper.classList.remove("widget-open");
             // Reopening should always give the familiar size back.

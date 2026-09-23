@@ -23,15 +23,24 @@ class ConnectionTestRequest(BaseModel):
 @router.get("/{bot_id}/config")
 async def get_bot_public_config(bot_id: str, db: AsyncSession = Depends(get_db)):
     """Fetch public configuration for embedding widget."""
-    stmt = select(BotProfile).where(BotProfile.id == bot_id, BotProfile.is_active.is_(True),
-                                    BotProfile.deleted_at.is_(None))
+    stmt = select(BotProfile).where(BotProfile.id == bot_id, BotProfile.deleted_at.is_(None))
     result = await db.execute(stmt)
     bot = result.scalars().first()
 
-    if not bot:
+    # A switched-off bot is only served when it is set to show an offline message.
+    if not bot or (not bot.is_active and bot.offline_mode != "message"):
         raise HTTPException(status_code=404, detail="Active bot profile not found")
 
     return {
+        "offline": not bot.is_active,
+        "offline_message": bot.offline_message or "We're offline right now. Please check back later.",
+        "offline_subtitle": bot.offline_subtitle or "",
+        "offline_hours": bot.offline_hours or "",
+        "offline_style": bot.offline_style or {},
+        "offline_icon_url": bot.offline_icon_url or "",
+        "offline_launcher_shape": bot.offline_launcher_shape or "",
+        "offline_close_icon_url": bot.offline_close_icon_url or "",
+        "offline_close_shape": bot.offline_close_shape or "",
         "id": bot.id,
         "name": bot.name,
         "widget_title": bot.widget_title or bot.name,

@@ -40,6 +40,9 @@ class BotProfile extends Model
         // Where nomic-embed-text separated passages that answered from ones
         // that did not. See the migration that added it.
         'retrieval_min_similarity' => 0.65,
+        // The database defaults, here too so a bot not yet reloaded reads them.
+        'combine_sources' => true,
+        'intent_enabled' => true,
     ];
 
     protected $fillable = [
@@ -71,6 +74,15 @@ class BotProfile extends Model
         'bot_avatar_url',
         'avatar_shape',
         'is_active',
+        'offline_mode',
+        'offline_message',
+        'offline_subtitle',
+        'offline_hours',
+        'offline_style',
+        'offline_icon_url',
+        'offline_launcher_shape',
+        'offline_close_icon_url',
+        'offline_close_shape',
         'retrieval_enabled',
         'retrieval_mode',
         'retrieval_top_k',
@@ -86,6 +98,7 @@ class BotProfile extends Model
         'db_max_rows',
         'db_query_timeout',
         'source_order',
+        'combine_sources',
         'intent_enabled',
         'guard_enabled',
         'guard_refusal',
@@ -105,10 +118,12 @@ class BotProfile extends Model
             'launcher_size' => 'integer',
             'close_size' => 'integer',
             'is_active' => 'boolean',
+            'offline_style' => 'array',
             'is_platform' => 'boolean',
             'retrieval_enabled' => 'boolean',
             'db_query_enabled' => 'boolean',
             'intent_enabled' => 'boolean',
+            'combine_sources' => 'boolean',
             'guard_enabled' => 'boolean',
             'db_max_rows' => 'integer',
             'db_query_timeout' => 'integer',

@@ -109,172 +109,37 @@
         {{-- ===================== Settings column ===================== --}}
         <div class="bot-editor-main">
 
-            {{-- Model and endpoint --}}
-            <div class="card mb-3">
-                <div class="card-header d-flex align-items-center justify-content-between gap-2">
-                    <span>Model and endpoint</span>
-                    <button type="button" onclick="testConnection()" id="btnTestConn" class="btn btn-sm btn-outline-secondary">
-                        <i class="bi bi-plug"></i> Test inference
-                    </button>
-                </div>
-                <div class="p-3">
-                    {{-- The test's outcome. The button lives in the header, and
-                         this line only takes space once there is something to say. --}}
-                    <div id="testConnResult" class="test-conn-result"></div>
-
-                    <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
-                        <label for="providerTrigger" class="form-label mb-0">
-                            Provider <span style="color: var(--danger);">*</span>
-                        </label>
-                        <button type="button" class="btn btn-sm provider-new" onclick="openProviderModal('new')">
-                            <i class="bi bi-plus-lg"></i> New provider
-                        </button>
-                    </div>
-                    {{-- The select is what the form submits and what the script reads;
-                         the picker is how it is shown: the name on one line, then whose
-                         it is, the URL, the key and the bots on it, wrapping rather than
-                         cutting anything off. --}}
-                    <div class="provider-field">
-                        <div class="dropdown provider-picker">
-                            <button type="button" class="provider-trigger" id="providerTrigger"
-                                    data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="listbox"
-                                    @if($providers->isEmpty()) disabled @endif>
-                                <span class="provider-trigger-body" id="providerTriggerBody"></span>
-                                <i class="bi bi-chevron-expand provider-trigger-caret"></i>
-                            </button>
-                            <div class="dropdown-menu provider-menu">
-                                <div class="model-menu-filter" id="providerFilterWrap" hidden>
-                                    <input type="search" class="form-control form-control-sm" id="providerFilter"
-                                           placeholder="Filter by name, URL or workspace" aria-label="Filter providers"
-                                           autocomplete="off">
-                                </div>
-                                <div class="provider-menu-list" id="providerMenuList" role="listbox"></div>
-                            </div>
-                        </div>
-                        <select name="provider_id" id="provider_id" class="visually-hidden" tabindex="-1" aria-hidden="true"
-                                onchange="onProviderChange()"
-                                @if($providers->isEmpty()) disabled @endif>
-                            @if($providers->isEmpty())
-                                <option value="">No providers yet — add one</option>
-                            @endif
-                            {{-- Grouped by owner, and the owner repeated in each label so a
-                                 closed select still tells two same-named endpoints apart.
-                                 A locked entry is one a super admin set that this user
-                                 cannot pick, so it carries no URL. No entry carries its key:
-                                 only whether it has one. --}}
-                            @foreach($providers->groupBy(fn ($p) => $p->system_id ?? '') as $ownerId => $group)
-                                <optgroup label="{{ $group->first()->ownerName() }}" data-system-id="{{ $ownerId }}">
-                                    @foreach($group as $provider)
-                                        @php
-                                            $locked = (bool) $provider->getAttribute('locked');
-                                            $editable = !$locked && $provider->system_id !== null;
-                                        @endphp
-                                        <option value="{{ $provider->id }}"
-                                                data-name="{{ $provider->name }}"
-                                                data-owner="{{ $provider->ownerName() }}"
-                                                data-editable="{{ $editable ? '1' : '0' }}"
-                                                data-own="{{ $provider->system_id === $providerSystemId ? '1' : '0' }}"
-                                                data-scope="{{ $provider->system_id === null ? 'platform' : ($provider->system_id === $providerSystemId ? 'own' : 'other') }}"
-                                                data-bots="{{ $provider->bots_count ?? 0 }}"
-                                                @if($locked)
-                                                    data-locked="1"
-                                                @else
-                                                    data-base-url="{{ $provider->base_url }}"
-                                                    data-merge-system="{{ $provider->merge_system_prompt ? '1' : '0' }}"
-                                                    data-has-key="{{ $provider->api_key ? '1' : '0' }}"
-                                                @endif
-                                                @selected(old('provider_id', $bot->provider_id) === $provider->id)>
-                                            {{ $locked ? $provider->name : $provider->label() }} · {{ $provider->ownerName() }}
-                                        </option>
-                                    @endforeach
-                                </optgroup>
-                            @endforeach
-                        </select>
-                        {{-- Acts on the selected provider. One this user cannot change
-                             shows why instead of two dead buttons. --}}
-                        <div class="provider-toolbar">
-                            <div class="provider-toolbar-actions" id="providerActions">
-                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnEditProvider"
-                                        onclick="openProviderModal('edit')">
-                                    <i class="bi bi-pencil"></i> Edit
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger" id="btnDeleteProvider"
-                                        onclick="deleteProvider()">
-                                    <i class="bi bi-trash"></i> Delete
-                                </button>
-                            </div>
-                            <span class="provider-toolbar-note" id="providerLockedNote" hidden>
-                                <i class="bi bi-lock"></i> Managed in Admin Settings
-                            </span>
-                        </div>
-                    </div>
-                    <div class="form-text mb-3" id="providerHint">
-                        One saved endpoint, shared by every bot pointing at it. Edit it once when the
-                        machine or the key changes.
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="d-flex align-items-center justify-content-between mb-1">
-                            <label for="model_name" class="form-label mb-0">
-                                Model <span style="color: var(--danger);">*</span>
-                            </label>
-                            <span id="fetchModelsBadge" style="font-size: 0.6875rem;"></span>
-                        </div>
-                        <div class="input-group">
-                            <input type="text" name="model_name" id="model_name" class="form-control font-monospace"
-                                   value="{{ old('model_name', $bot->model_name) }}"
-                                   placeholder="llama3.2" required>
-                            <button type="button" class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split"
-                                    data-bs-toggle="dropdown" aria-expanded="false" id="btnModelDropdownToggle"
-                                    title="Pick a discovered model">
-                                <span class="visually-hidden">Show discovered models</span>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end" id="modelsDropdownList"
-                                style="max-height: 260px; overflow-y: auto; min-width: 250px;">
-                                <li><span class="dropdown-item-text text-muted" style="font-size: 0.78125rem;">Fetch models to load the list</span></li>
-                            </ul>
-                            <button type="button" class="btn btn-brand" id="btnFetchModels"
-                                    onclick="fetchModelsFromBaseUrl()" title="Query the endpoint for available models">
-                                <i class="bi bi-arrow-repeat" id="iconFetch"></i>
-                                <span id="textFetch">Fetch models</span>
-                            </button>
-                        </div>
-                        <div class="form-text">Queries the base URL and confirms the endpoint answers.</div>
-                    </div>
-
-                    <div class="row g-3">
-                        <div class="col-6">
-                            {{-- 0 to 1, the range where a change is felt. A value saved
-                                 above 1 before the cap shows at 1 and saves as 1. --}}
-                            @php $temperature = min(1, max(0, (float) old('temperature', $bot->temperature ?? 0.7))); @endphp
-                            <label for="temperature" class="form-label d-flex align-items-center justify-content-between mb-1">
-                                <span>Temperature</span>
-                                <span class="figure-mono text-muted" id="temperatureOut">{{ number_format($temperature, 2) }}</span>
-                            </label>
-                            <input type="range" class="form-range" name="temperature" id="temperature"
-                                   min="0" max="1" step="0.05" value="{{ $temperature }}"
-                                   oninput="document.getElementById('temperatureOut').textContent = Number(this.value).toFixed(2)">
-                            <div class="form-text d-flex justify-content-between">
-                                <span>Predictable</span><span>Creative</span>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <label for="max_tokens" class="form-label">Max tokens</label>
-                            <input type="number" step="64" min="64" max="8192" name="max_tokens" id="max_tokens"
-                                   class="form-control font-monospace" value="{{ old('max_tokens', $bot->max_tokens) }}">
-                            <div class="form-text">Ceiling on one reply.</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            {{-- A new bot needs a model before it can exist. After that it is set on
+                 the Behaviour tab. --}}
+            @unless($isEdit)
+                @include('bots._model-endpoint')
+            @endunless
 
             {{-- Appearance. One numbered section per part of the widget, so each
                  setting sits beside the others that change the same thing. --}}
+        @php
+            $offlineMode = old('offline_mode', $isEdit ? ($bot->offline_mode ?: 'hide') : 'hide');
+            $offStyle = $bot->offline_style ?? []; // the offline preview reads its saved pictures from here too
+        @endphp
             <div class="card mb-3">
-                <div class="card-header">Widget appearance</div>
+                <div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
+                    <span>Widget appearance</span>
+                    {{-- Which state is being designed. Stays in step with the preview's Online / Offline tabs. --}}
+                    <div class="nav status-tabs" role="tablist" aria-label="Widget state to edit">
+                        <button type="button" class="status-tab active" id="appearanceOnlineTab" data-bs-toggle="tab" data-bs-target="#appearanceOnline"
+                                data-sync="online" role="tab" aria-controls="appearanceOnline" aria-selected="true">
+                            <span class="status-tab-dot is-on" aria-hidden="true"></span> Online
+                        </button>
+                        <button type="button" class="status-tab" id="appearanceOfflineTab" data-bs-toggle="tab" data-bs-target="#appearanceOffline"
+                                data-sync="offline" role="tab" aria-controls="appearanceOffline" aria-selected="false">
+                            <span class="status-tab-dot is-off" aria-hidden="true"></span> Offline
+                        </button>
+                    </div>
+                </div>
                 <style>
                     .appearance-section { padding: 1rem; }
-                    .appearance-section + .appearance-section { border-top: 1px solid var(--border); }
+                    .appearance-section + .appearance-section,
+                    .appearance-section + div > .appearance-section:first-child { border-top: 1px solid var(--border); }
                     .appearance-head { display: flex; align-items: flex-start; gap: 0.625rem; margin-bottom: 0.875rem; }
                     .appearance-step { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
                         border: 1px solid var(--border-strong); display: inline-flex; align-items: center;
@@ -285,6 +150,8 @@
                         letter-spacing: 0.04em; margin-bottom: 0.5rem; }
                     .appearance-split { border-top: 1px dashed var(--border); margin-top: 1rem; padding-top: 1rem; }
                 </style>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="appearanceOnline" role="tabpanel" aria-labelledby="appearanceOnlineTab" tabindex="0">
                 <section class="appearance-section">
                     <div class="appearance-head">
                         <span class="appearance-step">1</span>
@@ -301,7 +168,7 @@
                         </div>
                         <div class="col-12 col-sm-6">
                             <label for="widget_position" class="form-label">Screen position</label>
-                            <select name="widget_position" id="widget_position" class="form-select">
+                            <select name="widget_position" id="widget_position" class="form-select" onchange="updateLivePreview()">
                                 <option value="bottom-right" {{ old('widget_position', $bot->widget_position) === 'bottom-right' ? 'selected' : '' }}>Bottom right</option>
                                 <option value="bottom-left" {{ old('widget_position', $bot->widget_position) === 'bottom-left' ? 'selected' : '' }}>Bottom left</option>
                             </select>
@@ -364,7 +231,7 @@
                                                    border: 1px solid var(--border-strong); border-radius: var(--r-sm);"></button>
                                 @endforeach
                             </div>
-                            <div class="form-text">The title, the "Online" line and the clear, expand and close icons. Pick a dark one for a light header picture.</div>
+                            <div class="form-text">The title and the clear, expand and close icons. Pick a dark one for a light header picture.</div>
 
                             <label for="header_image_input" class="form-label mt-3 mb-1">Header picture <span class="text-muted fw-normal">(optional)</span></label>
                             <input type="file" name="header_image" id="header_image_input" accept=".png,.jpg,.jpeg,.gif,.svg,.webp"
@@ -686,6 +553,11 @@
                         </div>
                     </div>
                 </section>
+                    </div>
+                    <div class="tab-pane fade" id="appearanceOffline" role="tabpanel" aria-labelledby="appearanceOfflineTab" tabindex="0">
+                        @include('bots._offline-appearance')
+                    </div>
+                </div>
             </div>
 
             {{-- Danger zone. Forms cannot nest, so the button submits
@@ -736,8 +608,12 @@
                     <div class="card-header p-0">
                         <ul class="nav nav-tabs px-2 pt-2" role="tablist" style="border-bottom: 0;">
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pane-preview"
-                                        type="button" role="tab" aria-controls="pane-preview" aria-selected="true">Preview</button>
+                                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pane-preview" data-sync="online"
+                                        type="button" role="tab" aria-controls="pane-preview" aria-selected="true">Online</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-offline" data-sync="offline"
+                                        type="button" role="tab" aria-controls="pane-offline" aria-selected="false">Offline</button>
                             </li>
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-embed"
@@ -756,21 +632,21 @@
                                 /* The widget's cutout-in-a-circle, for the preview. The picture
                                    sits in a clip whose bottom is the circle's lower half, so it
                                    rises out of the top. Outside a cutout the clip does nothing. */
-                                #pane-preview .pv-clip { display: contents; }
-                                #pane-preview .pv-cutout { position: relative; overflow: visible !important;
+                                :is(#pane-preview, #pane-offline) .pv-clip { display: contents; }
+                                :is(#pane-preview, #pane-offline) .pv-cutout { position: relative; overflow: visible !important;
                                     background: transparent !important; border: none !important;
                                     border-radius: 0 !important; box-shadow: none !important; }
-                                #pane-preview .pv-cutout::before, #pane-preview .pv-cutout-ring::after {
+                                :is(#pane-preview, #pane-offline) .pv-cutout::before, :is(#pane-preview, #pane-offline) .pv-cutout-ring::after {
                                     content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none; }
-                                #pane-preview .pv-cutout::before { background: var(--pv-fill); z-index: 0; }
-                                #pane-preview .pv-cutout-ring::before { background: transparent; border: 2px solid var(--pv-line); }
-                                #pane-preview .pv-cutout-ring::after { border: 2px solid var(--pv-line);
+                                :is(#pane-preview, #pane-offline) .pv-cutout::before { background: var(--pv-fill); z-index: 0; }
+                                :is(#pane-preview, #pane-offline) .pv-cutout-ring::before { background: transparent; border: 2px solid var(--pv-line); }
+                                :is(#pane-preview, #pane-offline) .pv-cutout-ring::after { border: 2px solid var(--pv-line);
                                     clip-path: inset(50% 0 0 0); z-index: 2; }
-                                #pane-preview .pv-cutout > i { position: relative; z-index: 1; }
-                                #pane-preview .pv-cutout .pv-clip { display: flex; position: absolute; left: 0; right: 0;
+                                :is(#pane-preview, #pane-offline) .pv-cutout > i { position: relative; z-index: 1; }
+                                :is(#pane-preview, #pane-offline) .pv-cutout .pv-clip { display: flex; position: absolute; left: 0; right: 0;
                                     bottom: 0; height: 135%; overflow: hidden; border-radius: 0 0 999px 999px;
                                     align-items: flex-end; justify-content: center; z-index: 1; }
-                                #pane-preview .pv-cutout .pv-clip img { width: auto !important; height: auto !important;
+                                :is(#pane-preview, #pane-offline) .pv-cutout .pv-clip img { width: auto !important; height: auto !important;
                                     max-width: 100% !important; max-height: 100% !important; border-radius: 0 !important;
                                     filter: none !important; object-fit: contain !important; }
                             </style>
@@ -789,7 +665,7 @@
                                         </div>
                                         <div>
                                             <div id="prevTitle" class="fw-semibold" style="font-size: 0.8125rem; line-height: 1.2;">{{ $bot->widget_title ?: 'AI Assistant' }}</div>
-                                            <div style="font-size: 0.6875rem; opacity: 0.75;">Online</div>
+                                            <div style="display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; padding: 2px 7px; border-radius: 999px; font-size: 0.625rem; font-weight: 600; line-height: 1; color: #15803D; background: #DCFCE7;"><span style="width: 5px; height: 5px; border-radius: 50%; background: #16A34A;"></span> Online</div>
                                         </div>
                                     </div>
                                     <span class="d-flex align-items-center gap-2" style="opacity: 0.8;">
@@ -887,6 +763,94 @@
                             </div>
                         </div>
 
+                        {{-- Offline: what a visitor sees while the bot is switched off
+                             and set to show a message. Follows Widget appearance → Offline. --}}
+                        <div class="tab-pane fade" id="pane-offline" role="tabpanel">
+                            <div id="prevOfflineHideNote" class="p-3 text-muted" style="font-size: 0.78125rem;" hidden>
+                                <i class="bi bi-eye-slash"></i> Set to <strong>Hide the widget</strong>: while the bot is off, visitors see nothing at all.
+                                Choose <strong>Show an offline message</strong> under Widget appearance &rarr; Offline to design a notice.
+                            </div>
+                            <div id="prevOfflineDesign">
+                            <div id="prevOfflineStage" class="d-flex flex-column justify-content-end p-3"
+                                 style="height: 300px; background: #f4f4f5;">
+                                <div id="prevOfflineBox" class="pv-off">
+                                    <div id="prevOfflineHeader" class="pv-off-head" data-own="{{ $offStyle['header_image'] ?? '' }}">
+                                        <div class="d-flex align-items-center" style="gap: 10px; min-width: 0;">
+                                            <div id="prevOfflineAvatar" class="pv-off-avatar">
+                                                <img id="prevOfflineAvatarImg" data-own="{{ $offStyle['avatar_image'] ?? '' }}" alt="" style="display: none;">
+                                                <span id="prevOfflineAvatarLetter"></span>
+                                            </div>
+                                            <div style="min-width: 0;">
+                                                <span id="prevOfflineTitle" class="pv-off-title"></span>
+                                                <div id="prevOfflineSubtitle" class="pv-off-subtitle"></div>
+                                            </div>
+                                        </div>
+                                        <span class="pv-off-badge"><span></span> Offline</span>
+                                    </div>
+                                    <p id="prevOfflineText" class="pv-off-body" data-own="{{ $offStyle['body_image'] ?? '' }}"></p>
+                                    <div id="prevOfflineHours" class="pv-off-foot" data-own="{{ $offStyle['footer_image'] ?? '' }}"></div>
+                                </div>
+                                {{-- Mirrors the widget's .offline-* styles. --}}
+                                <style>
+                                    .pv-off { width: 280px; max-width: 100%; background: #fff; border: 1px solid rgba(226,232,240,0.9); border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(15,23,42,0.15); }
+                                    .pv-off [hidden] { display: none !important; }
+                                    .pv-off-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 16px 12px; border-bottom: 1px solid #F1F5F9;
+                                        background: var(--off-header-image, none) center / cover no-repeat, var(--off-header-bg, #fff); }
+                                    .pv-off-avatar { position: relative; flex-shrink: 0; width: 36px; height: 36px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700;
+                                        background: color-mix(in srgb, var(--pv-color) 10%, #fff); color: var(--pv-color);
+                                        box-shadow: 0 1px 2px rgba(0,0,0,0.05), 0 0 0 1px color-mix(in srgb, var(--pv-color) 15%, transparent); }
+                                    .pv-off-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+                                    .pv-off-avatar.shape-circle { border-radius: 50%; background: var(--pv-color); color: #fff; box-shadow: none; }
+                                    .pv-off-avatar.shape-circle-transparent { border-radius: 50%; background: transparent; box-shadow: 0 0 0 2px var(--pv-color); }
+                                    .pv-off-avatar.shape-transparent-fit { border-radius: 0; background: transparent; box-shadow: none; }
+                                    .pv-off-avatar.shape-transparent-fit img { object-fit: contain; }
+                                    .pv-off-avatar::after { content: ""; position: absolute; top: -2px; right: -2px; width: 10px; height: 10px; border-radius: 50%; background: #EF4444; box-shadow: 0 0 0 2px #fff; }
+                                    .pv-off-title { display: block; font-size: 13px; font-weight: 700; letter-spacing: -0.01em; color: var(--off-header-text, #0F172A); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                                    .pv-off-subtitle { font-size: 11px; line-height: 1; color: var(--off-header-text, #0F172A); opacity: 0.65; margin-top: 3px; }
+                                    .pv-off-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: #B91C1C; background: #FEF2F2; border: 1px solid rgba(254,202,202,0.8); border-radius: 999px; padding: 4px 10px; flex-shrink: 0; }
+                                    .pv-off-badge > span { width: 6px; height: 6px; border-radius: 50%; background: #EF4444; animation: pv-offline-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+                                    @keyframes pv-offline-pulse { 50% { opacity: 0.5; } }
+                                    @media (prefers-reduced-motion: reduce) { .pv-off-badge > span { animation: none; } }
+                                    .pv-off-body { margin: 0; font-size: 13px; line-height: 1.625; color: var(--off-body-text, #475569); white-space: pre-line; padding: 12px 16px 14px;
+                                        background: var(--off-body-image, none) center / cover no-repeat, var(--off-body-bg, #fff); }
+                                    .pv-off-foot { font-size: 11px; color: var(--off-footer-text, #94A3B8); padding: 8px 16px 10px; border-top: 1px solid #F1F5F9;
+                                        background: var(--off-footer-image, none) center / cover no-repeat, var(--off-footer-bg, #fff); }
+                                </style>
+                            </div>
+                            <div id="prevOfflineButtons" class="p-3" style="border-top: 1px solid var(--border);">
+                                <div class="d-flex align-items-end gap-4" style="min-height: 96px;">
+                                    <div class="text-center">
+                                        <div class="d-flex align-items-end justify-content-center" style="min-height: 72px;">
+                                            <div id="prevOfflineLauncherBtn"
+                                                 class="d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0"
+                                                 style="width: 48px; height: 48px; border-radius: 50%; color: #fff;">
+                                                <span class="pv-clip"><img id="prevOfflineLauncherImg" data-own="{{ $bot->offline_icon_url }}" alt=""
+                                                     style="display: none; width: 100%; height: 100%; object-fit: contain;"></span>
+                                                <i id="prevOfflineLauncherDefault" class="bi bi-chat-dots" style="font-size: 1.05rem;"></i>
+                                            </div>
+                                        </div>
+                                        <div class="text-muted mt-2" style="font-size: 0.6875rem;">Closed</div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="d-flex align-items-end justify-content-center" style="min-height: 72px;">
+                                            <div id="prevOfflineCloseBtn"
+                                                 class="d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0"
+                                                 style="width: 42px; height: 42px; border-radius: 50%; color: #fff;">
+                                                <span class="pv-clip"><img id="prevOfflineCloseImg" data-own="{{ $bot->offline_close_icon_url }}" alt=""
+                                                     style="display: none; width: 100%; height: 100%; object-fit: contain;"></span>
+                                                <i id="prevOfflineCloseDefault" class="bi bi-x-lg" style="font-size: 0.95rem;"></i>
+                                            </div>
+                                        </div>
+                                        <div class="text-muted mt-2" style="font-size: 0.6875rem;">Open</div>
+                                    </div>
+                                    <p class="text-muted mb-0 align-self-center" style="font-size: 0.75rem;">
+                                        The notice opens from the corner button. Empty pictures and shapes follow the online button.
+                                    </p>
+                                </div>
+                            </div>
+                            </div>
+                        </div>
+
                         {{-- Embed --}}
                         <div class="tab-pane fade" id="pane-embed" role="tabpanel">
                             @if($isEdit)
@@ -908,7 +872,7 @@
                                         <li class="mb-1">Reload. The launcher appears in the corner you chose.</li>
                                     </ol>
 
-                                    <div class="mb-3">
+                                    <div>
                                         <div class="kv">
                                             <span class="kv-key">Sites allowed to load it</span>
                                             <span class="kv-val">{{ $bot->system->allowed_origins ?? '*' }}</span>
@@ -917,16 +881,6 @@
                                             <span class="kv-key">Style isolation</span>
                                             <span class="kv-val">Shadow DOM</span>
                                         </div>
-                                    </div>
-
-                                    <div class="p-2.5" style="border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2);">
-                                        <div class="fw-semibold mb-1" style="font-size: 0.78125rem;">This page is running the real widget</div>
-                                        <p class="text-muted mb-2" style="font-size: 0.75rem;">
-                                            It uses the last saved settings, not the unsaved ones on the left, and talks to the live model.
-                                        </p>
-                                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="openTestWidget()">
-                                            <i class="bi bi-chat-dots"></i> Open test widget
-                                        </button>
                                     </div>
                                 </div>
                             @else
@@ -964,75 +918,6 @@
     </script>
 @endif
 
-{{-- The provider editor. A modal rather than a page of its own, so the half-filled
-     bot form behind it survives adding an endpoint. --}}
-<div class="modal fade" id="providerModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="providerModalTitle">New provider</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="providerEditId">
-
-                <div class="mb-3">
-                    <label for="providerName" class="form-label">
-                        Name <span style="color: var(--danger);">*</span>
-                    </label>
-                    <input type="text" id="providerName" class="form-control"
-                           placeholder="Office PC" maxlength="255">
-                    <div class="form-text">What you will recognise it by in the list.</div>
-                </div>
-
-                <div class="mb-3">
-                    <label for="providerBaseUrl" class="form-label">
-                        Base URL <span style="color: var(--danger);">*</span>
-                    </label>
-                    <input type="text" id="providerBaseUrl" class="form-control font-monospace"
-                           placeholder="http://localhost:11434/v1" maxlength="500">
-                </div>
-
-                {{-- The saved key is never sent to the page. On an edit the box starts
-                     empty: blank keeps the saved key, a new one replaces it, and
-                     removing it is a separate tick. --}}
-                <div class="mb-3">
-                    <label for="providerApiKey" class="form-label">API key</label>
-                    <input type="password" id="providerApiKey" class="form-control font-monospace"
-                           placeholder="Not needed for local Ollama" maxlength="500" autocomplete="new-password">
-                    <div class="form-text" id="providerApiKeyHelp">Leave blank for a local endpoint.</div>
-                    <div class="form-check mt-2" id="providerClearKeyWrap" hidden>
-                        <input class="form-check-input" type="checkbox" id="providerClearKey">
-                        <label class="form-check-label" for="providerClearKey">Remove the saved key</label>
-                    </div>
-                </div>
-
-                {{-- For a gateway that silently drops system messages: the bot then
-                     answers without its prompt, its knowledge or its database. --}}
-                <div class="form-check mb-3">
-                    <input class="form-check-input" type="checkbox" id="providerMergeSystem">
-                    <label class="form-check-label" for="providerMergeSystem">Send instructions inside the message</label>
-                    <div class="form-text">Tick only if bots on this provider ignore their prompt, knowledge base or database. Some gateways drop system messages.</div>
-                </div>
-
-                <div id="providerModalResult" class="small fw-medium"></div>
-            </div>
-            <div class="modal-footer justify-content-between">
-                <button type="button" class="btn btn-outline-secondary" id="btnTestProvider"
-                        onclick="testProviderDraft()">
-                    <i class="bi bi-plug"></i> Test
-                </button>
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-brand" id="btnSaveProvider" onclick="saveProvider()">
-                        Save provider
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 @push('scripts')
 <script>
     // Power card: reflect the chosen state straight away and flag it as
@@ -1054,23 +939,37 @@
                     ? 'Accepting live conversations through the widget and API.'
                     : 'The widget and API will not accept conversations.';
                 pending.hidden = radio.value === card.dataset.saved;
+                showState(on ? 'online' : 'offline');
+            });
+        });
+
+        document.querySelectorAll('input[name="offline_mode"]').forEach(function (radio) {
+            radio.addEventListener('change', function () {
+                document.querySelectorAll('[data-offline-message-only]').forEach(function (el) {
+                    el.hidden = radio.value !== 'message';
+                });
+                updateLivePreview();
             });
         });
     })();
 
-    // Opens the real widget that this page embeds, not the mock preview.
-    function openTestWidget() {
-        var host = document.querySelector('chat-widget');
-        var launcher = host && host.shadowRoot ? host.shadowRoot.getElementById('chat-launcher') : null;
-        if (launcher) {
-            launcher.click();
-        } else {
-            noticeDialog({
-                title: 'The widget is not ready',
-                message: 'The widget has not finished loading. Check that the streaming engine on port 8000 is running, then reload.',
-            });
-        }
+    // The settings' Online / Offline switch and the preview's tabs of the same
+    // name move together, so the preview always shows the state being edited.
+    function showState(state) {
+        document.querySelectorAll('[data-sync="' + state + '"]').forEach(function (tab) {
+            bootstrap.Tab.getOrCreateInstance(tab).show();
+        });
     }
+    document.querySelectorAll('[data-sync]').forEach(function (tab) {
+        tab.addEventListener('shown.bs.tab', function () { showState(tab.dataset.sync); });
+    });
+    // A required field in the hidden state's pane would block saving with no
+    // visible message; bring its pane forward so the browser can point at it.
+    document.getElementById('botForm').addEventListener('invalid', function (e) {
+        var pane = e.target.closest('#appearanceOnline, #appearanceOffline');
+        if (pane && !pane.classList.contains('active')) showState(pane.id === 'appearanceOnline' ? 'online' : 'offline');
+    }, true);
+    @if(!$botOn) showState('offline'); @endif
 
     function getSelectedRadioValue(name, defaultValue) {
         var el = document.querySelector('input[name="' + name + '"]:checked');
@@ -1236,6 +1135,8 @@
             closeShape, closeSize, color
         );
 
+        updateOfflinePreview(title, color, launcherShape, launcherSize, closeShape, closeSize);
+
         // Apply Avatar Shape & Background styling
         var avatarContainer = document.getElementById('prevAvatarContainer');
         var avatarImg = document.getElementById('prevAvatarImg');
@@ -1361,7 +1262,7 @@
     // The opacity sliders come from a shared partial, so they are listened
     // to here rather than given an oninput of their own.
     document.addEventListener('input', function (event) {
-        if (event.target.id === 'header_image_opacity' || event.target.id === 'background_image_opacity') {
+        if (/^(header_image_opacity|background_image_opacity|offline_style\[\w+_image_opacity\])$/.test(event.target.id)) {
             updateLivePreview();
         }
     });
@@ -1385,6 +1286,96 @@
             var el = document.getElementById(target === 'header' ? 'prevHeader' : 'prevBody');
             el.dataset.image = e.target.result;
             el.dataset.fresh = '1';
+            updateLivePreview();
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+
+    // The Offline tab, drawn the way the widget draws the notice: anything
+    // left empty follows the online look.
+    function updateOfflinePreview(title, color, launcherShape, launcherSize, closeShape, closeSize) {
+        var mode = getSelectedRadioValue('offline_mode', 'hide');
+        document.getElementById('prevOfflineHideNote').hidden = mode === 'message';
+        document.getElementById('prevOfflineDesign').hidden = mode !== 'message';
+
+        title = document.getElementById('offline_title').value.trim() || title;
+        setText('prevOfflineTitle', title);
+        setText('prevOfflineText', document.getElementById('input_offline_message').value
+            || "We're offline right now. Please check back later.");
+        ['Subtitle', 'Hours'].forEach(function (key) {
+            var value = document.getElementById('input_offline_' + key.toLowerCase()).value.trim();
+            var el = document.getElementById('prevOffline' + key);
+            el.textContent = value;
+            el.hidden = !value;
+        });
+
+        var box = document.getElementById('prevOfflineBox');
+        box.style.setProperty('--pv-color', color);
+        [['header', 'prevOfflineHeader'], ['body', 'prevOfflineText'], ['footer', 'prevOfflineHours']].forEach(function (part) {
+            var bg = document.getElementById('offline_' + part[0] + '_bg').value;
+            var image = ownSrc(document.getElementById(part[1]), 'remove_offline_' + part[0] + '_image');
+            var opacity = Number(document.getElementById('offline_style[' + part[0] + '_image_opacity]').value);
+            box.style.setProperty('--off-' + part[0] + '-bg', bg);
+            box.style.setProperty('--off-' + part[0] + '-text', document.getElementById('offline_' + part[0] + '_text').value);
+            box.style.setProperty('--off-' + part[0] + '-image', image ? pictureLayers(image, bg, opacity) : 'none');
+        });
+
+        // The avatar shows what its "Show" choice picks; a missing picture falls back to the title's first letter.
+        var source = getSelectedRadioValue('offline_style[avatar_source]', 'chat');
+        document.querySelectorAll('[data-avatar-source]').forEach(function (el) {
+            el.hidden = el.dataset.avatarSource !== source;
+        });
+        var onlineAvatar = document.getElementById('prevAvatarImg');
+        var avatarImg = document.getElementById('prevOfflineAvatarImg');
+        var avatarSrc = source === 'image' ? ownSrc(avatarImg, 'remove_offline_avatar')
+            : source === 'chat' && onlineAvatar.style.display !== 'none' ? onlineAvatar.getAttribute('src') : '';
+        var letter = (source === 'text' && document.getElementById('offline_avatar_emoji').value.trim())
+            || (title || '?').trim().charAt(0).toUpperCase();
+        if (avatarSrc) avatarImg.src = avatarSrc;
+        avatarImg.style.display = avatarSrc ? 'block' : 'none';
+        setText('prevOfflineAvatarLetter', avatarSrc ? '' : letter);
+        document.getElementById('prevOfflineAvatar').className =
+            'pv-off-avatar shape-' + getSelectedRadioValue('offline_style[avatar_shape]', 'rounded').replace(/_/g, '-');
+
+        var position = document.getElementById('offline_position').value || document.getElementById('widget_position').value;
+        document.getElementById('prevOfflineStage').style.alignItems = position === 'bottom-left' ? 'flex-start' : 'flex-end';
+
+        paintOfflineButton('Launcher', 'prevLauncherImg', 'remove_offline_icon', 'offline_launcher_shape', launcherShape, launcherSize, color);
+        paintOfflineButton('Close', 'prevCloseImg', 'remove_offline_close_icon', 'offline_close_shape', closeShape, closeSize, color);
+    }
+
+    function pickColour(id, hex) {
+        document.getElementById(id).value = hex;
+        updateLivePreview();
+    }
+
+    // An offline picture: a fresh upload, else the saved one unless its Remove box is ticked.
+    function ownSrc(el, removeId) {
+        var remove = document.getElementById(removeId);
+        return el.dataset.own && !(remove && remove.checked && !el.dataset.fresh) ? el.dataset.own : '';
+    }
+
+    function paintOfflineButton(cap, onlineImgId, removeId, shapeId, onlineShape, size, color) {
+        var img = document.getElementById('prevOffline' + cap + 'Img');
+        var def = document.getElementById('prevOffline' + cap + 'Default');
+        var own = ownSrc(img, removeId);
+        var online = document.getElementById(onlineImgId);
+        var src = own || (online.style.display !== 'none' ? online.getAttribute('src') : '');
+
+        if (src) img.src = src;
+        img.style.display = src ? 'block' : 'none';
+        def.style.display = src ? 'none' : 'block';
+        styleCornerButton(document.getElementById('prevOffline' + cap + 'Btn'), img, def,
+            getSelectedRadioValue(shapeId, '') || onlineShape, size, color);
+    }
+
+    function previewOfflineUpload(input, key) {
+        if (!input.files || !input.files[0]) return;
+        var reader = new FileReader();
+        reader.onload = function (e) {
+            var img = document.getElementById({launcher: 'prevOfflineLauncherImg', close: 'prevOfflineCloseImg'}[key] || key);
+            img.dataset.own = e.target.result;
+            img.dataset.fresh = '1';
             updateLivePreview();
         };
         reader.readAsDataURL(input.files[0]);
@@ -1416,604 +1407,6 @@
             }
             reader.readAsDataURL(input.files[0]);
         }
-    }
-
-    function selectDiscoveredModel(modelName) {
-        var input = document.getElementById('model_name');
-        input.value = modelName;
-        
-        // Highlight active item in dropdown
-        var items = document.querySelectorAll('#modelsDropdownList .dropdown-item');
-        items.forEach(function(el) {
-            var isCurrent = el.getAttribute('data-model') === modelName;
-            el.classList.toggle('active', isCurrent);
-            var check = el.querySelector('.model-check');
-            if (check) check.classList.toggle('d-none', !isCurrent);
-        });
-
-        var badge = document.getElementById('fetchModelsBadge');
-        if (badge) {
-            badge.className = 'text-success';
-            badge.innerHTML = '<i class="bi bi-check2-circle"></i> Selected: ' + modelName;
-        }
-    }
-
-    function fetchModelsFromBaseUrl() {
-        var provider = selectedProviderOption();
-        var currentModel = document.getElementById('model_name').value.trim();
-        var btn = document.getElementById('btnFetchModels');
-        var icon = document.getElementById('iconFetch');
-        var text = document.getElementById('textFetch');
-        var badge = document.getElementById('fetchModelsBadge');
-        var dropdownList = document.getElementById('modelsDropdownList');
-        var testConnResult = document.getElementById('testConnResult');
-
-        if (!provider || !provider.value) {
-            badge.className = 'text-danger';
-            badge.innerHTML = '<i class="bi bi-exclamation-circle"></i> Choose a provider first';
-            return;
-        }
-
-        btn.disabled = true;
-        icon.className = 'spinner-border spinner-border-sm';
-        text.textContent = 'Fetching...';
-        badge.className = 'text-muted';
-        badge.innerHTML = '<i class="bi bi-hourglass-split"></i> Querying endpoint...';
-
-        fetch(providerRoutes.models, {
-            method: 'POST',
-            headers: providerHeaders(),
-            body: JSON.stringify({ provider_id: provider.value, bot_id: providerRoutes.botId })
-        })
-        .then(providerJson)
-        .then(function(data) {
-            btn.disabled = false;
-            icon.className = 'bi bi-arrow-repeat';
-            text.textContent = 'Fetch models';
-
-            if (data.success && data.models && data.models.length > 0) {
-                dropdownList.innerHTML = '';
-
-                var header = document.createElement('li');
-                header.innerHTML = '<h6 class="dropdown-header small text-uppercase fw-bold text-muted py-1" style="font-size: 0.68rem;"><i class="bi bi-hdd-network me-1"></i> Available Models (' + data.count + ')</h6>';
-                dropdownList.appendChild(header);
-
-                data.models.forEach(function(model) {
-                    var isSelected = (model === currentModel) || (!currentModel && data.models.indexOf(model) === 0);
-                    var li = document.createElement('li');
-                    li.innerHTML = '<a class="dropdown-item font-monospace small d-flex align-items-center justify-content-between py-1.5 ' + (isSelected ? 'active' : '') + '" href="javascript:void(0)" data-model="' + model + '" onclick="selectDiscoveredModel(\'' + model + '\')">' +
-                        '<span>' + model + '</span>' +
-                        '<i class="bi bi-check2 model-check ' + (isSelected ? '' : 'd-none') + '"></i>' +
-                    '</a>';
-                    dropdownList.appendChild(li);
-                });
-
-                if (!currentModel || currentModel === 'llama3.2') {
-                    selectDiscoveredModel(data.models[0]);
-                } else if (data.models.includes(currentModel)) {
-                    selectDiscoveredModel(currentModel);
-                }
-
-                badge.className = 'text-success';
-                badge.innerHTML = '<i class="bi bi-check-circle-fill"></i> ' + data.count + ' model(s) found';
-
-                if (testConnResult) {
-                    testConnResult.className = 'test-conn-result text-success';
-                    testConnResult.innerHTML = '<i class="bi bi-check2-circle"></i> Endpoint reachable, ' + data.count + ' model(s) available';
-                }
-
-                var toggleBtn = document.getElementById('btnModelDropdownToggle');
-                var bsDropdown = bootstrap.Dropdown.getOrCreateInstance(toggleBtn);
-                bsDropdown.show();
-            } else {
-                badge.className = 'text-danger';
-                badge.innerHTML = '<i class="bi bi-exclamation-circle"></i> ' + (data.message || 'No models returned');
-
-                dropdownList.innerHTML = '<li><span class="dropdown-item-text text-danger small"><i class="bi bi-exclamation-triangle me-1"></i> ' + (data.message || 'No models found') + '</span></li>';
-
-                if (testConnResult) {
-                    testConnResult.className = 'test-conn-result text-danger';
-                    testConnResult.innerHTML = '<i class="bi bi-exclamation-circle"></i> ' + (data.message || 'Connection failed');
-                }
-            }
-        })
-        .catch(function(err) {
-            btn.disabled = false;
-            icon.className = 'bi bi-arrow-repeat';
-            text.textContent = 'Fetch models';
-
-            badge.className = 'text-danger';
-            badge.innerHTML = '<i class="bi bi-exclamation-circle"></i> Could not list models';
-
-            dropdownList.innerHTML = '<li><span class="dropdown-item-text text-danger small"><i class="bi bi-x-circle me-1"></i> Could not list models</span></li>';
-
-            if (testConnResult) {
-                testConnResult.className = 'test-conn-result text-danger';
-                testConnResult.textContent = 'Could not list models: ' + err.message;
-            }
-        });
-    }
-
-    // ---- Providers -------------------------------------------------------
-    //
-    // The select is the source of truth for which endpoint this bot talks to.
-    // No key ever reaches this page: Fetch models and Test inference name the
-    // selected provider, and the portal looks its key up and calls the engine.
-
-    var providerRoutes = {
-        store: '{{ route('providers.store') }}',
-        base: '{{ url('/providers') }}',
-        models: '{{ route('providers.models') }}',
-        test: '{{ route('providers.test') }}',
-        systemId: @json($providerSystemId),
-        // Lets a bot's editor test the provider it already uses, even one a
-        // super admin set from outside their reach.
-        botId: @json($isEdit ? $bot->id : null),
-    };
-
-    // Reads a JSON answer, turning a refusal into an error with its message.
-    function providerJson(res) {
-        return res.json().catch(function () { return {}; }).then(function (data) {
-            if (!res.ok && data && data.success === undefined) {
-                throw new Error(firstProviderError(data));
-            }
-            return data;
-        });
-    }
-
-    function selectedProviderOption() {
-        var select = document.getElementById('provider_id');
-        return select && select.selectedIndex >= 0 ? select.options[select.selectedIndex] : null;
-    }
-
-    function onProviderChange() {
-        var option = selectedProviderOption();
-        var hasProvider = !!(option && option.value);
-
-        // Platform providers are edited in Admin Settings, and one set from
-        // above is not this user's to change.
-        var editable = hasProvider && option.dataset.editable === '1';
-        document.getElementById('providerActions').hidden = !editable;
-        document.getElementById('providerLockedNote').hidden = !hasProvider || editable;
-
-        renderProviderPicker();
-    }
-
-    // ---- Provider picker ---------------------------------------------------
-    //
-    // Drawn from the select every time it changes, so adding, editing and
-    // deleting only ever touch the select.
-
-    function providerMeta(option) {
-        if (option.dataset.locked === '1') {
-            return ['Set by a super admin'];
-        }
-        var bots = parseInt(option.dataset.bots || '0', 10);
-        return [
-            option.dataset.hasKey === '1' ? 'Key saved' : 'No key',
-            bots === 0 ? 'No bots yet' : bots + (bots === 1 ? ' bot' : ' bots'),
-        ];
-    }
-
-    function providerOwnerBadge(label, scope) {
-        var badge = document.createElement('span');
-        badge.className = 'provider-owner-badge is-' + (scope || 'other');
-        badge.innerHTML = scope === 'platform'
-            ? '<i class="bi bi-globe2"></i> '
-            : '<i class="bi bi-diagram-3"></i> ';
-        badge.appendChild(document.createTextNode(label));
-        return badge;
-    }
-
-    function providerEntry(option, withOwner) {
-        var wrap = document.createElement('span');
-        wrap.className = 'provider-entry';
-
-        var name = document.createElement('span');
-        name.className = 'provider-entry-name';
-        name.textContent = option.dataset.name;
-        wrap.appendChild(name);
-
-        // Whose it is leads the second line as a badge coloured by scope: this
-        // workspace, another workspace or the platform. A long name wraps
-        // inside the badge rather than being cut off.
-        var sub = document.createElement('span');
-        sub.className = 'provider-entry-sub';
-        if (withOwner) {
-            sub.appendChild(providerOwnerBadge(option.dataset.owner, option.dataset.scope));
-        }
-        if (option.dataset.baseUrl) {
-            var url = document.createElement('span');
-            url.className = 'provider-entry-url';
-            url.textContent = option.dataset.baseUrl;
-            sub.appendChild(url);
-        }
-        providerMeta(option).forEach(function (text) {
-            var item = document.createElement('span');
-            item.className = 'provider-entry-meta';
-            item.textContent = text;
-            sub.appendChild(item);
-        });
-        wrap.appendChild(sub);
-
-        return wrap;
-    }
-
-    function renderProviderPicker() {
-        var select = document.getElementById('provider_id');
-        var trigger = document.getElementById('providerTrigger');
-        var body = document.getElementById('providerTriggerBody');
-        var list = document.getElementById('providerMenuList');
-        var filterWrap = document.getElementById('providerFilterWrap');
-        var filter = document.getElementById('providerFilter');
-        if (!select || !trigger) return;
-
-        var selected = selectedProviderOption();
-        body.innerHTML = '';
-        if (selected && selected.value) {
-            body.appendChild(providerEntry(selected, true));
-        } else {
-            var empty = document.createElement('span');
-            empty.className = 'provider-entry-empty';
-            empty.textContent = 'No providers yet. Add one with New.';
-            body.appendChild(empty);
-        }
-        trigger.disabled = select.disabled;
-
-        var query = filter.value.trim().toLowerCase();
-        var total = select.querySelectorAll('option[value]:not([value=""])').length;
-        filterWrap.hidden = total < 6;
-
-        list.innerHTML = '';
-        Array.prototype.forEach.call(select.querySelectorAll('optgroup'), function (group) {
-            var matches = Array.prototype.filter.call(group.querySelectorAll('option'), function (option) {
-                var haystack = [option.dataset.name, option.dataset.owner, option.dataset.baseUrl || ''].join(' ').toLowerCase();
-                return !query || haystack.indexOf(query) !== -1;
-            });
-            if (!matches.length) return;
-
-            var header = document.createElement('div');
-            header.className = 'dropdown-header provider-menu-header';
-            header.appendChild(providerOwnerBadge(group.label, matches[0].dataset.scope));
-            list.appendChild(header);
-
-            matches.forEach(function (option) {
-                var item = document.createElement('button');
-                item.type = 'button';
-                item.className = 'dropdown-item provider-item' + (option.selected ? ' active' : '');
-                item.setAttribute('role', 'option');
-                item.setAttribute('aria-selected', option.selected ? 'true' : 'false');
-                item.appendChild(providerEntry(option, false));
-                item.addEventListener('click', function () {
-                    select.value = option.value;
-                    onProviderChange();
-                });
-                list.appendChild(item);
-            });
-        });
-
-        if (!list.children.length) {
-            var none = document.createElement('div');
-            none.className = 'provider-menu-none';
-            none.textContent = query ? 'Nothing matches that filter.' : 'No providers yet.';
-            list.appendChild(none);
-        }
-    }
-
-    document.addEventListener('DOMContentLoaded', function () {
-        var filter = document.getElementById('providerFilter');
-        var trigger = document.getElementById('providerTrigger');
-        if (!filter || !trigger) return;
-
-        filter.addEventListener('input', renderProviderPicker);
-        filter.addEventListener('click', function (event) { event.stopPropagation(); });
-        trigger.addEventListener('shown.bs.dropdown', function () {
-            if (!document.getElementById('providerFilterWrap').hidden) filter.focus();
-        });
-        trigger.addEventListener('hidden.bs.dropdown', function () {
-            if (filter.value) { filter.value = ''; renderProviderPicker(); }
-        });
-    });
-
-    function openProviderModal(mode) {
-        var result = document.getElementById('providerModalResult');
-        result.className = 'small fw-medium';
-        result.textContent = '';
-
-        if (mode === 'edit') {
-            var option = selectedProviderOption();
-            if (!option || !option.value) { return; }
-
-            document.getElementById('providerModalTitle').textContent = 'Edit provider';
-            document.getElementById('providerEditId').value = option.value;
-            document.getElementById('providerName').value = option.dataset.name || '';
-            document.getElementById('providerBaseUrl').value = option.dataset.baseUrl || '';
-            setProviderKeyField(option.dataset.hasKey === '1');
-            document.getElementById('providerMergeSystem').checked = option.dataset.mergeSystem === '1';
-        } else {
-            document.getElementById('providerModalTitle').textContent = 'New provider';
-            document.getElementById('providerEditId').value = '';
-            document.getElementById('providerName').value = '';
-            document.getElementById('providerBaseUrl').value = 'http://localhost:11434/v1';
-            setProviderKeyField(false);
-            document.getElementById('providerMergeSystem').checked = false;
-        }
-
-        bootstrap.Modal.getOrCreateInstance(document.getElementById('providerModal')).show();
-    }
-
-    // The key box always starts empty. With a key already saved it says so,
-    // and offers to remove it.
-    function setProviderKeyField(hasSavedKey) {
-        var input = document.getElementById('providerApiKey');
-        input.value = '';
-        input.placeholder = hasSavedKey ? '•••••••• saved, type to replace' : 'Not needed for local Ollama';
-        document.getElementById('providerApiKeyHelp').textContent = hasSavedKey
-            ? 'The saved key is never shown. Leave blank to keep it.'
-            : 'Leave blank for a local endpoint.';
-        document.getElementById('providerClearKey').checked = false;
-        document.getElementById('providerClearKeyWrap').hidden = !hasSavedKey;
-    }
-
-    function providerHeaders() {
-        return {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-        };
-    }
-
-    function saveProvider() {
-        var id = document.getElementById('providerEditId').value;
-        var name = document.getElementById('providerName').value.trim();
-        var baseUrl = document.getElementById('providerBaseUrl').value.trim();
-        var apiKey = document.getElementById('providerApiKey').value.trim();
-        var result = document.getElementById('providerModalResult');
-        var btn = document.getElementById('btnSaveProvider');
-
-        if (!name || !baseUrl) {
-            result.className = 'small fw-medium text-danger';
-            result.textContent = 'A name and a base URL are both needed.';
-            return;
-        }
-
-        btn.disabled = true;
-        result.className = 'small fw-medium text-secondary';
-        result.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
-
-        fetch(id ? providerRoutes.base + '/' + id : providerRoutes.store, {
-            method: id ? 'PUT' : 'POST',
-            headers: providerHeaders(),
-            body: JSON.stringify({
-                system_id: providerRoutes.systemId, name: name, base_url: baseUrl, api_key: apiKey,
-                clear_api_key: !!id && document.getElementById('providerClearKey').checked,
-                merge_system_prompt: document.getElementById('providerMergeSystem').checked
-            })
-        })
-        .then(function(res) {
-            return res.json().then(function(data) { return { ok: res.ok, data: data }; });
-        })
-        .then(function(payload) {
-            btn.disabled = false;
-
-            if (!payload.ok) {
-                result.className = 'small fw-medium text-danger';
-                result.textContent = firstProviderError(payload.data);
-                return;
-            }
-
-            applySavedProvider(payload.data.provider);
-            bootstrap.Modal.getOrCreateInstance(document.getElementById('providerModal')).hide();
-
-            var hint = document.getElementById('providerHint');
-            hint.className = 'form-text mb-3 text-success';
-            hint.textContent = payload.data.message;
-        })
-        .catch(function(error) {
-            btn.disabled = false;
-            result.className = 'small fw-medium text-danger';
-            result.textContent = 'Could not save: ' + error.message;
-        });
-    }
-
-    // Puts the saved provider into the select and selects it, so a new endpoint
-    // is in use the moment the modal closes.
-    function applySavedProvider(provider) {
-        var select = document.getElementById('provider_id');
-        var option = select.querySelector('option[value="' + provider.id + '"]');
-
-        if (!option) {
-            var placeholder = select.querySelector('option[value=""]');
-            if (placeholder) { placeholder.remove(); }
-
-            var group = select.querySelector('optgroup[data-system-id="' + provider.system_id + '"]');
-            if (!group) {
-                group = document.createElement('optgroup');
-                group.label = provider.owner;
-                group.dataset.systemId = provider.system_id;
-                select.insertBefore(group, select.firstChild);
-            }
-
-            option = document.createElement('option');
-            option.value = provider.id;
-            group.appendChild(option);
-        }
-
-        option.textContent = provider.label + ' · ' + provider.owner;
-        option.dataset.name = provider.name;
-        option.dataset.owner = provider.owner;
-        option.dataset.editable = '1';
-        option.dataset.own = provider.system_id === providerRoutes.systemId ? '1' : '0';
-        option.dataset.scope = provider.system_id === null ? 'platform'
-            : (option.dataset.own === '1' ? 'own' : 'other');
-        option.dataset.bots = option.dataset.bots || '0';
-        option.dataset.baseUrl = provider.base_url;
-        option.dataset.hasKey = provider.has_key ? '1' : '0';
-        option.dataset.mergeSystem = provider.merge_system_prompt ? '1' : '0';
-
-        select.disabled = false;
-        select.value = provider.id;
-        onProviderChange();
-    }
-
-    function deleteProvider() {
-        var option = selectedProviderOption();
-        if (!option || !option.value) { return; }
-
-        var bots = parseInt(option.dataset.bots || '0', 10);
-        confirmDialog({
-            title: 'Delete this provider?',
-            subject: option.dataset.name,
-            detail: [option.dataset.baseUrl, option.dataset.owner].filter(Boolean).join(' · '),
-            message: bots > 0
-                ? 'It is still used by ' + bots + (bots === 1 ? ' bot' : ' bots') + ', so the delete will be refused until they point elsewhere.'
-                : 'No bot uses it. This cannot be undone.',
-            confirmLabel: 'Delete provider',
-        }).then(function (confirmed) {
-            if (confirmed) removeProvider(option);
-        });
-    }
-
-    function removeProvider(option) {
-        var hint = document.getElementById('providerHint');
-
-        fetch(providerRoutes.base + '/' + option.value, {
-            method: 'DELETE',
-            headers: providerHeaders()
-        })
-        .then(function(res) {
-            return res.json().then(function(data) { return { ok: res.ok, data: data }; });
-        })
-        .then(function(payload) {
-            if (!payload.ok) {
-                hint.className = 'form-text mb-3 text-danger';
-                hint.textContent = payload.data.message || 'Could not delete that provider.';
-                return;
-            }
-
-            var group = option.parentNode;
-            option.remove();
-            if (group.tagName === 'OPTGROUP' && !group.children.length) { group.remove(); }
-            hint.className = 'form-text mb-3 text-success';
-            hint.textContent = payload.data.message;
-
-            var select = document.getElementById('provider_id');
-            if (select.options.length === 0) {
-                var placeholder = document.createElement('option');
-                placeholder.value = '';
-                placeholder.textContent = 'No providers yet, add one';
-                select.appendChild(placeholder);
-                select.disabled = true;
-            }
-            onProviderChange();
-        })
-        .catch(function(error) {
-            hint.className = 'form-text mb-3 text-danger';
-            hint.textContent = 'Could not delete: ' + error.message;
-        });
-    }
-
-    // Checks what is typed in the modal, before any of it is saved.
-    function testProviderDraft() {
-        var baseUrl = document.getElementById('providerBaseUrl').value.trim();
-        var apiKey = document.getElementById('providerApiKey').value.trim();
-        var editId = document.getElementById('providerEditId').value;
-        var clearKey = !!editId && document.getElementById('providerClearKey').checked;
-        var result = document.getElementById('providerModalResult');
-        var btn = document.getElementById('btnTestProvider');
-
-        if (!baseUrl) {
-            result.className = 'small fw-medium text-danger';
-            result.textContent = 'Enter a base URL to test.';
-            return;
-        }
-
-        btn.disabled = true;
-        result.className = 'small fw-medium text-secondary';
-        result.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Querying endpoint...';
-
-        // An edit with the key box blank is tested with the saved key, as it
-        // would be saved; ticking Remove tests it with none.
-        fetch(providerRoutes.models, {
-            method: 'POST',
-            headers: providerHeaders(),
-            body: JSON.stringify({
-                system_id: providerRoutes.systemId, base_url: baseUrl, api_key: apiKey,
-                provider_id: clearKey ? null : (editId || null)
-            })
-        })
-        .then(providerJson)
-        .then(function(data) {
-            btn.disabled = false;
-            if (data.success) {
-                result.className = 'small fw-medium text-success';
-                result.textContent = 'Reachable. ' + data.count + ' model(s) available.';
-            } else {
-                result.className = 'small fw-medium text-danger';
-                result.textContent = data.message || 'The endpoint did not answer.';
-            }
-        })
-        .catch(function(error) {
-            btn.disabled = false;
-            result.className = 'small fw-medium text-danger';
-            result.textContent = 'Could not reach it: ' + error.message;
-        });
-    }
-
-    function firstProviderError(data) {
-        if (data && data.errors) {
-            for (var field in data.errors) {
-                return data.errors[field][0];
-            }
-        }
-        return (data && data.message) || 'Could not save that provider.';
-    }
-
-    document.addEventListener('DOMContentLoaded', onProviderChange);
-
-    function testConnection() {
-        var provider = selectedProviderOption();
-        var modelName = document.getElementById('model_name').value.trim();
-        var statusEl = document.getElementById('testConnResult');
-        var btn = document.getElementById('btnTestConn');
-
-        if (!provider || !provider.value) {
-            statusEl.className = 'test-conn-result fw-medium text-danger';
-            statusEl.textContent = 'Choose a provider first.';
-            return;
-        }
-
-        if (!modelName) {
-            statusEl.className = 'test-conn-result fw-medium text-warning text-dark';
-            statusEl.textContent = 'Choose a model first, or fetch the list.';
-            return;
-        }
-
-        statusEl.className = 'test-conn-result fw-medium text-secondary';
-        statusEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Testing inference response (model may be loading)...';
-        btn.disabled = true;
-
-        fetch(providerRoutes.test, {
-            method: 'POST',
-            headers: providerHeaders(),
-            body: JSON.stringify({ provider_id: provider.value, bot_id: providerRoutes.botId, model_name: modelName })
-        })
-        .then(providerJson)
-        .then(function(data) {
-            btn.disabled = false;
-            if (data.success) {
-                statusEl.className = 'test-conn-result fw-medium text-success';
-                statusEl.textContent = data.message;
-            } else {
-                statusEl.className = 'test-conn-result fw-medium text-danger';
-                statusEl.textContent = data.message;
-            }
-        })
-        .catch(function(err) {
-            btn.disabled = false;
-            statusEl.className = 'test-conn-result fw-medium text-danger';
-            statusEl.textContent = 'Could not run the test: ' + err.message;
-        });
     }
 
     // The preview walks through the steps the engine reports while a visitor waits

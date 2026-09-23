@@ -1,4 +1,4 @@
-{{-- Floating save bar shared by the Profile and Brain tabs.
+{{-- Floating save bar shared by the Profile and Behaviour tabs.
 
      With $track on, the bar stays out of the way until a field differs from
      how the page loaded, then shows how many fields are unsaved. Fields are

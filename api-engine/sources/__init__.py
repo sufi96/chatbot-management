@@ -6,6 +6,7 @@ predict it, or explain an answer that came from the wrong place. An order can be
 held in a person's head. See
 docs/superpowers/specs/2026-09-14-answer-source-order-design.md section 4.
 """
+import asyncio
 from functools import partial
 
 from sources import attempts as attempt_module
@@ -63,28 +64,86 @@ def build_attempts(session, bot, message: str, settings: dict, collection_ids) -
     }
 
 
-async def resolve(order: list[str], enabled: dict, attempts: dict) -> SourceResult | None:
+# The sources a bot set to combine asks together. The web stays a fallback:
+# it is the slowest and the least the operator's own, so it is asked only
+# when neither of these had anything.
+COMBINED = ("documents", "database")
+
+
+async def _try(name, attempts: dict) -> SourceResult | None:
+    """One source's result, or nothing when it failed or had nothing."""
+    attempt = attempts.get(name)
+    if attempt is None:
+        return None
+
+    try:
+        result = await attempt()
+    except Exception as error:
+        print(f"[Sources] {name} failed, trying the next: {error}")
+        return None
+
+    return result if (result and result.has_content) else None
+
+
+def merge(results: list[SourceResult]) -> SourceResult:
+    """Several sources' material as one, numbered as one list.
+
+    Each source numbers its own citations from 1, so they are renumbered here
+    and the database block gets the [n] heading its own block never needed.
+    Each citation keeps its kind, so the widget can mark every chip.
+    """
+    if len(results) == 1:
+        return results[0]
+
+    blocks, citations = [], []
+    merged = SourceResult(kind="combined", has_content=True)
+
+    for result in results:
+        first = len(citations) + 1
+        for citation in result.citations:
+            citations.append({**citation, "n": len(citations) + 1, "kind": result.kind})
+
+        block = result.context_block
+        if result.kind == "database" and result.citations:
+            block = f"[{first}] {result.citations[0]['title']}\n{block}"
+        blocks.append(block)
+
+        merged.sql = merged.sql or result.sql
+        merged.row_count = merged.row_count or result.row_count
+        merged.reranked_by = merged.reranked_by or result.reranked_by
+
+    merged.context_block = "\n\n".join(blocks)
+    merged.citations = citations
+    return merged
+
+
+async def resolve(order: list[str], enabled: dict, attempts: dict,
+                  combine: bool = False) -> SourceResult | None:
     """The first source in the order with something to say, or nothing.
 
     A source that fails is a source that did not answer. The next one in the
     operator's order gets its turn, so the order is honoured in failure as well
     as in success and no source failure can break a conversation.
+
+    With combine, the knowledge base and the database are asked at once and
+    everything either found is answered from, so a question needing a policy
+    and a record gets both. The order still decides which comes first in the
+    prompt. The rest of the order is walked only when both had nothing.
     """
+    if combine:
+        together = [name for name in order if name in COMBINED and enabled.get(name)]
+        found = [result for result in await asyncio.gather(
+            *(_try(name, attempts) for name in together)) if result]
+        if found:
+            return merge(found)
+        order = [name for name in order if name not in together]
+
     for name in order:
         if not enabled.get(name):
             continue
 
-        attempt = attempts.get(name)
-        if attempt is None:
-            continue
-
-        try:
-            result = await attempt()
-        except Exception as error:
-            print(f"[Sources] {name} failed, trying the next: {error}")
-            continue
-
-        if result and result.has_content:
+        result = await _try(name, attempts)
+        if result:
             return result
 
     return None

@@ -45,7 +45,7 @@ class RetrievalPlaygroundTest extends TestCase
         $this->actingAs($this->editor())
             ->get(route('kb.playground'))
             ->assertOk()
-            ->assertSee('Retrieval playground')
+            ->assertSee('Playground')
             ->assertSee('Refunds');
     }
 

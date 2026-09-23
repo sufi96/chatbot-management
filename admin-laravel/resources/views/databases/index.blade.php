@@ -16,8 +16,8 @@
 
     @if($canEdit)
         <div class="d-flex align-items-center gap-2">
-            <a href="{{ route('databases.playground') }}" class="btn btn-outline-secondary">
-                <i class="bi bi-terminal"></i> Playground
+            <a href="{{ route('kb.playground') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-search"></i> Playground
             </a>
             <button class="btn btn-brand" data-bs-toggle="modal" data-bs-target="#newConnectionModal">
                 <i class="bi bi-plus-lg"></i> New connection

@@ -45,7 +45,7 @@ class Consulted:
     found: object
 
 
-async def consult(order: list, enabled: dict, attempts: dict):
+async def consult(order: list, enabled: dict, attempts: dict, combine: bool = False):
     """Runs the source cascade, yielding each source's name as it is tried.
 
     The cascade itself stays unaware of the widget: each attempt is wrapped to
@@ -61,7 +61,8 @@ async def consult(order: list, enabled: dict, attempts: dict):
         return run
 
     cascade = asyncio.ensure_future(sources.resolve(
-        order, enabled, {name: announced(name, attempt) for name, attempt in attempts.items()}))
+        order, enabled, {name: announced(name, attempt) for name, attempt in attempts.items()},
+        combine))
     try:
         while True:
             waiting = asyncio.ensure_future(tried.get())
@@ -239,10 +240,20 @@ async def chat_stream(
                 select(BotKbCollection.collection_id).where(BotKbCollection.bot_id == bot.id))
             collection_ids = list(rows.scalars().all())
 
+            combine = bool(getattr(bot, "combine_sources", False))
+            # Two sources answering together share one prompt, so each gets half
+            # the budget rather than doubling what the answer model is sent.
+            # ponytail: halved before knowing whether both hit; share the
+            # leftover if a lone hit is ever measurably cut short.
+            source_settings = ({**engine_settings, "context_char_budget":
+                                int(engine_settings["context_char_budget"]) // 2}
+                               if combine else engine_settings)
+
             consulting = consult(
                 sources.normalise(bot.source_order),
                 enabled,
-                sources.build_attempts(db, bot, decision.query, engine_settings, collection_ids))
+                sources.build_attempts(db, bot, decision.query, source_settings, collection_ids),
+                combine)
             async for step in consulting:
                 if isinstance(step, str):
                     yield status(step)

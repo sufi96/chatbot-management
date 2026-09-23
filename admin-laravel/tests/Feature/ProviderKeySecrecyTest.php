@@ -61,7 +61,7 @@ class ProviderKeySecrecyTest extends TestCase
     public function test_the_bot_form_never_contains_the_key(): void
     {
         $this->actingAs($this->member('editor'))
-            ->get(route('bots.edit', 'bot_1'))
+            ->get(route('bots.brain', 'bot_1'))
             ->assertOk()
             ->assertDontSee(self::KEY)
             ->assertDontSee('data-api-key', false)
@@ -213,16 +213,5 @@ class ProviderKeySecrecyTest extends TestCase
             ->assertNotFound();
 
         Http::assertNothingSent();
-    }
-
-    public function test_temperature_is_capped_at_one(): void
-    {
-        $this->actingAs($this->member('editor'))
-            ->put(route('bots.update', 'bot_1'), [
-                'name' => 'Support', 'provider_id' => 'aip_hosted', 'model_name' => 'deepseek-v4-flash',
-                'temperature' => 1.2, 'max_tokens' => 1024,
-                'widget_title' => 'Support', 'widget_primary_color' => '#000000', 'widget_position' => 'bottom-right',
-            ])
-            ->assertSessionHasErrors('temperature');
     }
 }

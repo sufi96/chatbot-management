@@ -114,7 +114,7 @@
                         <div class="arch-node arch-core" style="grid-area: engine;">
                             <i class="bi bi-lightning-charge"></i>
                             <strong>api-engine <code>:8000</code></strong>
-                            <span>FastAPI. Streams answers, runs the guard and intent, consults sources in the bot's order, chunks, embeds, retrieves, reranks.</span>
+                            <span>FastAPI. Streams answers, runs the guard and intent, consults sources combined or in the bot's order, chunks, embeds, retrieves, reranks.</span>
                         </div>
                         <div class="arch-link" style="grid-area: l2;"><span>admin token: index, search, list models</span><span>portal token: run a SQL query</span></div>
 
@@ -147,7 +147,7 @@
 
                     <div class="arch-principles">
                         <div><i class="bi bi-diagram-2"></i><span><strong>Two services, one database.</strong> The only contract between them is the table schema; they share no code.</span></div>
-                        <div><i class="bi bi-sort-numeric-down"></i><span><strong>The operator picks the source.</strong> No model routes between knowledge base, database and web; the bot's order does.</span></div>
+                        <div><i class="bi bi-sort-numeric-down"></i><span><strong>The operator picks the source.</strong> No model routes between them. By default the knowledge base and database answer together; a bot can use a fixed order instead.</span></div>
                         <div><i class="bi bi-arrow-return-left"></i><span><strong>Blank falls back.</strong> A model job with no provider does what the system did before the job existed.</span></div>
                         <div><i class="bi bi-shield-check"></i><span><strong>Failure is quiet for visitors.</strong> A guard, source or model that is down lets the conversation carry on, and the log says why.</span></div>
                     </div>
@@ -164,23 +164,58 @@
                             <div class="arch-step-title">Read it, in parallel</div>
                             <div class="arch-row">
                                 <div class="arch-chip-card"><i class="bi bi-shield-check"></i><strong>Input guard</strong><span>Blocks the categories and topics set under Guard. Unsafe gets the bot's refusal and nothing else runs.</span></div>
-                                <div class="arch-chip-card"><i class="bi bi-signpost-split"></i><strong>Intent</strong><span><em>chat</em> or <em>facts</em>, and the follow-up rewritten as a question that stands on its own.</span></div>
+                                <div class="arch-chip-card"><i class="bi bi-signpost-split"></i><strong>Intent</strong><span><em>chat</em> or <em>facts</em>, and the follow-up rewritten as a question that stands on its own. On for new bots.</span></div>
                                 <div class="arch-chip-card"><i class="bi bi-chat-dots"></i><strong>Greeting gate</strong><span>Word rules, no model. A greeting consults no source.</span></div>
                             </div>
                         </li>
                         <li>
-                            <div class="arch-step-title">Sources, in the bot's order, until one answers</div>
-                            <div class="arch-row arch-row-cascade">
+                            <div class="arch-step-title">Sources, the way the bot is set to ask them</div>
+                            <div class="arch-row">
                                 <div class="arch-chip-card"><i class="bi bi-journal-text"></i><strong>Knowledge base</strong><span>Embed + keyword search, fused by rank (RRF), reranked, kept only above the floor.</span></div>
-                                <div class="arch-then" aria-hidden="true"><i class="bi bi-chevron-right"></i><span>miss</span></div>
                                 <div class="arch-chip-card"><i class="bi bi-database"></i><strong>Database</strong><span>SQL model writes a SELECT or declines; validated in the engine and again in the portal.</span></div>
-                                <div class="arch-then" aria-hidden="true"><i class="bi bi-chevron-right"></i><span>miss</span></div>
                                 <div class="arch-chip-card"><i class="bi bi-globe2"></i><strong>Web</strong><span>DuckDuckGo, Tavily or Brave.</span></div>
+                            </div>
+
+                            {{-- The two answer-source modes a bot chooses between under
+                                 Behaviour. Pills stand for the sources above. --}}
+                            <div class="arch-modes mt-2">
+                                <div class="arch-mode arch-mode-default">
+                                    <div class="arch-mode-title">
+                                        <i class="bi bi-intersect"></i> Combined <span class="arch-mode-badge">default</span>
+                                    </div>
+                                    <div class="arch-flow">
+                                        <span class="arch-pill-group">
+                                            <span class="arch-pill"><i class="bi bi-journal-text"></i> Knowledge base</span>
+                                            <span class="arch-flow-op">+</span>
+                                            <span class="arch-pill"><i class="bi bi-database"></i> Database</span>
+                                        </span>
+                                        <span class="arch-flow-arrow"><i class="bi bi-arrow-right"></i><small>at once</small></span>
+                                        <span class="arch-pill arch-pill-out"><i class="bi bi-list-ol"></i> One context</span>
+                                    </div>
+                                    <div class="arch-flow arch-flow-fallback">
+                                        <span class="arch-flow-arrow"><i class="bi bi-arrow-return-right"></i><small>both miss</small></span>
+                                        <span class="arch-pill"><i class="bi bi-globe2"></i> Web</span>
+                                    </div>
+                                    <p class="arch-mode-note">Every hit answers, so a question needing a policy and a record gets both. Citations renumbered as one list; half the context budget each.</p>
+                                </div>
+                                <div class="arch-mode">
+                                    <div class="arch-mode-title">
+                                        <i class="bi bi-sort-numeric-down"></i> Source order
+                                    </div>
+                                    <div class="arch-flow">
+                                        <span class="arch-pill">1st</span>
+                                        <span class="arch-flow-arrow"><i class="bi bi-chevron-right"></i><small>miss</small></span>
+                                        <span class="arch-pill">2nd</span>
+                                        <span class="arch-flow-arrow"><i class="bi bi-chevron-right"></i><small>miss</small></span>
+                                        <span class="arch-pill">3rd</span>
+                                    </div>
+                                    <p class="arch-mode-note">The operator's order, and the first source with something answers alone. Cheaper and faster; a question needing two sources gets one.</p>
+                                </div>
                             </div>
                         </li>
                         <li>
                             <div class="arch-step-title">Answer</div>
-                            <div class="arch-step-body">The bot's main model reads its prompt and the context, and streams over SSE. A sources event goes first, so the widget can show where the answer came from.</div>
+                            <div class="arch-step-body">The bot's model, set with its temperature and max tokens under Behaviour, reads its prompt and the context, and streams over SSE. A sources event goes first, each source marked with its kind, so the widget can show where the answer came from.</div>
                         </li>
                         <li>
                             <div class="arch-step-title">Check and record</div>

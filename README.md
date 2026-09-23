@@ -8,7 +8,13 @@ Integrate customizable AI chatbots into **any website, CRM, or application** (PH
 
 ## 🏗️ System Architecture
 
+**System** — the three processes, the shared database, and what talks to what.
+
 ![System architecture](docs/architecture.png)
+
+**Answering** — one message from arrival to a recorded answer. The knowledge base and database answer together by default; a bot can use a fixed source order instead.
+
+![How a message is answered: combined sources by default, or a fixed source order](docs/architecture-answering.png)
 
 Two services over one database. Laravel owns every table's schema and all the
 human-facing screens. The engine owns chat streaming, chunking, embedding and
@@ -19,7 +25,7 @@ a source's chunks, list or test embedding models, and run a retrieval preview
 for the playground. Those routes are guarded by a shared secret that lives only
 in gitignored `.env` files.
 
-- **In the portal:** the info button in the top bar opens the live version of this diagram, with tabs for answering, indexing, models and the DGX Sparks plan. The image above is its System tab.
+- **In the portal:** the info button in the top bar opens the live version of this diagram, with tabs for answering, indexing, models and the DGX Sparks plan. The images above are its System and Answering tabs.
 - **Earlier detailed diagram:** [`docs/architecture.excalidraw`](docs/architecture.excalidraw) — open it at [excalidraw.com](https://excalidraw.com)
 - **Written notes:** [`docs/architecture.md`](docs/architecture.md) — the reasoning behind each decision
 
@@ -41,6 +47,12 @@ need one LLM call per chunk.
 paraphrase, keyword catches exact terms like product codes. Reciprocal Rank
 Fusion needs no calibration between them because it compares positions rather
 than values.
+
+**Sources.** Either combined or asked in the order the operator set, where the
+first with something answers. No model routes between them, because an operator can predict and
+explain an order. By default a bot combines the knowledge base and the
+database instead: both are asked at once and both answer, for the question that
+needs a policy and a record. The web stays the last resort either way.
 
 **The gate.** A fixed word list, not a model call, decides whether a message
 could be a question at all. A question mark always overrides it, so "thanks, and
@@ -96,6 +108,7 @@ size.
 - **The engine answers it only from the console's address.** Set `CONSOLE_ORIGIN` in `api-engine/.env` when the browser reaches the console at a different address from `PORTAL_BASE_URL`, as in Docker.
 
 ### ⚙️ Engine
+- **Answer sources: Combined or Source order** (Bot → Behaviour). Combined is the default for every bot, existing ones included. The knowledge base and database are asked at the same time and everything they found goes into one numbered context, so a question that needs a document and a live record gets both. The widget marks each source chip with its own kind, and analytics counts these answers as "Knowledge base and database". Each source gets half the context budget, and every question runs a database query. Pick *Source order* for the previous first-hit behaviour. New bots also have *Understand follow-up questions* on; existing bots keep their setting. Run `php artisan migrate` after pulling.
 - Every answer records which source answered, what it cited, the time to first token and to the whole reply, and prompt and reply tokens separately. Run `php artisan migrate` after pulling: answers saved before this have no such data, and the pages say so rather than guessing.
 - **"Send instructions inside the message"** on a provider, for a gateway that silently drops system messages. Without it a bot on such a gateway answers without its prompt, its knowledge or its database.
 
@@ -153,13 +166,14 @@ size.
 - **Manual entry** for accounts that cannot read the information schema, on the same screen and in the same rows as the discovered ones.
 - **Read-only by design.** Credentials are stored encrypted and the form asks for a read-only account.
 - **Relationships you can write down.** Discovery finds every declared foreign key. Where a database never declared one, an editor writes it in, and re-discovery never erases it. This is what lets a bot follow a question from an order to the customer who placed it.
-- **The bot decides for itself.** A router reads the question and picks live data, the documents, the web, or nothing at all. Every failure falls back to the documents and then the web, so it can only improve on the previous behaviour.
+- **The operator decides, not a model.** Each bot asks its sources in the order you set, and the first with something answers. A source that fails or has nothing passes the question to the next, so no failure ends a conversation.
+- **Or both at once, the default.** With *Combined* chosen, a question like "is my order still inside the return window?" is answered from the policy and the order record together. Web search stays the fallback for when both have nothing.
 - **Read-only, twice over.** The generated statement is validated in the engine and validated again by the portal before anything runs. Only a single SELECT ever reaches a customer's database.
 - **Auditable.** Every database-answered message keeps its statement and row count in the conversation log.
 - **A playground for tuning.** Run a statement the way a bot would and see exactly what your annotations bought you.
 
 ### 8. 🤖 Bot Settings and Safe Deletion
-- **Profile and Brain tabs:** a bot's settings are split in two. Profile holds identity, model and widget styling; Brain holds the prompt, knowledge and retrieval. Each tab saves on its own.
+- **Profile and Behaviour tabs:** a bot's settings are split in two. Profile holds identity, the on/off switch and widget styling; Behaviour holds the prompt, generation (temperature, max tokens, sampling), answer sources, web search, safety, the model and endpoint, and the Brain: its knowledge base and databases. A new bot still picks its model on the create form. Each tab saves on its own.
 - **A clear On/Off switch:** a large Online/Offline card beside the identity section decides whether the bot answers at all. Green when online, red when offline, with the same state shown next to the bot's name.
 - **Save bar that only shows when needed:** the floating save bar stays hidden until something changes, then counts the unsaved changes (*"2 unsaved changes"*) with **Discard** and **Save**. It sits on the left so it never covers the chat launcher.
 - **Test inference in the model card header**, with the result shown in the card once there is one.

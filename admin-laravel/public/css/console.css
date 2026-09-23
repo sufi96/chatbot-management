@@ -1022,6 +1022,41 @@ textarea.form-control { line-height: 1.55; }
   .bot-editor { grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); }
 }
 
+/* Online / Offline switch on the Widget appearance card. Same segmented
+   look as the power toggle, smaller; the dot repeats the state colour and
+   the label says it in words. */
+.status-tabs {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.status-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  min-height: 32px;
+  padding: 0.25rem 0.875rem;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.status-tab:hover { color: var(--text); }
+.status-tab.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 0 0 1px var(--border); }
+.status-tab:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.status-tab-dot { width: 7px; height: 7px; border-radius: 50%; }
+.status-tab-dot.is-on  { background: var(--ok); }
+.status-tab-dot.is-off { background: var(--danger); }
+@media (prefers-reduced-motion: reduce) { .status-tab { transition: none; } }
+
 /* Bot power card: the on/off for a whole bot, sized so its state reads
    at a glance. Green when on, red when off. */
 .bot-power { transition: border-color 0.15s ease, background-color 0.15s ease; }
@@ -1704,6 +1739,58 @@ button.card:active {
 @media (max-width: 767.98px) {
   .arch-row, .arch-row-cascade { grid-template-columns: minmax(0, 1fr); }
   .arch-row-cascade .arch-then i { transform: rotate(90deg); }
+}
+
+/* The two answer-source modes, side by side on the Answering tab. */
+.arch-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+.arch-mode {
+  padding: 0.625rem 0.75rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-sm);
+}
+.arch-mode-default { border: 1px solid var(--accent-line); background: var(--accent-soft); }
+.arch-mode-title { display: flex; align-items: center; gap: 0.375rem; font-size: 0.78rem; font-weight: 600; color: var(--text); margin-bottom: 0.5rem; }
+.arch-mode-title > i { color: var(--accent); }
+.arch-mode-badge {
+  padding: 0 0.375rem;
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.arch-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; }
+.arch-flow-fallback { margin-top: 0.375rem; padding-left: 0.5rem; }
+.arch-pill-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1875rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+}
+.arch-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  padding: 0.1875rem 0.5625rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+.arch-pill > i { color: var(--accent); }
+.arch-pill-out { border-color: var(--accent-line); }
+.arch-flow-op { color: var(--text-faint); font-size: 0.75rem; }
+.arch-flow-arrow { display: inline-flex; flex-direction: column; align-items: center; color: var(--text-faint); line-height: 1; }
+.arch-flow-arrow small { font-size: 0.625rem; }
+.arch-mode-note { margin: 0.5rem 0 0; font-size: 0.72rem; color: var(--text-muted); }
+@media (max-width: 767.98px) {
+  .arch-modes { grid-template-columns: minmax(0, 1fr); }
 }
 
 .arch-table th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); font-weight: 600; }

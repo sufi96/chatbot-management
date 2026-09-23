@@ -612,6 +612,34 @@ it was right most of the time and unpredictable the rest, and an operator
 could neither configure it nor explain an answer that came from the wrong
 place. See `superpowers/specs/2026-09-14-answer-source-order-design.md`.
 
+First-hit loses the question that needs two sources. "Is order 1042 still
+inside the return window?" needs the returns policy from the knowledge base and
+the order date from the database. The knowledge base answers first with the
+policy, and the database is never asked for the date.
+
+A bot therefore **combines** by default (`bot_profiles.combine_sources`). The knowledge
+base and the database are asked at the same time and every hit is merged into
+one context: citations are renumbered as one list, the database block gets the
+`[n]` heading its lone block never needed, and each citation keeps its own
+`kind` so the widget can mark every chip. The answer is recorded as
+`source_kind = combined`. The order still decides which block comes first, and
+the web is asked only when both miss. This is still not a router: nothing
+guesses which source suits the question, both are asked every time.
+
+Combining is the default, existing bots included, because first-hit's failure
+is silent: the visitor gets half an answer and nobody sees why. Source order
+stays one radio button away, because combining has costs. Every question
+pays for a SQL-model call, including questions no table can answer, and the
+visitor waits for the slower of the two. Each source gets half the context
+budget, so two hits do not double the prompt; a lone hit is also cut to half,
+because the split happens before either has answered.
+
+What combining does not do is chain: the SQL is written from the question
+alone, never from a fact the knowledge base returned. A question whose query
+depends on a document ("orders older than our return window") would need the
+model to call the sources as tools, one after the other. Not built until real
+conversations show that shape.
+
 Failure is an ordering question too. A statement rejected twice, a question
 no table can answer, a portal that is down and a query that times out all
 report that the database did not answer, and the next source in the
@@ -619,7 +647,7 @@ operator's order gets its turn. No source failure ends a conversation.
 
 | Concern | Lives in |
 |---|---|
-| The order sources are consulted in | `api-engine/sources/__init__.py` |
+| The order sources are consulted in, and combining | `api-engine/sources/__init__.py` |
 | One attempt per source | `api-engine/sources/attempts.py` |
 | The schema as the model is told it | `api-engine/dbquery/schema.py` |
 | Statement validation and row limits | `api-engine/dbquery/sql.py` |

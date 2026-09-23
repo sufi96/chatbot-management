@@ -223,7 +223,7 @@ class KbAnalytics
         $rows = DB::table('chat_messages')
             ->whereIn('conversation_id', ChatConversation::query()->select('id')->whereIn('bot_id', $this->bots->pluck('id')))
             ->where('sender', 'assistant')
-            ->whereIn('source_kind', ['documents', 'none'])
+            ->whereIn('source_kind', ['documents', 'combined', 'none'])
             ->where('created_at', '>=', $this->from->copy()->setTimezone('UTC')->format('Y-m-d H:i:s'))
             ->where('created_at', '<', $this->to->copy()->setTimezone('UTC')->format('Y-m-d H:i:s'))
             ->select(['source_kind', 'citations', 'created_at'])

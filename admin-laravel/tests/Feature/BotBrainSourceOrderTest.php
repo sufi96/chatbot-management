@@ -69,7 +69,7 @@ class BotBrainSourceOrderTest extends TestCase
         $html = $this->actingAs($this->userWithRole('editor'))
             ->get(route('bots.brain', $bot->id))
             ->assertOk()
-            ->assertSee('Answer source order')
+            ->assertSee('Answer sources')
             ->getContent();
 
         // Scoped to the list's own rows: "Knowledge base" is also the name of
@@ -131,5 +131,83 @@ class BotBrainSourceOrderTest extends TestCase
             ->assertRedirect();
 
         $this->assertSame(SourceOrder::DEFAULT, $bot->fresh()->source_order);
+    }
+
+    public function test_a_new_bot_combines_and_understands_follow_ups(): void
+    {
+        $bot = $this->bot()->fresh();
+
+        $this->assertTrue($bot->combine_sources);
+        $this->assertTrue($bot->intent_enabled);
+    }
+
+    public function test_an_editor_switches_combining_on_and_off(): void
+    {
+        $bot = $this->bot();
+        $editor = $this->userWithRole('editor');
+
+        $this->actingAs($editor)
+            ->put(route('bots.brain.update', $bot->id), $this->brainPayload(['combine_sources' => '0']))
+            ->assertRedirect();
+        $this->assertFalse($bot->fresh()->combine_sources);
+
+        $this->actingAs($editor)
+            ->put(route('bots.brain.update', $bot->id), $this->brainPayload(['combine_sources' => '1']))
+            ->assertRedirect();
+        $this->assertTrue($bot->fresh()->combine_sources);
+    }
+
+    public function test_temperature_and_max_tokens_are_saved_on_behaviour(): void
+    {
+        $bot = $this->bot();
+
+        $this->actingAs($this->userWithRole('editor'))
+            ->put(route('bots.brain.update', $bot->id), $this->brainPayload(['temperature' => 0.3, 'max_tokens' => 512]))
+            ->assertRedirect();
+
+        $this->assertSame(0.3, (float) $bot->fresh()->temperature);
+        $this->assertSame(512, (int) $bot->fresh()->max_tokens);
+    }
+
+    public function test_temperature_is_capped_at_one(): void
+    {
+        $this->actingAs($this->userWithRole('editor'))
+            ->put(route('bots.brain.update', $this->bot()->id), $this->brainPayload(['temperature' => 1.2]))
+            ->assertSessionHasErrors('temperature');
+    }
+
+    public function test_the_behaviour_page_has_no_test_widget_button(): void
+    {
+        $this->actingAs($this->userWithRole('editor'))
+            ->get(route('bots.brain', $this->bot()->id))
+            ->assertOk()
+            ->assertDontSee('Open test widget');
+    }
+
+    public function test_the_model_and_endpoint_are_set_on_behaviour(): void
+    {
+        \App\Models\AiProvider::create(['id' => 'aip_own', 'system_id' => 'sys_test', 'name' => 'Office PC',
+            'base_url' => 'http://localhost:11434/v1', 'api_key' => '']);
+        $bot = $this->bot();
+        $editor = $this->userWithRole('editor');
+
+        $this->actingAs($editor)->get(route('bots.brain', $bot->id))
+            ->assertOk()->assertSee('Model and endpoint')->assertSee('Office PC');
+        $this->actingAs($editor)->get(route('bots.edit', $bot->id))
+            ->assertOk()->assertDontSee('Model and endpoint');
+
+        $this->actingAs($editor)
+            ->put(route('bots.brain.update', $bot->id),
+                $this->brainPayload(['provider_id' => 'aip_own', 'model_name' => 'qwen3:8b']))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(['aip_own', 'qwen3:8b'], [$bot->fresh()->provider_id, $bot->fresh()->model_name]);
+    }
+
+    public function test_a_provider_this_user_cannot_use_is_refused(): void
+    {
+        $this->actingAs($this->userWithRole('editor'))
+            ->put(route('bots.brain.update', $this->bot()->id), $this->brainPayload(['provider_id' => 'aip_nowhere']))
+            ->assertSessionHasErrors('provider_id');
     }
 }

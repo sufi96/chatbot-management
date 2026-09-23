@@ -28,7 +28,7 @@ class AdminSettingsController extends Controller
         ],
         'guard' => [
             'label' => 'Guard', 'icon' => 'bi-shield-check',
-            'description' => 'What the guard blocks, for every bot that has it switched on under Brain. A bot can add topics of its own there.',
+            'description' => 'What the guard blocks, for every bot that has it switched on under Behaviour. A bot can add topics of its own there.',
         ],
         'chunking' => [
             'label' => 'Chunking', 'icon' => 'bi-scissors',

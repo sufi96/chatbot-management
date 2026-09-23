@@ -71,14 +71,13 @@ class ConsoleAssistantTest extends TestCase
         $this->actingAs($this->admin)->get(route('bots.brain', BotProfile::CONSOLE_ID))->assertOk();
 
         $this->actingAs($this->admin)->put(route('bots.update', BotProfile::CONSOLE_ID), [
-            'name' => 'Console Assistant', 'provider_id' => 'aip_platform', 'model_name' => 'qwen3.5',
-            'temperature' => 0.5, 'max_tokens' => 1024, 'widget_title' => 'Help',
+            'name' => 'Console Assistant', 'widget_title' => 'Help',
             'widget_primary_color' => '#1d5f92', 'widget_position' => 'bottom-left', 'is_active' => 1,
         ])->assertSessionHasNoErrors();
 
         $bot = BotProfile::console();
-        $this->assertSame(['aip_platform', 'Help', 'bottom-left', true, true],
-            [$bot->provider_id, $bot->widget_title, $bot->widget_position, $bot->is_active, $bot->is_platform]);
+        $this->assertSame(['Help', 'bottom-left', true, true],
+            [$bot->widget_title, $bot->widget_position, $bot->is_active, $bot->is_platform]);
     }
 
     public function test_nobody_else_can_open_it(): void

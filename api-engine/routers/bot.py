@@ -4,7 +4,8 @@ from sqlalchemy import select
 from pydantic import BaseModel
 from typing import Optional
 
-from database import get_db, BotProfile, System
+import speech
+from database import get_db, get_settings, BotProfile, System
 from llm_adapter import LLMAdapter
 from routers.kb import require_admin_token
 
@@ -30,6 +31,8 @@ async def get_bot_public_config(bot_id: str, db: AsyncSession = Depends(get_db))
     # A switched-off bot is only served when it is set to show an offline message.
     if not bot or (not bot.is_active and bot.offline_mode != "message"):
         raise HTTPException(status_code=404, detail="Active bot profile not found")
+
+    settings = await get_settings(db)
 
     return {
         "offline": not bot.is_active,
@@ -63,6 +66,24 @@ async def get_bot_public_config(bot_id: str, db: AsyncSession = Depends(get_db))
         "close_size": bot.close_size or 52,
         "bot_avatar_url": bot.bot_avatar_url or "",
         "avatar_shape": bot.avatar_shape or "circle",
+        # What the widget may say aloud and hear, and where the work happens.
+        # No voice names, URLs or keys: the widget asks by slot, and the
+        # engine answers. See speech.py.
+        "voice": voice_config(bot, settings),
+    }
+
+
+def voice_config(bot, settings: dict) -> dict:
+    output = bool(getattr(bot, "voice_output", False))
+    return {
+        "output": output,
+        "autoplay": output and bool(getattr(bot, "voice_autoplay", False)),
+        "gender": getattr(bot, "voice_gender", None) or "female",
+        "language": getattr(bot, "voice_language", None) or "auto",
+        "input": bool(getattr(bot, "voice_input", False)),
+        # browser or server: who makes the sound, and who hears the visitor.
+        "speak_with": "browser" if speech.engine_for(settings) == "browser" else "server",
+        "listen_with": speech.listen_engine_for(settings),
     }
 
 class FetchModelsRequest(BaseModel):

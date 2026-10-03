@@ -98,6 +98,20 @@
                                        value="{{ $settings['min_similarity'] }}">
                                 <div class="form-text">Nothing this similar means no answer.</div>
                             </div>
+                            <div class="col-6 col-sm-3">
+                                <label for="keyword_weight" class="form-label">Keyword weight</label>
+                                <input type="number" step="0.1" name="keyword_weight" id="keyword_weight"
+                                       class="form-control font-monospace" min="0" max="3"
+                                       value="{{ $settings['keyword_weight'] }}">
+                                <div class="form-text">1 counts keywords and meaning equally.</div>
+                            </div>
+                            <div class="col-6 col-sm-3">
+                                <label for="neighbours" class="form-label">Neighbouring passages</label>
+                                <input type="number" step="1" name="neighbours" id="neighbours"
+                                       class="form-control font-monospace" min="0" max="2"
+                                       value="{{ $settings['neighbours'] }}">
+                                <div class="form-text">Either side of each hit, same section.</div>
+                            </div>
                         </div>
                         <div class="form-text mt-2">
                             These are not saved. Once a combination works, set it on the bot's Behaviour page.

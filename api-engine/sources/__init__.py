@@ -55,12 +55,13 @@ def answer_kind(found: SourceResult | None, searched: bool, refused: bool) -> st
     return "none" if searched else "model"
 
 
-def build_attempts(session, bot, message: str, settings: dict, collection_ids) -> dict:
+def build_attempts(session, bot, message: str, settings: dict, collection_ids,
+                   query_vector=None) -> dict:
     return {
         "documents": partial(attempt_module.documents, session, bot, message,
-                             settings, collection_ids),
+                             settings, collection_ids, query_vector=query_vector),
         "database": partial(attempt_module.database, session, bot, message, settings),
-        "web": partial(attempt_module.web, bot, message, settings),
+        "web": partial(attempt_module.web, bot, message, settings, session=session),
     }
 
 
@@ -111,6 +112,7 @@ def merge(results: list[SourceResult]) -> SourceResult:
         merged.sql = merged.sql or result.sql
         merged.row_count = merged.row_count or result.row_count
         merged.reranked_by = merged.reranked_by or result.reranked_by
+        merged.expanded_by = merged.expanded_by or result.expanded_by
 
     merged.context_block = "\n\n".join(blocks)
     merged.citations = citations

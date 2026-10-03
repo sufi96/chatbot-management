@@ -33,7 +33,7 @@ class Observed:
 
 
 async def ask(engine_url: str, bot_id: str, case, session_id: str,
-              transport=None, clock=time.perf_counter) -> Observed:
+              transport=None, clock=time.perf_counter, admin_token: str = "") -> Observed:
     """One case, sent and read exactly as the widget sends and reads it.
 
     The widget puts the message being asked at the end of its history as well,
@@ -50,11 +50,16 @@ async def ask(engine_url: str, bot_id: str, case, session_id: str,
                    + [{"role": "user", "content": case.message}],
     }
 
+    # The engine reads a conversation from its own records and ignores the
+    # browser's copy. A case's history exists only in this file, so the runner
+    # proves with the admin token that the history it sends is its own.
+    headers = {"X-Admin-Token": admin_token} if admin_token else {}
+
     started = clock()
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT, transport=transport) as client:
             async with client.stream("POST", f"{engine_url.rstrip('/')}/api/v1/chat/stream",
-                                     json=body) as response:
+                                     json=body, headers=headers) as response:
                 observed.status = response.status_code
                 if response.status_code != 200:
                     detail = (await response.aread()).decode(errors="replace")[:200]

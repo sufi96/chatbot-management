@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\SystemController;
 use App\Http\Controllers\BotProfileController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WebSearchKeyController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\KnowledgeBaseController;
 use App\Http\Controllers\BotBrainController;
@@ -52,6 +53,8 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     Route::delete('/bots/{id}', [BotProfileController::class, 'destroy'])->name('bots.destroy');
     Route::get('/bots/{id}/brain', [BotBrainController::class, 'edit'])->name('bots.brain');
     Route::put('/bots/{id}/brain', [BotBrainController::class, 'update'])->name('bots.brain.update');
+    Route::delete('/bots/{id}/brain/cache', [BotBrainController::class, 'clearCache'])->name('bots.brain.cache.clear');
+    Route::post('/bots/{id}/brain/voice-preview', [BotBrainController::class, 'voicePreview'])->name('bots.brain.voice-preview');
     Route::get('/bots/{id}/embed', [BotProfileController::class, 'embed'])->name('bots.embed');
 
     // Knowledge base
@@ -78,6 +81,11 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     Route::post('/providers/test', [AiProviderController::class, 'test'])->name('providers.test');
     Route::put('/providers/{id}', [AiProviderController::class, 'update'])->name('providers.update');
     Route::delete('/providers/{id}', [AiProviderController::class, 'destroy'])->name('providers.destroy');
+    // A workspace's own web search keys, from the Behaviour tab's modal.
+    Route::post('/web-search-keys', [WebSearchKeyController::class, 'store'])->name('web-search-keys.store');
+    Route::post('/web-search-keys/test', [WebSearchKeyController::class, 'test'])->name('web-search-keys.test');
+    Route::put('/web-search-keys/{id}', [WebSearchKeyController::class, 'update'])->name('web-search-keys.update');
+    Route::delete('/web-search-keys/{id}', [WebSearchKeyController::class, 'destroy'])->name('web-search-keys.destroy');
 
     // Database connections
     // Distinct path, so it cannot be mistaken for /databases/{id}
@@ -127,6 +135,7 @@ Route::middleware(['auth', 'system.access'])->group(function () {
             ->whereIn('section', array_keys(AdminSettingsController::SECTIONS))
             ->name('admin.settings');
         Route::put('/admin/settings', [AdminSettingsController::class, 'update'])->name('admin.settings.update');
+        Route::post('/admin/settings/voice-test', [AdminSettingsController::class, 'voiceTest'])->name('admin.settings.voice-test');
         Route::post('/admin/settings/test', [AdminSettingsController::class, 'test'])->name('admin.settings.test');
         Route::post('/admin/settings/models', [AdminSettingsController::class, 'models'])->name('admin.settings.models');
         Route::post('/admin/settings/reindex', [AdminSettingsController::class, 'reindex'])->name('admin.settings.reindex');

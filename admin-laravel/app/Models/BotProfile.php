@@ -43,6 +43,19 @@ class BotProfile extends Model
         // The database defaults, here too so a bot not yet reloaded reads them.
         'combine_sources' => true,
         'intent_enabled' => true,
+        'retrieval_keyword_weight' => 1.0,
+        'query_expansion' => 'off',
+        'context_neighbours' => 0,
+        'cache_enabled' => false,
+        'cache_min_similarity' => 0.95,
+        'cache_ttl_hours' => 24,
+        'grounding_check' => false,
+        'web_search_mode' => 'platform',
+        'voice_output' => false,
+        'voice_autoplay' => false,
+        'voice_gender' => 'female',
+        'voice_language' => 'auto',
+        'voice_input' => false,
     ];
 
     protected $fillable = [
@@ -108,6 +121,20 @@ class BotProfile extends Model
         'presence_penalty',
         'frequency_penalty',
         'thinking_level',
+        'retrieval_keyword_weight',
+        'query_expansion',
+        'context_neighbours',
+        'cache_enabled',
+        'cache_min_similarity',
+        'cache_ttl_hours',
+        'grounding_check',
+        'web_search_mode',
+        'web_search_key_id',
+        'voice_output',
+        'voice_autoplay',
+        'voice_gender',
+        'voice_language',
+        'voice_input',
     ];
 
     protected function casts(): array
@@ -136,6 +163,15 @@ class BotProfile extends Model
             'top_k_sampling' => 'integer',
             'presence_penalty' => 'float',
             'frequency_penalty' => 'float',
+            'retrieval_keyword_weight' => 'float',
+            'context_neighbours' => 'integer',
+            'cache_enabled' => 'boolean',
+            'cache_min_similarity' => 'float',
+            'cache_ttl_hours' => 'integer',
+            'grounding_check' => 'boolean',
+            'voice_output' => 'boolean',
+            'voice_autoplay' => 'boolean',
+            'voice_input' => 'boolean',
         ];
     }
 
@@ -177,6 +213,18 @@ class BotProfile extends Model
     public function collections(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
         return $this->belongsToMany(KbCollection::class, 'bot_kb_collection', 'bot_id', 'collection_id');
+    }
+
+    /** Answers this bot may give again; see api-engine/answer_cache.py. */
+    public function cachedAnswers(): HasMany
+    {
+        return $this->hasMany(AnswerCache::class, 'bot_id');
+    }
+
+    /** The workspace key this bot searches the web with, when it uses its own. */
+    public function webSearchKey(): BelongsTo
+    {
+        return $this->belongsTo(WebSearchKey::class, 'web_search_key_id');
     }
 
     public function dbConnections(): \Illuminate\Database\Eloquent\Relations\BelongsToMany

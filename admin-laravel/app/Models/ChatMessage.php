@@ -42,7 +42,21 @@ class ChatMessage extends Model
         'citations',
         'first_token_ms',
         'response_ms',
+        // Served from the answer cache rather than written by the model.
+        'cache_hit',
+        // The grounding check: null when it did not run, false with the
+        // unsupported claim in the note when it found one.
+        'grounded',
+        'grounding_note',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'cache_hit' => 'boolean',
+            'grounded' => 'boolean',
+        ];
+    }
 
     public function conversation(): BelongsTo
     {

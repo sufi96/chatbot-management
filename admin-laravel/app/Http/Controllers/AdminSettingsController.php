@@ -30,9 +30,17 @@ class AdminSettingsController extends Controller
             'label' => 'Guard', 'icon' => 'bi-shield-check',
             'description' => 'What the guard blocks, for every bot that has it switched on under Behaviour. A bot can add topics of its own there.',
         ],
+        'security' => [
+            'label' => 'Security', 'icon' => 'bi-shield-lock',
+            'description' => 'Defences against prompt injection and prompt leaks, for every bot. They need no model and run whether or not a bot has the guard on.',
+        ],
         'chunking' => [
-            'label' => 'Chunking', 'icon' => 'bi-scissors',
-            'description' => 'How sources are cut into passages, and how much of them reaches the model.',
+            'label' => 'Chunking and search', 'icon' => 'bi-scissors',
+            'description' => 'How sources are cut into passages, how keywords are ranked, and how much of them reaches the model.',
+        ],
+        'voice' => [
+            'label' => 'Voice', 'icon' => 'bi-soundwave',
+            'description' => 'How bots read answers aloud and hear spoken questions, for every bot that has voice switched on under Behaviour.',
         ],
         'web-search' => [
             'label' => 'Web search', 'icon' => 'bi-globe2',
@@ -48,6 +56,34 @@ class AdminSettingsController extends Controller
         ],
     ];
 
+    /**
+     * The sidebar's two entries. Each opens a page whose categories are tabs,
+     * so the sidebar stays short however many categories there are. The
+     * first category of a group is where its sidebar link goes.
+     */
+    public const GROUPS = [
+        'ai' => [
+            'label' => 'AI and answering', 'icon' => 'bi-sliders2',
+            'sections' => ['providers', 'models', 'guard', 'security', 'chunking', 'voice', 'web-search'],
+        ],
+        'console' => [
+            'label' => 'Console', 'icon' => 'bi-gear',
+            'sections' => ['branding', 'maintenance'],
+        ],
+    ];
+
+    /** The group a category belongs to. */
+    public static function groupOf(string $section): string
+    {
+        foreach (self::GROUPS as $key => $group) {
+            if (in_array($section, $group['sections'], true)) {
+                return $key;
+            }
+        }
+
+        return array_key_first(self::GROUPS);
+    }
+
     /** Where Ollama listens on this machine: what a blank embedding link means. */
     public const DEFAULT_EMBEDDING_URL = 'http://localhost:11434/v1';
 
@@ -55,8 +91,52 @@ class AdminSettingsController extends Controller
         'embedding_provider_id', 'embedding_model',
         'embedding_dimensions', 'chunk_size', 'chunk_overlap',
         'context_char_budget',
-        'web_search_provider', 'web_search_tavily_key', 'web_search_brave_key',
+        'web_search_provider', 'web_search_tavily_key', 'web_search_brave_key', 'web_search_lending',
         'guard_topics', 'guard_borderline',
+        'keyword_engine', 'contextual_chunks', 'web_search_lending',
+        'history_source', 'injection_shield', 'injection_shield_sources', 'leak_guard',
+        'speech_engine', 'speech_provider_id', 'speech_model', 'azure_speech_region', 'azure_speech_key',
+        'voice_en_female', 'voice_en_male', 'voice_ms_female', 'voice_ms_male',
+        'transcribe_engine', 'transcribe_provider_id', 'transcribe_model',
+    ];
+
+    /**
+     * Voices offered for each of the four, by the name Microsoft gives them:
+     * the same names in Azure Speech and in the openai-edge-tts container.
+     * Malay has one female and one male voice; Indonesian, which a Malay
+     * listener follows, is offered beside them. Another speech server names
+     * its voices its own way, so any name can still be typed.
+     */
+    public const VOICE_CATALOGUE = [
+        'en_female' => [
+            'en-US-AvaNeural' => 'Ava · American', 'en-US-AvaMultilingualNeural' => 'Ava, multilingual · American',
+            'en-US-EmmaNeural' => 'Emma · American', 'en-US-JennyNeural' => 'Jenny · American',
+            'en-US-AriaNeural' => 'Aria · American', 'en-US-MichelleNeural' => 'Michelle · American',
+            'en-GB-SoniaNeural' => 'Sonia · British', 'en-GB-LibbyNeural' => 'Libby · British',
+            'en-SG-LunaNeural' => 'Luna · Singaporean', 'en-AU-NatashaNeural' => 'Natasha · Australian',
+            'en-IN-NeerjaNeural' => 'Neerja · Indian',
+        ],
+        'en_male' => [
+            'en-US-AndrewNeural' => 'Andrew · American', 'en-US-AndrewMultilingualNeural' => 'Andrew, multilingual · American',
+            'en-US-BrianNeural' => 'Brian · American', 'en-US-GuyNeural' => 'Guy · American',
+            'en-US-ChristopherNeural' => 'Christopher · American', 'en-US-EricNeural' => 'Eric · American',
+            'en-GB-RyanNeural' => 'Ryan · British', 'en-GB-ThomasNeural' => 'Thomas · British',
+            'en-SG-WayneNeural' => 'Wayne · Singaporean', 'en-IN-PrabhatNeural' => 'Prabhat · Indian',
+        ],
+        'ms_female' => [
+            'ms-MY-YasminNeural' => 'Yasmin · Malaysian', 'id-ID-GadisNeural' => 'Gadis · Indonesian',
+        ],
+        'ms_male' => [
+            'ms-MY-OsmanNeural' => 'Osman · Malaysian', 'id-ID-ArdiNeural' => 'Ardi · Indonesian',
+        ],
+    ];
+
+    /** Settings that are one of a fixed set of options, never blank. */
+    private const CHOICE_KEYS = [
+        'keyword_engine', 'contextual_chunks', 'web_search_lending',
+        'history_source', 'injection_shield', 'injection_shield_sources', 'leak_guard',
+        'speech_engine', 'transcribe_engine', 'speech_model', 'transcribe_model',
+        'voice_en_female', 'voice_en_male', 'voice_ms_female', 'voice_ms_male',
     ];
 
     /**
@@ -117,6 +197,27 @@ class AdminSettingsController extends Controller
             'blank' => "Bot's main model",
             'placeholder' => 'qwen3-vl:8b',
         ],
+        'expand' => [
+            'icon' => 'bi-arrows-angle-expand',
+            'label' => 'Query expansion',
+            'job' => 'Rewrites a question a few other ways (multi-query) or writes the passage that would answer it (HyDE), so the knowledge base is searched with words a document would use. Only for bots that switch it on under Behaviour.',
+            'blank' => "Bot's main model",
+            'placeholder' => 'qwen3.5:4b',
+        ],
+        'verify' => [
+            'icon' => 'bi-patch-check',
+            'label' => 'Answer check',
+            'job' => 'Reads a finished answer beside the material it was given and flags any claim the material does not support. Only for bots that switch the grounding check on.',
+            'blank' => "Bot's main model",
+            'placeholder' => 'qwen3.5:4b',
+        ],
+        'context' => [
+            'icon' => 'bi-card-text',
+            'label' => 'Chunk context',
+            'job' => 'Writes one sentence placing each chunk in its document while indexing, when contextual chunks are on under Chunking and search. One call per chunk; re-index after changing it.',
+            'blank' => "Main model of a bot reading the collection",
+            'placeholder' => 'qwen3.5:4b',
+        ],
     ];
 
     /** The stored keys, each role's provider link and model included. */
@@ -137,7 +238,8 @@ class AdminSettingsController extends Controller
      */
     public static function providerLinks(): array
     {
-        $links = ['embedding_provider_id' => 'Embedding'];
+        $links = ['embedding_provider_id' => 'Embedding', 'speech_provider_id' => 'Speech',
+            'transcribe_provider_id' => 'Transcription'];
 
         foreach (self::MODEL_ROLES as $role => $meta) {
             $links["{$role}_model_provider_id"] = $meta['label'];
@@ -180,6 +282,9 @@ class AdminSettingsController extends Controller
         return match (true) {
             str_starts_with($field, 'embedding_'), str_contains($field, '_model_') => 'models',
             str_starts_with($field, 'guard_') => 'guard',
+            str_starts_with($field, 'speech_'), str_starts_with($field, 'azure_speech_'),
+            str_starts_with($field, 'voice_'), str_starts_with($field, 'transcribe_') => 'voice',
+            in_array($field, ['history_source', 'injection_shield', 'injection_shield_sources', 'leak_guard'], true) => 'security',
             str_starts_with($field, 'web_search_') => 'web-search',
             str_starts_with($field, 'brand_') => 'branding',
             default => 'chunking',
@@ -233,6 +338,8 @@ class AdminSettingsController extends Controller
         return view('admin.settings', [
             'section' => $section,
             'sections' => self::SECTIONS,
+            'group' => self::groupOf($section),
+            'groups' => self::GROUPS,
             'settings' => $settings,
             'providers' => AiProvider::platform()->orderBy('name')->get()
                 ->map(fn (AiProvider $provider) => self::providerJson($provider))
@@ -241,6 +348,10 @@ class AdminSettingsController extends Controller
             'defaultEmbeddingUrl' => self::DEFAULT_EMBEDDING_URL,
             'guardCategories' => self::GUARD_CATEGORIES,
             'guardChosen' => array_filter(explode(',', (string) AppSetting::get('guard_categories'))),
+            'voiceCatalogue' => self::VOICE_CATALOGUE,
+            // Where the browser fetches the widget's voice helpers, so the
+            // preview picks a device voice as the widget will.
+            'apiHost' => env('API_HOST_URL', 'http://localhost:8000'),
             // Resolved here rather than in the view, so the card and the
             // sidebar cannot disagree about which mark is in use.
             'logoUrl' => Brand::logoUrl(),
@@ -265,12 +376,31 @@ class AdminSettingsController extends Controller
             'web_search_provider' => ['required', 'in:duckduckgo,tavily,brave'],
             'web_search_tavily_key' => ['nullable', 'string', 'max:200'],
             'web_search_brave_key' => ['nullable', 'string', 'max:200'],
+            'web_search_lending' => ['sometimes', 'in:all,none'],
+            'speech_engine' => ['sometimes', 'in:browser,server,azure'],
+            'speech_provider_id' => ['nullable', 'string', 'required_if:speech_engine,server', self::platformProviderRule()],
+            'speech_model' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'azure_speech_region' => ['nullable', 'string', 'max:40', 'regex:/^[a-z0-9]+$/', 'required_if:speech_engine,azure'],
+            'azure_speech_key' => ['nullable', 'string', 'max:200', 'required_if:speech_engine,azure'],
+            'voice_en_female' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'voice_en_male' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'voice_ms_female' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'voice_ms_male' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'transcribe_engine' => ['sometimes', 'in:browser,server'],
+            'transcribe_provider_id' => ['nullable', 'string', 'required_if:transcribe_engine,server', self::platformProviderRule()],
+            'transcribe_model' => ['sometimes', 'nullable', 'string', 'max:120'],
             // Read only from the form that has the checkboxes; see below.
             'guard_categories' => ['exclude_unless:guard_categories_present,1', 'nullable', 'array'],
             'guard_categories.*' => ['exclude_unless:guard_categories_present,1', 'string',
                 Rule::in(array_keys(self::GUARD_CATEGORIES))],
             'guard_topics' => ['nullable', 'string', 'max:2000'],
             'guard_borderline' => ['nullable', 'in:allow,block'],
+            'keyword_engine' => ['sometimes', 'in:bm25,postgres'],
+            'contextual_chunks' => ['sometimes', 'in:off,on'],
+            'history_source' => ['sometimes', 'in:server,client'],
+            'injection_shield' => ['sometimes', 'in:off,flag,block'],
+            'injection_shield_sources' => ['sometimes', 'in:off,drop'],
+            'leak_guard' => ['sometimes', 'in:off,on'],
             // No SVG. One served from our own origin runs its own script for
             // anyone who opens it directly, and super admin only is not a
             // good enough reason to leave that open.
@@ -282,6 +412,11 @@ class AdminSettingsController extends Controller
             'chunk_overlap.lt' => 'Overlap must be smaller than the chunk size.',
             'brand_logo.mimes' => 'The logo must be a PNG, JPG or WebP image.',
             'brand_icon.mimes' => 'The icon must be a PNG, JPG or WebP image.',
+            'speech_provider_id.required_if' => 'A speech server needs a provider to run on.',
+            'transcribe_provider_id.required_if' => 'A transcription server needs a provider to run on.',
+            'azure_speech_region.required_if' => 'Azure Speech needs the region of your Speech resource, such as southeastasia.',
+            'azure_speech_region.regex' => 'The region is one word, such as southeastasia.',
+            'azure_speech_key.required_if' => 'Azure Speech needs a key from your Speech resource.',
         ], self::modelRoleMessages()));
 
         // Back to the first category with a problem, not the one Save was
@@ -296,7 +431,11 @@ class AdminSettingsController extends Controller
         $validated = $validator->validated();
 
         foreach (self::keys() as $key) {
-            AppSetting::put($key, $validated[$key] ?? '');
+            // A choice the form did not send keeps what it was. Blank is not
+            // one of its options, and a client written before it existed
+            // must not switch a defence off by saving something else.
+            $fallback = in_array($key, self::CHOICE_KEYS, true) ? AppSetting::get($key) : '';
+            AppSetting::put($key, $validated[$key] ?? $fallback);
         }
 
         AppSetting::put('guard_borderline', $validated['guard_borderline'] ?? 'allow');
@@ -338,6 +477,52 @@ class AdminSettingsController extends Controller
         }
 
         AppSetting::put($key, $request->file($field)->store('brand', 'public'));
+    }
+
+    /**
+     * A sample of one voice, as the saved settings make it, played on the
+     * Voice page. The audio comes back through here so the engine's token and
+     * the speech key stay on the server.
+     */
+    public function voiceTest(Request $request)
+    {
+        $validated = $request->validate([
+            'voice' => ['required', 'in:en_female,en_male,ms_female,ms_male'],
+            'text' => ['nullable', 'string', 'max:300'],
+            'voice_name' => ['nullable', 'string', 'max:120'],
+            // The form as it is now, so a choice can be heard before saving.
+            'speech_engine' => ['nullable', 'in:browser,server,azure'],
+            'speech_provider_id' => ['nullable', 'string', self::platformProviderRule()],
+            'speech_model' => ['nullable', 'string', 'max:120'],
+            'azure_speech_region' => ['nullable', 'string', 'max:40', 'regex:/^[a-z0-9]*$/'],
+            'azure_speech_key' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        $engine = (string) ($validated['speech_engine'] ?? '');
+        if ($engine === 'server' && empty($validated['speech_provider_id'])) {
+            return response('Choose the provider your speech server runs on, then press play.', 422)
+                ->header('Content-Type', 'text/plain');
+        }
+
+        $unsaved = ['speech_engine' => $engine, 'speech_model' => (string) ($validated['speech_model'] ?? '')];
+        if ($engine === 'server') {
+            $provider = AiProvider::platform()->findOrFail($validated['speech_provider_id']);
+            $unsaved['speech_base_url'] = $provider->base_url;
+            $unsaved['speech_api_key'] = (string) $provider->api_key;
+        }
+        if ($engine === 'azure') {
+            $unsaved['azure_speech_region'] = (string) ($validated['azure_speech_region'] ?? '');
+            $unsaved['azure_speech_key'] = (string) ($validated['azure_speech_key'] ?? '');
+        }
+
+        $result = EngineClient::testVoice($validated['voice'], (string) ($validated['text'] ?? ''),
+            (string) ($validated['voice_name'] ?? ''), $unsaved);
+
+        if (!$result['ok']) {
+            return response($result['message'], 502)->header('Content-Type', 'text/plain');
+        }
+
+        return response($result['audio'], 200)->header('Content-Type', $result['type']);
     }
 
     public function reindex(Request $request)

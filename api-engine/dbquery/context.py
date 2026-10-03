@@ -1,4 +1,5 @@
 """Rows rendered for a prompt, inside the budget the rest of the system uses."""
+import spotlight
 from dbquery.result import QueryResult
 
 LIVE_NOTICE = (
@@ -35,7 +36,7 @@ def fit_rows_to_budget(result: QueryResult, budget: int) -> QueryResult:
 
 def build_database_context_block(connection_name: str, result: QueryResult,
                                  queried_on: str, question: str = "") -> str:
-    parts = [LIVE_NOTICE.format(date=queried_on, name=connection_name)]
+    lead = [LIVE_NOTICE.format(date=queried_on, name=connection_name)]
 
     # Rows alone do not say what they mean. Given a bare COUNT(*) of 3, a small
     # model told its visitor it had no such information; told the question the
@@ -43,13 +44,15 @@ def build_database_context_block(connection_name: str, result: QueryResult,
     # the answer model can repeat what it is given, and a visitor must not learn
     # the table names.
     if question.strip():
-        parts.append(f"They were read to answer this question: {question.strip()}")
+        lead.append(f"They were read to answer this question: {question.strip()}")
 
-    parts.append("")
-
+    # A row is data the operator's customers may have typed, a review or a
+    # note, so it is marked as material rather than instructions like any
+    # other source.
+    parts = []
     if not result.rows:
         parts.append("The query ran and matched no rows at all.")
-        return "\n".join(parts)
+        return spotlight.wrap("\n".join(lead), "\n".join(parts))
 
     parts.append(" | ".join(result.columns))
     parts.append("-|-".join("-" for _ in result.columns))
@@ -61,4 +64,4 @@ def build_database_context_block(connection_name: str, result: QueryResult,
             f"The query matched {result.row_count} rows in total. "
             f"The first {len(result.rows)} are shown above.")
 
-    return "\n".join(parts)
+    return spotlight.wrap("\n".join(lead), "\n".join(parts))

@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse, Response
 from config import settings
 import database
 from database import init_db
-from routers import bot, chat, kb
+from routers import bot, chat, kb, voice
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Chatbot Management - Streaming Engine API",
-    version="1.0.1",
+    version="1.1.0",
     lifespan=lifespan
 )
 
@@ -39,6 +39,7 @@ app.add_middleware(
 app.include_router(bot.router)
 app.include_router(chat.router)
 app.include_router(kb.router)
+app.include_router(voice.router)
 
 @app.get("/health")
 async def health_check():
@@ -46,7 +47,7 @@ async def health_check():
     return {
         "status": "degraded" if degraded else "ok",
         "service": "fastapi-llm-engine",
-        "version": "1.0.1",
+        "version": "1.1.0",
         "database": database.active_backend,
     }
 
@@ -54,30 +55,41 @@ async def health_check():
 widget_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "widget"))
 widget_path = os.path.join(widget_dir, "widget.js")
 markdown_path = os.path.join(widget_dir, "markdown.js")
+voice_path = os.path.join(widget_dir, "voice.js")
 
 SCRIPT_HEADERS = {"Cache-Control": "no-cache, must-revalidate"}
 
 
 @app.get("/widget.js")
 async def get_widget_script():
-    """The widget and its Markdown renderer, served as one script.
+    """The widget, its Markdown renderer and its voice helpers, as one script.
 
-    They are separate files so the renderer can be unit tested on its own,
+    They are separate files so the helpers can be unit tested on their own,
     and joined here so embedding stays a single tag and a single request.
     """
-    if not (os.path.exists(widget_path) and os.path.exists(markdown_path)):
+    parts = [markdown_path, voice_path, widget_path]
+    if not all(os.path.exists(path) for path in parts):
         return {"error": "widget.js not found"}
 
-    with open(markdown_path, encoding="utf-8") as f:
-        renderer = f.read()
-    with open(widget_path, encoding="utf-8") as f:
-        widget = f.read()
+    sources = []
+    for path in parts:
+        with open(path, encoding="utf-8") as f:
+            sources.append(f.read())
 
     return Response(
-        content=renderer + "\n;\n" + widget,
+        content="\n;\n".join(sources),
         media_type="application/javascript",
         headers=SCRIPT_HEADERS,
     )
+
+
+@app.get("/widget-voice.js")
+async def get_voice_script():
+    """The voice helpers alone, so the portal's voice preview picks a device
+    voice exactly as the widget will."""
+    if os.path.exists(voice_path):
+        return FileResponse(voice_path, media_type="application/javascript", headers=SCRIPT_HEADERS)
+    return {"error": "voice.js not found"}
 
 
 @app.get("/widget-markdown.js")

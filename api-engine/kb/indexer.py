@@ -9,10 +9,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from database import BotKbCollection, BotProfile, KbSource, get_settings
-from kb.chunking import Chunk, chunk_document, prepend_description
+import answer_cache
+from kb.chunking import Chunk, chunk_document, prepend_description, with_context_line
 from kb.embedding import client_for
 from kb.extract import extract_file, resolve_upload
-from kb import vision
+from kb import contextual, vision
 from kb.store import make_store
 
 
@@ -55,7 +56,8 @@ async def reading_bot(session, collection_id: str):
     return result.scalars().first()
 
 
-async def index_source(session, source_id: str, embedder=None, make_vision=None) -> int:
+async def index_source(session, source_id: str, embedder=None, make_vision=None,
+                       complete_context=None) -> int:
     source = await session.get(KbSource, source_id)
     if source is None:
         raise ValueError(f"unknown source {source_id}")
@@ -89,6 +91,15 @@ async def index_source(session, source_id: str, embedder=None, make_vision=None)
         if not chunks:
             raise ValueError("Source produced no text to index.")
 
+        # One sentence per chunk placing it in the document, when the install
+        # has contextual chunks on. Q&A pairs stand on their own already.
+        if source.type != "qa" and contextual.enabled(settings):
+            context_bot = await reading_bot(session, source.collection_id)
+            lines = await contextual.contexts_for(body, [c.text for c in chunks], settings,
+                                                  context_bot, complete=complete_context)
+            chunks = [Chunk(text=with_context_line(c.text, line), heading_path=c.heading_path)
+                      for c, line in zip(chunks, lines)]
+
         client = embedder or client_for(settings)
         vectors = await client.embed([c.text for c in chunks])
 
@@ -106,6 +117,9 @@ async def index_source(session, source_id: str, embedder=None, make_vision=None)
             }
             for i, (chunk, vector) in enumerate(zip(chunks, vectors))
         ])
+
+        # Answers cached from the old text may no longer be true.
+        await answer_cache.forget_collection(session, source.collection_id)
 
         source.status = "ready"
         source.chunk_count = len(chunks)

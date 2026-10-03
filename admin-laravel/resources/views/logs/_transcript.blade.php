@@ -326,12 +326,39 @@
 
                     // What the guard named. On a visitor's message it was
                     // refused; on an answer it had already been sent.
+                    // Two flags come from the security layers rather than the
+                    // guard model, and say so in their own words.
                     if (msg.guard_flag) {
                         var flag = document.createElement('span');
                         flag.className = 'badge bg-danger-subtle text-danger-emphasis mt-1';
                         flag.style.fontSize = '0.6875rem';
-                        flag.textContent = (isUser ? 'Refused by the guard: ' : 'Flagged by the guard: ') + msg.guard_flag;
+                        if (msg.guard_flag === 'injection') {
+                            flag.textContent = 'Prompt injection: worded to override the bot';
+                        } else if (msg.guard_flag === 'prompt_leak') {
+                            flag.textContent = 'Prompt leak: the reply began reciting its instructions';
+                        } else {
+                            flag.textContent = (isUser ? 'Refused by the guard: ' : 'Flagged by the guard: ') + msg.guard_flag;
+                        }
                         wrapper.appendChild(flag);
+                    }
+
+                    // The grounding check found a claim its material did not back.
+                    if (!isUser && msg.grounded === false) {
+                        var ungrounded = document.createElement('span');
+                        ungrounded.className = 'badge bg-warning-subtle text-warning-emphasis mt-1 text-wrap text-start';
+                        ungrounded.style.fontSize = '0.6875rem';
+                        ungrounded.style.maxWidth = '78%';
+                        ungrounded.textContent = 'Not supported by its sources'
+                            + (msg.grounding_note ? ': ' + msg.grounding_note : '');
+                        wrapper.appendChild(ungrounded);
+                    }
+
+                    if (!isUser && msg.cache_hit) {
+                        var cached = document.createElement('span');
+                        cached.className = 'badge bg-info-subtle text-info-emphasis mt-1';
+                        cached.style.fontSize = '0.6875rem';
+                        cached.textContent = 'From the answer cache';
+                        wrapper.appendChild(cached);
                     }
 
                     body.appendChild(wrapper);

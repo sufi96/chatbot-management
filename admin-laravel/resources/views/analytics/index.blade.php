@@ -491,7 +491,20 @@
 
     <div class="col-12 col-lg-6">
         <div class="card h-100">
-            <div class="card-header">Guard</div>
+            <div class="card-header">Guard and checks</div>
+            {{-- The two checks that are not the guard: answers the cache
+                 gave, and answers the grounding check found unsupported. --}}
+            <div class="px-3 pt-3 d-flex flex-wrap gap-3" style="font-size: 0.8125rem;">
+                <span><i class="bi bi-lightning"></i> <b class="figure-mono">{{ $num($report['cache_hits']) }}</b> answered from the cache
+                    @if($k['replies'])<span class="text-muted">({{ $pct($report['cache_hits'] / $k['replies']) }} of replies)</span>@endif</span>
+                <span><i class="bi bi-patch-check"></i>
+                    @if($report['grounding_checked'])
+                        <b class="figure-mono">{{ $num($report['ungrounded']) }}</b> of {{ $num($report['grounding_checked']) }} checked answers had an unsupported claim
+                    @else
+                        <span class="text-muted">No answer was grounding-checked</span>
+                    @endif
+                </span>
+            </div>
             <div class="p-3" style="border-bottom: 1px solid var(--border);">
                 @if(empty($report['flag_categories']))
                     <div class="an-none">
@@ -499,7 +512,7 @@
                     </div>
                 @else
                     @include('analytics._bars', [
-                        'items' => collect($report['flag_categories'])->map(fn ($count, $category) => ['label' => $category, 'value' => $count, 'tone' => 'danger'])->values()->all(),
+                        'items' => collect($report['flag_categories'])->map(fn ($count, $category) => ['label' => ['injection' => 'Prompt injection', 'prompt_leak' => 'Prompt leak'][$category] ?? $category, 'value' => $count, 'tone' => 'danger'])->values()->all(),
                         'total' => $k['flagged'],
                     ])
                 @endif

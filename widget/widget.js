@@ -36,9 +36,12 @@
 
     // Unique session ID per browser tab/session
     var sessionKey = "cb_session_" + botId;
+    function newSessionId() {
+        return "sess_" + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+    }
     var sessionId = sessionStorage.getItem(sessionKey);
     if (!sessionId) {
-        sessionId = "sess_" + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+        sessionId = newSessionId();
         sessionStorage.setItem(sessionKey, sessionId);
     }
 
@@ -1305,6 +1308,130 @@
             --cut-line-width: 1.5px;
         }
 
+
+        /* Voice. Everything here stays hidden unless the bot speaks or
+           listens, so a bot without voice looks exactly as before. */
+        #btn-voice, .listen-btn, .mic-btn, .voice-tick { display: none; }
+        .widget-wrapper.voice-on .voice-tick { display: inline-flex; }
+
+        /* The visitor's own switch for hearing answers, in plain sight above
+           the message box. The same choice as the voice menu's tick. */
+        .voice-tick {
+            align-self: flex-end;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #52525B;
+            cursor: pointer;
+            user-select: none;
+        }
+        .voice-tick svg { color: #A1A1AA; }
+        .voice-tick:has(input:checked) svg { color: var(--primary-color, #1f2937); }
+
+        /* A standard on/off switch: a pill whose knob slides across. */
+        .voice-switch {
+            -webkit-appearance: none;
+            appearance: none;
+            position: relative;
+            width: 32px;
+            height: 18px;
+            margin: 0;
+            border-radius: 999px;
+            background: #D4D4D8;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background-color 0.18s ease;
+        }
+        .voice-switch::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+            transition: transform 0.18s ease;
+        }
+        .voice-switch:checked { background: var(--primary-color, #1f2937); }
+        .voice-switch:checked::after { transform: translateX(14px); }
+        .voice-switch:focus-visible { outline: 2px solid var(--primary-color, #1f2937); outline-offset: 2px; }
+        .widget-wrapper.voice-on #btn-voice { display: flex; }
+        .widget-wrapper.voice-on .listen-btn { display: inline-flex; }
+        .widget-wrapper.voice-listen .mic-btn { display: flex; }
+        .widget-wrapper.voice-speaking #btn-voice { opacity: 1; background: color-mix(in srgb, currentColor 22%, transparent); }
+
+        .listen-btn {
+            background: none;
+            border: none;
+            padding: 0 2px;
+            color: #A1A1AA;
+            cursor: pointer;
+            align-items: center;
+            border-radius: 4px;
+        }
+        .listen-btn:hover, .listen-btn.playing { color: var(--primary-color, #1f2937); }
+
+        .mic-btn {
+            background: none;
+            border: none;
+            color: #71717A;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            margin-bottom: 2px;
+        }
+        .mic-btn:hover { color: var(--primary-color, #1f2937); background: #F4F4F5; }
+        .mic-btn.recording { color: #ffffff; background: #DC2626; animation: mic-pulse 1.2s ease-in-out infinite; }
+        @keyframes mic-pulse { 50% { box-shadow: 0 0 0 5px rgba(220, 38, 38, 0.2); } }
+
+        .voice-menu {
+            position: absolute;
+            top: 64px;
+            right: 12px;
+            z-index: 20;
+            width: 240px;
+            background: #ffffff;
+            color: #18181B;
+            border: 1px solid #E4E4E7;
+            border-radius: 12px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+            padding: 12px;
+            font-size: 13px;
+            display: none;
+        }
+        .voice-menu.open { display: block; }
+        .voice-menu-label { font-size: 11px; font-weight: 600; color: #71717A; text-transform: uppercase; letter-spacing: 0.04em; margin: 10px 0 6px; }
+        .voice-menu-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500; }
+        .voice-segment { display: flex; border: 1px solid #E4E4E7; border-radius: 8px; overflow: hidden; }
+        .voice-segment button {
+            flex: 1;
+            border: none;
+            background: #ffffff;
+            padding: 6px 4px;
+            font-size: 12px;
+            cursor: pointer;
+            color: #3F3F46;
+        }
+        .voice-segment button + button { border-left: 1px solid #E4E4E7; }
+        .voice-segment button[aria-pressed="true"] { background: var(--primary-color, #1f2937); color: #ffffff; }
+        .voice-menu-note { font-size: 11.5px; color: #71717A; margin-top: 8px; line-height: 1.4; }
+        .voice-try {
+            margin-top: 10px;
+            width: 100%;
+            border: 1px solid #E4E4E7;
+            background: #FAFAFA;
+            border-radius: 8px;
+            padding: 6px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
         @media (prefers-reduced-motion: reduce) {
             *,
             *::before,
@@ -1337,6 +1464,9 @@
                     </div>
                 </div>
                 <div class="header-actions">
+                    <button class="action-icon-btn" id="btn-voice" title="Voice" aria-label="Voice settings" aria-haspopup="true" aria-expanded="false">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+                    </button>
                     <button class="action-icon-btn" id="btn-clear" title="Clear conversation">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path></svg>
                     </button>
@@ -1350,6 +1480,23 @@
                 </div>
             </div>
 
+            <div class="voice-menu" id="voice-menu" role="dialog" aria-label="Voice">
+                <label class="voice-menu-toggle"><input type="checkbox" id="voice-autoplay"> Read answers aloud</label>
+                <div class="voice-menu-label">Language</div>
+                <div class="voice-segment" data-pref="language">
+                    <button type="button" data-value="auto">Auto</button>
+                    <button type="button" data-value="en">English</button>
+                    <button type="button" data-value="ms">Melayu</button>
+                </div>
+                <div class="voice-menu-label">Voice</div>
+                <div class="voice-segment" data-pref="gender">
+                    <button type="button" data-value="female">Female</button>
+                    <button type="button" data-value="male">Male</button>
+                </div>
+                <div class="voice-menu-note" id="voice-note"></div>
+                <button type="button" class="voice-try" id="voice-try">Try this voice</button>
+            </div>
+
             <div class="chat-messages" id="chat-messages">
                 <!-- Initial greeting injected here -->
                 <div class="typing-indicator" id="typing-indicator">
@@ -1361,7 +1508,15 @@
             </div>
 
             <div class="chat-footer">
+                <label class="voice-tick" title="Hear the bot read its answers">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                    <span>Read answers aloud</span>
+                    <input type="checkbox" role="switch" class="voice-switch" id="voice-tick">
+                </label>
                 <div class="input-row">
+                    <button class="mic-btn" id="mic-btn" type="button" title="Speak your question" aria-label="Speak your question">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"></rect><path d="M5 10v1a7 7 0 0 0 14 0v-1"></path><line x1="12" y1="18" x2="12" y2="22"></line></svg>
+                    </button>
                     <textarea class="chat-input" id="chat-input" rows="1" placeholder="Type a message..."></textarea>
                     <button class="send-btn" id="send-btn" disabled>
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
@@ -1432,6 +1587,9 @@
     var chatConfirm = shadowRoot.getElementById("chat-confirm");
     var chatConfirmOk = shadowRoot.getElementById("chat-confirm-ok");
     var chatConfirmCancel = shadowRoot.getElementById("chat-confirm-cancel");
+    var btnVoice = shadowRoot.getElementById("btn-voice");
+    var voiceMenu = shadowRoot.getElementById("voice-menu");
+    var micBtn = shadowRoot.getElementById("mic-btn");
 
     function updateColors(hex) {
         if (!hex) return;
@@ -1497,6 +1655,9 @@
      * typed stays literal, so their own words can never turn into markup.
      */
     function setBotText(bubble, text) {
+        // Kept as written, so reading it aloud starts from the Markdown and
+        // not from whatever chips and markers the bubble grows later.
+        bubble._raw = text;
         if (!markdown) {
             bubble.textContent = text;
             return;
@@ -1540,6 +1701,21 @@
 
         contentWrapper.appendChild(bubble);
         contentWrapper.appendChild(time);
+
+        // Read aloud on request. Hidden by CSS unless the bot speaks.
+        if (sender === "bot") {
+            var listen = document.createElement("button");
+            listen.type = "button";
+            listen.className = "listen-btn";
+            listen.title = "Read aloud";
+            listen.setAttribute("aria-label", "Read this answer aloud");
+            listen.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>';
+            listen.addEventListener("click", function () {
+                if (playback.current === bubble && playback.speaking) { stopSpeaking(); return; }
+                speakAll(bubble._raw || bubble.textContent, bubble);
+            });
+            time.appendChild(listen);
+        }
         row.appendChild(contentWrapper);
 
         // Insert before the typing indicator
@@ -1728,6 +1904,382 @@
         time.appendChild(holder);
     }
 
+
+    // ---- Voice ---------------------------------------------------------
+    // The bot's answers read aloud, and questions spoken. Where the sound
+    // comes from is the install's choice (Admin settings, Voice): the
+    // visitor's own device by default, or the engine's speech server. Either
+    // way the widget asks for one of four voices, by language and gender.
+    var voiceKit = (typeof window !== "undefined" && window.__ChatbotVoice) || null;
+    var voicePrefsKey = "cb_voice_" + botId;
+    var voicePrefs = { autoplay: false, language: "auto", gender: "female" };
+    var deviceVoices = [];
+    var playback = { token: 0, queue: [], audio: null, speaking: false, current: null };
+    var listening = { active: false, recognizer: null, recorder: null, timer: null };
+
+    function voiceOutput() { return !!(voiceKit && botConfig.voice && botConfig.voice.output); }
+    function speaksInBrowser() { return !botConfig.voice || botConfig.voice.speak_with !== "server"; }
+    function canBrowserSpeak() {
+        return typeof window.speechSynthesis !== "undefined" && typeof window.SpeechSynthesisUtterance !== "undefined";
+    }
+    function browserRecognizer() { return window.SpeechRecognition || window.webkitSpeechRecognition || null; }
+
+    function loadVoicePrefs() {
+        var v = botConfig.voice || {};
+        voicePrefs = { autoplay: !!v.autoplay, language: v.language || "auto", gender: v.gender || "female" };
+        try {
+            var saved = JSON.parse(localStorage.getItem(voicePrefsKey) || "null");
+            if (saved) {
+                ["autoplay", "language", "gender"].forEach(function (k) { if (k in saved) { voicePrefs[k] = saved[k]; } });
+            }
+        } catch (e) { /* storage blocked: the bot's defaults stand */ }
+    }
+
+    function saveVoicePrefs() {
+        try { localStorage.setItem(voicePrefsKey, JSON.stringify(voicePrefs)); } catch (e) { /* not kept */ }
+    }
+
+    function refreshDeviceVoices() {
+        if (canBrowserSpeak()) { deviceVoices = window.speechSynthesis.getVoices() || []; }
+        renderVoiceNote();
+    }
+
+    function languageFor(text) {
+        if (voicePrefs.language === "en" || voicePrefs.language === "ms") { return voicePrefs.language; }
+        var local = String(navigator.language || "").toLowerCase().indexOf("ms") === 0 ? "ms" : "en";
+        return voiceKit.detectLanguage(text, local);
+    }
+
+    function setSpeaking(on, bubble) {
+        playback.speaking = on;
+        if (!on && playback.current) {
+            var old = playback.current.parentNode && playback.current.parentNode.querySelector(".listen-btn");
+            if (old) { old.classList.remove("playing"); }
+        }
+        playback.current = on ? (bubble || playback.current) : null;
+        if (on && playback.current && playback.current.parentNode) {
+            var btn = playback.current.parentNode.querySelector(".listen-btn");
+            if (btn) { btn.classList.add("playing"); }
+        }
+        wrapper.classList.toggle("voice-speaking", on);
+    }
+
+    function stopSpeaking() {
+        playback.token++;
+        playback.queue = [];
+        if (playback.audio && playback.audio.pause) { try { playback.audio.pause(); } catch (e) { /* gone */ } }
+        playback.audio = null;
+        if (canBrowserSpeak()) { try { window.speechSynthesis.cancel(); } catch (e) { /* nothing playing */ } }
+        setSpeaking(false);
+    }
+
+    // One sentence, said after the ones before it.
+    function enqueueSpeech(text, language, bubble) {
+        var said = voiceKit.speakable(text);
+        if (!said) { return; }
+        var token = playback.token;
+        setSpeaking(true, bubble);
+
+        if (speaksInBrowser()) {
+            if (!canBrowserSpeak()) { setSpeaking(false); return; }
+            var picked = voiceKit.pickVoice(deviceVoices, language, voicePrefs.gender);
+            var utterance = new SpeechSynthesisUtterance(said);
+            utterance.lang = language === "ms" ? "ms-MY" : "en-US";
+            if (picked.voice) { utterance.voice = picked.voice; utterance.lang = picked.voice.lang; }
+            utterance.onend = utterance.onerror = function () {
+                if (token === playback.token && !window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+                    setSpeaking(false);
+                }
+            };
+            window.speechSynthesis.speak(utterance);
+            return;
+        }
+
+        // The engine's voice: each sentence is fetched at once and played in
+        // order, so the next is ready by the time the one before ends.
+        var item = {
+            ready: fetch(apiHost + "/api/v1/voice/speech", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ bot_id: botId, text: said.slice(0, 1200),
+                                       voice: voiceKit.slotFor(language, voicePrefs.gender) })
+            }).then(function (response) {
+                if (!response.ok) { throw new Error("HTTP " + response.status); }
+                return response.blob();
+            }).then(function (blob) {
+                return URL.createObjectURL(blob);
+            }).catch(function (err) {
+                console.warn("[ChatbotWidget] Voice unavailable:", err);
+                return null;
+            })
+        };
+        playback.queue.push(item);
+        if (!playback.audio) { playNext(token); }
+    }
+
+    function playNext(token) {
+        if (token !== playback.token) { return; }
+        var item = playback.queue.shift();
+        if (!item) { playback.audio = null; setSpeaking(false); return; }
+        playback.audio = { pause: function () {} };
+        item.ready.then(function (url) {
+            if (token !== playback.token) { if (url) { URL.revokeObjectURL(url); } return; }
+            if (!url) { playNext(token); return; }
+            var audio = new Audio(url);
+            playback.audio = audio;
+            audio.onended = audio.onerror = function () { URL.revokeObjectURL(url); playNext(token); };
+            audio.play().catch(function () { URL.revokeObjectURL(url); playNext(token); });
+        });
+    }
+
+    // A whole answer, from a click on its speaker.
+    function speakAll(markdownText, bubble) {
+        if (!voiceOutput()) { return; }
+        stopSpeaking();
+        var text = voiceKit.speakable(markdownText);
+        if (!text) { return; }
+        var language = languageFor(text);
+        var splitter = new voiceKit.SentenceSplitter(80);
+        splitter.feed(text + "\n").concat(splitter.flush()).forEach(function (sentence) {
+            enqueueSpeech(sentence, language, bubble);
+        });
+    }
+
+    // An answer as it streams, a sentence at a time, when the visitor has
+    // asked for answers to be read aloud.
+    function answerSpeech(bubble) {
+        if (!voiceOutput() || !voicePrefs.autoplay) { return null; }
+        stopSpeaking();
+        var token = playback.token;
+        var splitter = new voiceKit.SentenceSplitter(60);
+        var language = null;
+        var inCode = false;
+
+        function say(sentences) {
+            sentences.forEach(function (sentence) {
+                if (token !== playback.token) { return; }
+                // A fenced code block is never read out, however it was split.
+                var fences = (sentence.match(/```/g) || []).length;
+                var wasInCode = inCode;
+                if (fences % 2 === 1) { inCode = !inCode; }
+                if (wasInCode || fences) { return; }
+                if (!language) { language = languageFor(sentence); }
+                enqueueSpeech(sentence, language, bubble);
+            });
+        }
+
+        return {
+            feed: function (text) { say(splitter.feed(text)); },
+            finish: function () { say(splitter.flush()); },
+            reset: function () {
+                stopSpeaking();
+                token = playback.token;
+                splitter = new voiceKit.SentenceSplitter(60);
+                language = null;
+                inCode = false;
+            }
+        };
+    }
+
+    // The header menu: read aloud or not, which language, which voice.
+    function setAutoplay(on) {
+        voicePrefs.autoplay = !!on;
+        if (!voicePrefs.autoplay) { stopSpeaking(); }
+        shadowRoot.getElementById("voice-autoplay").checked = voicePrefs.autoplay;
+        shadowRoot.getElementById("voice-tick").checked = voicePrefs.autoplay;
+        saveVoicePrefs();
+    }
+
+    function renderVoiceMenu() {
+        shadowRoot.getElementById("voice-autoplay").checked = !!voicePrefs.autoplay;
+        shadowRoot.getElementById("voice-tick").checked = !!voicePrefs.autoplay;
+        Array.prototype.forEach.call(voiceMenu.querySelectorAll(".voice-segment"), function (group) {
+            var pref = group.getAttribute("data-pref");
+            Array.prototype.forEach.call(group.querySelectorAll("button"), function (b) {
+                b.setAttribute("aria-pressed", b.getAttribute("data-value") === voicePrefs[pref] ? "true" : "false");
+            });
+        });
+        renderVoiceNote();
+    }
+
+    // In the browser, the voices are the device's; say plainly when the one
+    // asked for is not there and what is used instead.
+    function renderVoiceNote() {
+        var note = shadowRoot.getElementById("voice-note");
+        if (!note || !voiceKit || !botConfig.voice) { return; }
+        if (!speaksInBrowser()) { note.textContent = ""; return; }
+        if (!canBrowserSpeak()) { note.textContent = "This browser cannot read aloud."; return; }
+        var languages = voicePrefs.language === "auto" ? ["en", "ms"] : [voicePrefs.language];
+        var missing = [];
+        languages.forEach(function (language) {
+            var picked = voiceKit.pickVoice(deviceVoices, language, voicePrefs.gender);
+            var name = language === "ms" ? "Malay" : "English";
+            if (picked.match === "none") { missing.push("no " + name + " voice"); }
+            else if (picked.match === "near") { missing.push("an Indonesian voice for Malay"); }
+            else if (picked.match === "language") { missing.push("no " + voicePrefs.gender + " " + name + " voice, so another is used"); }
+        });
+        note.textContent = missing.length ? "This device has " + missing.join("; ") + "." : "";
+    }
+
+    btnVoice.addEventListener("click", function (event) {
+        event.stopPropagation();
+        var open = !voiceMenu.classList.contains("open");
+        voiceMenu.classList.toggle("open", open);
+        btnVoice.setAttribute("aria-expanded", open ? "true" : "false");
+        if (open) { refreshDeviceVoices(); renderVoiceMenu(); }
+    });
+    voiceMenu.addEventListener("click", function (event) {
+        event.stopPropagation();
+        var button = event.target.closest(".voice-segment button");
+        if (button) {
+            voicePrefs[button.parentNode.getAttribute("data-pref")] = button.getAttribute("data-value");
+            saveVoicePrefs();
+            renderVoiceMenu();
+        }
+    });
+    shadowRoot.getElementById("voice-autoplay").addEventListener("change", function (event) {
+        setAutoplay(event.target.checked);
+    });
+    shadowRoot.getElementById("voice-tick").addEventListener("change", function (event) {
+        setAutoplay(event.target.checked);
+    });
+    shadowRoot.getElementById("voice-try").addEventListener("click", function () {
+        var malay = voicePrefs.language === "ms" ||
+            (voicePrefs.language === "auto" && String(navigator.language || "").toLowerCase().indexOf("ms") === 0);
+        speakAll(malay ? "Helo! Beginilah bunyi suara saya apabila membaca jawapan."
+                       : "Hello! This is how I will sound when I read answers aloud.");
+    });
+    shadowRoot.addEventListener("click", function () {
+        if (voiceMenu.classList.contains("open")) {
+            voiceMenu.classList.remove("open");
+            btnVoice.setAttribute("aria-expanded", "false");
+        }
+    });
+
+    // Spoken questions: the browser's own recognition, or a recording sent to
+    // the engine's transcription server. What was heard goes into the box and
+    // is sent, exactly as if it had been typed.
+    function listenLanguage() {
+        if (voicePrefs.language === "ms") { return "ms"; }
+        if (voicePrefs.language === "en") { return "en"; }
+        return String(navigator.language || "").toLowerCase().indexOf("ms") === 0 ? "ms" : "en";
+    }
+
+    function canListen() {
+        if (!botConfig.voice || !botConfig.voice.input) { return false; }
+        if (botConfig.voice.listen_with === "server") {
+            return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+        }
+        return !!browserRecognizer();
+    }
+
+    function setListening(on) {
+        listening.active = on;
+        micBtn.classList.toggle("recording", on);
+        micBtn.title = on ? "Stop listening" : "Speak your question";
+        micBtn.setAttribute("aria-label", micBtn.title);
+        chatInput.placeholder = on ? "Listening..." : "Type a message...";
+    }
+
+    function heard(text) {
+        text = String(text || "").trim();
+        if (!text) { return; }
+        chatInput.value = text;
+        sendBtn.disabled = isStreaming;
+        if (!isStreaming) { sendMessage(); }
+    }
+
+    function stopListening() {
+        clearTimeout(listening.timer);
+        if (listening.recognizer) { try { listening.recognizer.stop(); } catch (e) { /* stopped */ } }
+        if (listening.recorder && listening.recorder.state !== "inactive") { listening.recorder.stop(); }
+    }
+
+    function startListening() {
+        stopSpeaking();
+        var language = listenLanguage();
+
+        if (botConfig.voice.listen_with !== "server") {
+            var Recognizer = browserRecognizer();
+            var recognizer = new Recognizer();
+            listening.recognizer = recognizer;
+            recognizer.lang = language === "ms" ? "ms-MY" : "en-US";
+            recognizer.interimResults = true;
+            recognizer.maxAlternatives = 1;
+            var finalText = "";
+            recognizer.onresult = function (event) {
+                var interim = "";
+                for (var i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) { finalText += event.results[i][0].transcript; }
+                    else { interim += event.results[i][0].transcript; }
+                }
+                chatInput.value = (finalText + interim).trim();
+            };
+            recognizer.onerror = function (event) {
+                if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+                    chatInput.placeholder = "Microphone blocked. Type a message...";
+                }
+            };
+            recognizer.onend = function () {
+                listening.recognizer = null;
+                setListening(false);
+                heard(finalText || chatInput.value);
+            };
+            setListening(true);
+            recognizer.start();
+            return;
+        }
+
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+            var chunks = [];
+            var recorder = new MediaRecorder(stream);
+            listening.recorder = recorder;
+            recorder.ondataavailable = function (event) { if (event.data && event.data.size) { chunks.push(event.data); } };
+            recorder.onstop = function () {
+                stream.getTracks().forEach(function (track) { track.stop(); });
+                listening.recorder = null;
+                setListening(false);
+                if (!chunks.length) { return; }
+                var blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+                var form = new FormData();
+                form.append("bot_id", botId);
+                form.append("language", language);
+                form.append("audio", blob, "speech." + ((recorder.mimeType || "").indexOf("ogg") !== -1 ? "ogg" : "webm"));
+                chatInput.placeholder = "Working out what you said...";
+                fetch(apiHost + "/api/v1/voice/transcribe", { method: "POST", body: form })
+                    .then(function (response) { return response.ok ? response.json() : Promise.reject(response.status); })
+                    .then(function (data) { chatInput.placeholder = "Type a message..."; heard(data.text); })
+                    .catch(function () { chatInput.placeholder = "Could not hear that. Type a message..."; });
+            };
+            setListening(true);
+            recorder.start();
+            // One question, not a monologue.
+            listening.timer = setTimeout(stopListening, 30000);
+        }).catch(function () {
+            chatInput.placeholder = "Microphone blocked. Type a message...";
+        });
+    }
+
+    micBtn.addEventListener("click", function () {
+        if (listening.active) { stopListening(); } else { startListening(); }
+    });
+
+    function setupVoice() {
+        if (!voiceKit || !botConfig.voice) { return; }
+        loadVoicePrefs();
+        wrapper.classList.toggle("voice-on", voiceOutput());
+        wrapper.classList.toggle("voice-listen", canListen());
+        shadowRoot.getElementById("voice-tick").checked = voiceOutput() && !!voicePrefs.autoplay;
+        if (voiceOutput() && speaksInBrowser() && canBrowserSpeak()) {
+            refreshDeviceVoices();
+            // Many browsers load their voices late. A listener, not the
+            // onvoiceschanged property, so a host page's own handler stays.
+            if (window.speechSynthesis.addEventListener) {
+                window.speechSynthesis.addEventListener("voiceschanged", refreshDeviceVoices);
+            }
+        }
+    }
+
     // Load Bot Configuration from Server
     function loadConfig() {
         fetch(apiHost + "/api/v1/bot/" + encodeURIComponent(botId) + "/config")
@@ -1764,6 +2316,9 @@
                 botConfig.closeIconUrl = data.close_icon_url || "";
                 botConfig.closeShape = data.close_shape || "circle";
                 botConfig.closeSize = parseInt(data.close_size, 10) || 52;
+                // An offline bot has no voice: it cannot answer anything.
+                botConfig.voice = data.offline ? null : (data.voice || null);
+                setupVoice();
 
                 // Switched off but set to show a message: the launcher opens a
                 // small offline notice instead of the chat, and the corner
@@ -1894,6 +2449,8 @@
             }
         } else {
             wrapper.classList.remove("widget-open");
+            stopSpeaking();
+            if (listening.active) { stopListening(); }
             // Reopening should always give the familiar size back.
             setExpanded(false);
         }
@@ -1943,7 +2500,13 @@
         if (event.target === chatConfirm) { closeClearConfirm(); }
     });
     chatConfirmOk.addEventListener("click", function () {
+        stopSpeaking();
         messageHistory = [];
+        // A fresh conversation, not only a fresh screen. The engine reads a
+        // conversation from its own records by session, so keeping the old id
+        // would have the bot remember what the visitor just cleared.
+        sessionId = newSessionId();
+        try { sessionStorage.setItem(sessionKey, sessionId); } catch (e) { /* private mode */ }
         while (chatMessages.firstChild && chatMessages.firstChild !== typingIndicator) {
             chatMessages.removeChild(chatMessages.firstChild);
         }
@@ -1989,6 +2552,7 @@
         // a source, writing the reply), so the bubble shows that rather than
         // guessing. An engine too old to say keeps the first line throughout.
         var botBubble = appendMessage("bot", "");
+        var speaker = answerSpeech(botBubble);
         botBubble.innerHTML = '<div class="thinking-box"><span class="thinking-pulse-ring"></span><span class="thinking-text fade-in">Reading your message...</span></div>';
         var thinkingTextEl = botBubble.querySelector(".thinking-text");
         var statusSwap = null;
@@ -2069,6 +2633,7 @@
             function processStream() {
                 reader.read().then(function (result) {
                     if (result.done) {
+                        if (speaker) { speaker.finish(); }
                         stopThinking();
                         isStreaming = false;
                         finishMeta();
@@ -2087,6 +2652,7 @@
                         if (line.indexOf("data: ") === 0) {
                             var dataStr = line.substring(6).trim();
                             if (dataStr === "[DONE]") {
+                                if (speaker) { speaker.finish(); }
                                 stopThinking();
                                 foldThinking();
                                 isStreaming = false;
@@ -2104,6 +2670,18 @@
                                 } else if (parsed.type === "sources") {
                                     pendingSources = parsed.sources || [];
                                     pendingSourceKind = parsed.kind || "";
+                                } else if (parsed.type === "retract") {
+                                    // The engine stopped a reply that began
+                                    // reciting the bot's instructions. What was
+                                    // shown is replaced, and no sources are named.
+                                    stopThinking();
+                                    foldThinking();
+                                    botBubble.innerHTML = "";
+                                    firstChunk = false;
+                                    partialText = parsed.content || "";
+                                    pendingSources = [];
+                                    setBotText(botBubble, partialText);
+                                    if (speaker) { stopSpeaking(); speaker = null; }
                                 } else if (parsed.meta) {
                                     pendingMeta = parsed.meta;
                                 } else if (parsed.error) {
@@ -2129,6 +2707,7 @@
                                     partialText = "";
                                     botBubble.textContent = "";
                                     firstChunk = true;
+                                    if (speaker) { speaker.reset(); }
                                 } else if (parsed.content) {
                                     if (firstChunk) {
                                         stopThinking();
@@ -2138,6 +2717,7 @@
                                     }
                                     partialText += parsed.content;
                                     setBotText(botBubble, partialText);
+                                    if (speaker) { speaker.feed(parsed.content); }
                                 }
                                 chatMessages.scrollTop = chatMessages.scrollHeight;
                             } catch (e) {

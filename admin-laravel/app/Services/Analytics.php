@@ -151,11 +151,15 @@ class Analytics
         $dbAnswers = 0;
         $dbRows = 0;
         $models = [];
+        // Answers the cache gave, and the grounding check's verdicts.
+        $cacheHits = 0;
+        $groundingChecked = 0;
+        $ungrounded = 0;
 
         $columns = ['conversation_id', 'sender', 'created_at', 'tokens_used', 'intent', 'guard_flag',
             'source_kind', 'first_token_ms', 'response_ms'];
         if ($full) {
-            array_push($columns, 'citations', 'db_sql', 'db_row_count', 'model_trace');
+            array_push($columns, 'citations', 'db_sql', 'db_row_count', 'model_trace', 'cache_hit', 'grounded');
         }
 
         $rows = $this->inWindow(DB::table('chat_messages'), $from, $to)
@@ -222,6 +226,15 @@ class Analytics
                         $bands[$i]++;
                         break;
                     }
+                }
+            }
+            if ($row->cache_hit) {
+                $cacheHits++;
+            }
+            if ($row->grounded !== null) {
+                $groundingChecked++;
+                if (!$row->grounded) {
+                    $ungrounded++;
                 }
             }
             if ($row->db_sql) {
@@ -319,6 +332,9 @@ class Analytics
             'db_answers' => $dbAnswers,
             'db_rows_avg' => $dbAnswers ? $dbRows / $dbAnswers : null,
             'models' => $models,
+            'cache_hits' => $cacheHits,
+            'grounding_checked' => $groundingChecked,
+            'ungrounded' => $ungrounded,
         ];
     }
 

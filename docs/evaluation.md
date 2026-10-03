@@ -33,6 +33,12 @@ The command exits 0 when every case passes, 1 when any fails, and 2 when the
 set cannot be run. Reports are written to `api-engine/evals/reports/`, which
 git ignores: one Markdown file to read, and one JSON file to compare runs.
 
+A case's history exists only in its file, and the engine normally reads a
+conversation from its own records and ignores the history a client sends. The
+runner therefore sends the engine's `ADMIN_API_TOKEN` (read from
+`api-engine/.env`), which marks it as trusted to send its own. Without the
+token, follow-up cases are asked with no history.
+
 Evaluation conversations are real conversations. They appear under
 Conversations with session ids beginning `eval-`.
 

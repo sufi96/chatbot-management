@@ -6,6 +6,8 @@ where the passages came from reduces the chance the model obeys them. It does
 not remove it, which is why the knowledge base stays the preferred source for
 anything that matters.
 """
+import spotlight
+import spotlight
 from websearch.result import SearchResult
 
 UNTRUSTED_NOTICE = (
@@ -37,10 +39,10 @@ def build_web_context_block(results: list[SearchResult]) -> str:
     if not results:
         return ""
 
-    parts = [UNTRUSTED_NOTICE, ""]
+    parts = []
     for n, item in enumerate(results, start=1):
         parts.append(f"[{n}] {item.title} ({item.url})")
         parts.append(item.text)
         parts.append("")
 
-    return "\n".join(parts).strip()
+    return spotlight.wrap(UNTRUSTED_NOTICE, "\n".join(parts))

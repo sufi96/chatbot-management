@@ -8,10 +8,11 @@ moving a job is a settings change, never a code change.
 A role configured in Admin Settings is used as configured. A role left blank
 falls back, and how depends on the kind of job:
 
-- A generative job (sql, intent, guard, vision) borrows the bot's main
-  provider and model. A weaker verdict from a small model beats no verdict.
-  Vision runs while indexing, which belongs to no bot, so the indexer passes a
-  bot that reads the collection; with no such bot there is nothing to borrow.
+- A generative job (sql, intent, expand, guard, verify, vision, context)
+  borrows the bot's main provider and model. A weaker verdict from a small
+  model beats no verdict. Vision and context run while indexing, which belongs
+  to no bot, so the indexer passes a bot that reads the collection; with no
+  such bot there is nothing to borrow.
 - A specialist job (rerank) has no stand-in, because a chat model does not
   speak the rerank protocol. Blank makes it unavailable and its stage is
   skipped, which is exactly what the system did before the stage existed.
@@ -24,7 +25,7 @@ from dataclasses import dataclass
 
 from database import provider_endpoint, provider_merges_system
 
-GENERATIVE = ("sql", "intent", "guard", "vision")
+GENERATIVE = ("sql", "intent", "expand", "guard", "verify", "vision", "context")
 SPECIALIST = ("rerank",)
 ROLES = GENERATIVE + SPECIALIST
 

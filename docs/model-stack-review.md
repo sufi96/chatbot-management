@@ -291,9 +291,10 @@ Guesses to replace with measurements.
 
 ## 6. Model roster
 
-Nine jobs need a model. On the Sparks they run as six deployments, because
-intent and SQL share one model, the answer model also judges evaluations, and
-one guard model checks both directions at first. On the 8 GB machine, three
+Twelve jobs need a model. On the Sparks they run as six deployments, because
+intent, SQL, query expansion, the answer check and chunk context share one
+model, the answer model also judges evaluations, and one guard model checks
+both directions at first. On the 8 GB machine, three
 models cover every job that has a stand-in.
 
 | Job | Setting | On the Sparks | Alternative | On the 8 GB machine now | Served by |
@@ -305,6 +306,9 @@ models cover every job that has a stand-in.
 | SQL | `sql_model_*` | Qwen3-Coder-30B-A3B, or share Qwen3.5-35B-A3B | | qwen3.5-4b | vLLM, node B |
 | Input guard | `guard_model_*` | Qwen3Guard-Gen-4B | Llama Guard 4 12B | Qwen3Guard-Gen-0.6B, or qwen3.5-4b with a prompt | vLLM, node B |
 | Output guard | `guard_model_*` | Qwen3Guard-Gen-4B on the finished answer | Qwen3Guard-Stream-4B, checks while tokens stream | Same as input guard | vLLM, node B |
+| Query expansion | `expand_model_*` | Qwen3.5-35B-A3B, shared with intent | | qwen3.5-4b, the bot's own | vLLM, node B |
+| Answer check | `verify_model_*` | Qwen3.5-35B-A3B, shared with intent | The answer model, when node A has room | qwen3.5-4b, the bot's own | vLLM, node B |
+| Chunk context | `context_model_*` | Qwen3.5-35B-A3B, as a night batch | | qwen3.5-4b; slow on large uploads | vLLM, node B |
 | Vision OCR | `vision_model_*`, later | Qwen3-VL-8B | dots.ocr, olmOCR-2 | None; scans stay unsupported | vLLM, node B |
 | Judge, for evals | `judge_model_*`, later | The answer model, run overnight | A hosted API | A hosted API; a 4B judges poorly | Reuses node A |
 | Image | Deferred | FLUX.1-dev or Qwen-Image | | | diffusers or ComfyUI |
@@ -369,3 +373,51 @@ below 1.
 7. Change the embedding model, truncate to 1024 dimensions, rebuild the index.
 8. Add the input guard, then the output guard on finished answers.
 9. Vision OCR for scanned uploads. Image generation is deferred.
+
+---
+
+## 9. Status, 2026-10-03
+
+What the order of work above has become, and what was added beside it.
+
+| Item | Status |
+|---|---|
+| 1. Golden set | Built: `python -m evals`, see `docs/evaluation.md` |
+| 2. Log what decided each answer | Built: `model_trace`, intent, flags, grounding verdict, cache hit, timings, tokens |
+| 3. Rerank stage | Built, behind `rerank_model_*` |
+| 4. Floor on the reranker score | Built |
+| 5. Intent + rewrite contract | Built, on for new bots |
+| 8. Input and output guard | Built ahead of the Sparks, per bot |
+| 9. Vision OCR | Built ahead of the Sparks |
+| 6, 7. vLLM per role, new embedding model | Waiting for the hardware |
+
+Added on 2026-10-03, each behind a setting that starts off or neutral, so the
+golden set can judge it before it becomes a default:
+
+- **BM25** keyword ranking in the engine, replacing Postgres full text as the
+  default. Postgres stays a choice.
+- **Weighted fusion**, **multi-query and HyDE** (the `expand` role),
+  **neighbouring passages**, **contextual chunks** (the `context` role), the
+  **answer cache**, and the **grounding check** (the `verify` role).
+- **Security layers that need no model**: history from the engine's records,
+  the injection shield on messages and on retrieved material, spotlighting,
+  and the prompt leak canary.
+
+On the Sparks the three new roles share the intent model's process on node B:
+they are short structured calls, and a second 30B process would not fit beside
+the reranker and guard. Chunk context is the exception in load, one call per
+chunk, so a large re-index belongs to the night.
+
+**Voice (added 2026-10-03).** Speaking and listening default to the visitor's
+browser, so they need no model now. On the Sparks, node B can serve a
+Whisper-family model (faster-whisper or Whisper on vLLM) for listening, and a
+TTS model for speaking. Malay is the constraint: Kokoro and Piper have no Malay
+voice, so the candidates are Mesolitica's Malaysian VITS male and female
+models behind an OpenAI-audio wrapper, or Azure Speech until they prove good
+enough by ear. Judge by listening to Malay samples, not by benchmark.
+
+**Still for the Sparks.** Learned sparse vectors (BGE-M3 sparse or SPLADE,
+served by TEI) as a third retrieval branch; agentic retrieval, once the 120B
+model makes tool calls reliable; Qwen3Guard-Stream to check answers while they
+stream rather than after. **Not planned yet:** GraphRAG, for the reasons in
+`architecture.md`, section 11.

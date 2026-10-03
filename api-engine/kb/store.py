@@ -4,6 +4,7 @@ Both drivers expose the same four methods, so retrieval never knows which one
 it is talking to. Only rank order leaves this module; the fused ranking upstream
 never compares a cosine score with a BM25 score.
 """
+import re
 import struct
 from dataclasses import dataclass
 from typing import Protocol
@@ -28,6 +29,16 @@ class VectorStore(Protocol):
                             limit: int, embedding_model: str = None) -> list[Hit]: ...
     async def search_keyword(self, collection_ids: list[str],
                              query_text: str, limit: int) -> list[Hit]: ...
+
+
+_WORD = re.compile(r"\w+", re.UNICODE)
+
+
+def or_query(query_text: str) -> str:
+    """A tsquery matching any of the words. Only word characters reach it, so
+    nothing in a visitor's message can be read as tsquery syntax."""
+    words = list(dict.fromkeys(w for w in _WORD.findall((query_text or "").lower()) if len(w) > 1))
+    return " | ".join(words)
 
 
 def pack(vector: list[float]) -> bytes:
@@ -165,15 +176,22 @@ class PgVectorStore:
     async def search_keyword(self, collection_ids, query_text, limit) -> list[Hit]:
         if not collection_ids or not query_text.strip():
             return []
+        # Any of the words, not all of them. plainto_tsquery joins every word
+        # with AND, so "what is the warranty on the X200" matched only a chunk
+        # holding every one of those stems, and a natural question usually
+        # matched nothing: hybrid search was quietly running on vectors alone.
+        q = or_query(query_text)
+        if not q:
+            return []
         rows = (await self.session.execute(text("""
             SELECT id, source_id, content, heading_path,
-                   ts_rank_cd(content_tsv, plainto_tsquery('english', :q)) AS score
+                   ts_rank_cd(content_tsv, to_tsquery('english', :q)) AS score
             FROM kb_chunks
             WHERE collection_id = ANY(:cids)
-              AND content_tsv @@ plainto_tsquery('english', :q)
+              AND content_tsv @@ to_tsquery('english', :q)
             ORDER BY score DESC
             LIMIT :lim
-        """), {"q": query_text, "cids": list(collection_ids), "lim": limit})).all()
+        """), {"q": q, "cids": list(collection_ids), "lim": limit})).all()
         return [Hit(r.id, r.source_id, r.content, float(r.score), r.heading_path or "")
                 for r in rows]
 

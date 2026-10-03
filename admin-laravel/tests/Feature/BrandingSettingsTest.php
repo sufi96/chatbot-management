@@ -176,9 +176,12 @@ class BrandingSettingsTest extends TestCase
 
     public function test_the_settings_page_offers_the_branding_card(): void
     {
+        // Branding is a tab of the Console group, with Maintenance beside it.
         $this->actingAs($this->superAdmin())
-            ->get(route('admin.settings'))
+            ->get(route('admin.settings', 'branding'))
             ->assertOk()
-            ->assertSee('Branding');
+            ->assertSee('data-section-current="branding"', false)
+            ->assertSee('Wordmark')
+            ->assertSee('href="' . route('admin.settings', 'maintenance') . '"', false);
     }
 }

@@ -15,6 +15,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from config import settings as app_settings
 from evals.cases import load_set
 from evals.checks import failures
 from evals.judge import judge
@@ -78,7 +79,8 @@ async def run(args: argparse.Namespace) -> int:
     results: list[Result] = []
     for number, case in enumerate(eval_set.cases, start=1):
         session_id = f"eval-{eval_set.name}-{started}-{case.id}"[:SESSION_CHARS]
-        observed = await ask(args.engine, eval_set.bot_id, case, session_id)
+        observed = await ask(args.engine, eval_set.bot_id, case, session_id,
+                             admin_token=app_settings.ADMIN_API_TOKEN)
         judgement = (await judge(case, observed.answer, endpoint[0], endpoint[1], args.judge_model)
                      if endpoint else None)
 

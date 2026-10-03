@@ -72,7 +72,7 @@ class EmbeddingModelListTest extends TestCase
             ->get(route('admin.settings', 'models'))
             ->assertOk();
 
-        // Embedding and the five jobs.
-        $this->assertSame(6, preg_match_all('/<button[^>]*data-picker-search/', $response->getContent()));
+        // Embedding and the eight jobs.
+        $this->assertSame(9, preg_match_all('/<button[^>]*data-picker-search/', $response->getContent()));
     }
 }

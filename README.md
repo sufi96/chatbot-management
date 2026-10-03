@@ -1,4 +1,4 @@
-# ChitChat Command Center (C⁴) 🤖 `v1.0.1`
+# ChitChat Command Center (C⁴) 🤖 `v1.1.0`
 
 A production-ready, multi-tenant AI Chatbot Management platform featuring a **Laravel 13 Admin Portal**, a **Python FastAPI Streaming Engine**, and a **Zero-Dependency Shadow DOM JS Widget**.
 
@@ -39,14 +39,25 @@ and snaps forward so a chunk can never open on a word fragment.
 
 **Header lines.** Every chunk carries the document title, its heading path, and
 the description an operator wrote. Both lines are embedded and keyword-indexed,
-which is what makes a bare warranty table findable by the word "warranty". This
-is a deterministic substitute for contextual retrieval, which would otherwise
-need one LLM call per chunk.
+which is what makes a bare warranty table findable by the word "warranty".
+Contextual retrieval, a model-written sentence per chunk, is available on top
+as an install-wide choice; it costs one model call per chunk at indexing time.
 
-**Retrieval.** Two branches merged by rank, not by score. Dense catches
-paraphrase, keyword catches exact terms like product codes. Reciprocal Rank
-Fusion needs no calibration between them because it compares positions rather
-than values.
+**Retrieval.** Hybrid: dense vectors catch paraphrase, BM25 catches exact terms
+like product codes, in Malay and English alike. The branches are merged by
+weighted rank (Reciprocal Rank Fusion), never by score, so no calibration is
+needed between them. A bot can also search rephrasings of the question
+(multi-query) or a hypothetical answer (HyDE), have a cross-encoder rerank the
+result, hand the model each hit's neighbouring passages, and reuse answers to
+questions it has already answered (semantic cache).
+
+**Security.** Layers that need no model run on every bot: the conversation is
+read from the engine's own records, never the browser's copy; messages worded
+to override the bot are refused by pattern; retrieved passages written as
+instructions are dropped, and all material is marked as data; a secret marker
+in each prompt stops a reply that starts reciting its instructions. The guard
+model and a grounding check, which flags claims the sources do not support, add
+judgement on top.
 
 **Sources.** Either combined or asked in the order the operator set, where the
 first with something answers. No model routes between them, because an operator can predict and
@@ -58,10 +69,61 @@ needs a policy and a record. The web stays the last resort either way.
 could be a question at all. A question mark always overrides it, so "thanks, and
 shipping?" still searches. Saying hello costs nothing.
 
+**Competing techniques are choices.** Where two techniques compete (BM25 or
+Postgres full text, HyDE or multi-query, cache or not), the operator picks, and
+every choice starts off or neutral so an existing bot answers as before. The
+Techniques tab of the in-app architecture overview lists each one with its
+status.
+
 **Rejected on evidence.** Semantic chunking benchmarks worse than plain
-recursive splitting, at roughly fourteen times the indexing cost. Cross-encoder
-reranking needs PyTorch for a gain that fusion largely captures at this corpus
-size.
+recursive splitting, at roughly fourteen times the indexing cost. GraphRAG is
+not built: support material is mostly policy and FAQ, and the database source
+already answers relational questions. Reranking runs over HTTP (the `rerank`
+role), so the engine carries no PyTorch.
+
+---
+
+## 🆕 What's New in `v1.1.0`
+
+Run `php artisan migrate` after pulling. Everything below that changes how a bot
+answers starts switched off; the security layers start on.
+
+### 🔒 Security (Admin settings → Security)
+- **Conversation history from the engine's records.** The widget's copy of the conversation is no longer trusted: a visitor could send a fake `system` turn, or a fake reply in which the bot agreed to drop its rules. The engine reads the session's last ten turns itself. *Widget copy* is still a choice, cleaned to visitor and assistant turns only. Clearing the widget now starts a new session.
+- **Injection shield.** "Ignore your previous instructions", requests for the hidden prompt, fake role tags and invisible Unicode characters are caught by pattern, in English and Malay, with no model. Block, flag only, or off.
+- **Retrieved material is screened and marked.** A knowledge-base passage or web result written as instructions is dropped. Every source's material is wrapped and marked as reference, never instructions.
+- **Prompt leak guard.** Each prompt carries a secret marker. A reply that starts reciting its instructions is stopped before the marker is shown, replaced with the refusal, and flagged; a long word-for-word copy of the prompt is flagged too.
+- **Messages are capped at 4,000 characters.**
+- Flags appear as *Prompt injection* and *Prompt leak* in conversations and in the analytics flag chart.
+
+### 🔎 Retrieval (Behaviour → Knowledge base, and Admin settings → Chunking and search)
+- **BM25 keyword ranking** inside the engine, the same on Postgres and SQLite, reading Malay and English alike. Postgres full text remains a choice, and now matches any of a question's words rather than all of them, which used to leave hybrid search running on vectors alone.
+- **Keyword weight:** how much keywords count against meaning in rank fusion.
+- **Query expansion:** multi-query, HyDE, or both, from one model call.
+- **Neighbouring passages:** each hit with up to two passages either side, from the same section.
+- **Contextual chunks:** a model-written sentence placing each chunk in its document. Install-wide, off by default, needs a re-index.
+- **Answer cache:** a question worded close enough to one already answered from the knowledge base gets that answer at once. Never for database or web answers; emptied when the bot's behaviour is saved or its collections are re-indexed.
+- **Grounding check:** a sourced answer is checked against its material after it is sent, and an unsupported claim is flagged.
+- The retrieval playground takes keyword weight and neighbouring passages too.
+
+### 🔊 Voice (Behaviour → Voice, and Admin settings → Voice)
+- **Bots read answers aloud** (a speaker on every answer, or every answer as it arrives) and **take spoken questions** (a microphone by the message box).
+- **Visitors decide:** a *Read answers aloud* tick above the message box, shown only on bots with voice switched on, turns hearing the bot on or off; the bot's setting is only where it starts.
+- **Four voices:** English or Malay, female or male. Visitors switch in the widget's voice menu; the bot sets where they start, or follows each answer's language.
+- **Nothing to install by default:** the visitor's browser speaks and listens. For the same voices on every device, point Admin settings → Voice at **Azure Speech** (Microsoft's `ms-MY-YasminNeural`, `ms-MY-OsmanNeural` and English pair) or at any speech server on the OpenAI audio API, and at a Whisper server for listening.
+- Answers are spoken a sentence at a time while they stream; Markdown, citations, links and code are never read out.
+
+### 🔑 Web search keys per workspace (Behaviour → Web search)
+- **Each bot chooses its search:** the platform's (as before), DuckDuckGo with no key, or one of its workspace's own Tavily or Brave keys, billed to the workspace.
+- **A workspace's system admins manage its keys** in a modal on the Behaviour tab, with a Test that runs one real search. Keys are never shown again once saved, and a key in use cannot be deleted.
+- **Admin settings → Web search** can stop lending the platform's search to workspaces; their bots then use DuckDuckGo unless they bring a key.
+
+### 🤖 Three new model roles (Admin settings → Models)
+- **Query expansion**, **Answer check** and **Chunk context**. Left blank, each borrows the bot's own model, so one chat model and one embedding model still run everything. Only the reranker needs a model of its own.
+
+### 📊 Analytics and architecture
+- The Guard card counts answers served from the cache and answers with an unsupported claim.
+- The architecture overview has a **Techniques** tab: every retrieval and security technique, whether it is built, a choice, needs its own model, or waits for the DGX Sparks.
 
 ---
 
@@ -393,5 +455,5 @@ Switch drivers in Admin Settings, then rebuild the index.
 ---
 
 ## 📄 License & Version
-- **Version:** `1.0.1`
+- **Version:** `1.1.0`
 - **License:** MIT

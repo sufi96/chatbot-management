@@ -3,7 +3,7 @@
      exists. Expects $bot, $providers and $providerSystemId. --}}
 <div class="card mb-3">
     <div class="card-header d-flex align-items-center justify-content-between gap-2">
-        <span>Model and endpoint</span>
+        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-cpu text-faint"></i> Model and endpoint</span>
         <button type="button" onclick="testConnection()" id="btnTestConn" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-plug"></i> Test inference
         </button>

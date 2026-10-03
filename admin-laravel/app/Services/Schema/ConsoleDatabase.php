@@ -27,7 +27,7 @@ final class ConsoleDatabase
     /** Never readable, not even when ticked by hand. */
     public const NEVER = [
         'users', 'password_reset_tokens', 'personal_access_tokens', 'sessions',
-        'app_settings', 'ai_providers', 'db_connections',
+        'app_settings', 'ai_providers', 'db_connections', 'web_search_keys',
         'cache', 'cache_locks', 'jobs', 'job_batches', 'failed_jobs', 'migrations',
     ];
 

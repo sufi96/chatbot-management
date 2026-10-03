@@ -18,6 +18,9 @@ class SourceResult:
     # The reranker model whose scores chose these passages, for the trace.
     # Empty when fusion order was used, including after a reranker failed.
     reranked_by: str = ""
+    # The model that wrote the extra phrasings or the hypothetical passage, for
+    # the trace. Empty when query expansion is off or did not run.
+    expanded_by: str = ""
     # Set by the attempt that built this, never derived from the block being
     # non-empty: a query that ran and found nothing has an empty block and is
     # still an answer.

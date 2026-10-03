@@ -72,16 +72,38 @@ class AdminSettingsSectionsTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_the_sidebar_groups_the_sections_under_admin_settings(): void
+    public function test_the_sidebar_has_one_link_per_group(): void
     {
         $response = $this->actingAs($this->superAdmin())
             ->get(route('admin.settings', 'models'))
-            ->assertSee('<div class="sidebar-group">Admin Settings</div>', false);
+            ->assertSee('<div class="sidebar-group">Admin Settings</div>', false)
+            ->assertSee('AI and answering')
+            ->assertSee('Console');
 
-        foreach (AdminSettingsController::SECTIONS as $key => $meta) {
-            $response->assertSee(route('admin.settings', $key), false);
-            $response->assertSee($meta['label']);
+        foreach (AdminSettingsController::GROUPS as $group) {
+            $response->assertSee('href="' . route('admin.settings', $group['sections'][0]) . '"', false);
         }
+    }
+
+    public function test_every_category_is_in_exactly_one_group(): void
+    {
+        $grouped = array_merge(...array_column(AdminSettingsController::GROUPS, 'sections'));
+
+        $this->assertEqualsCanonicalizing(array_keys(AdminSettingsController::SECTIONS), $grouped);
+        $this->assertSame(count($grouped), count(array_unique($grouped)));
+    }
+
+    public function test_a_page_shows_its_groups_categories_as_tabs(): void
+    {
+        $response = $this->actingAs($this->superAdmin())
+            ->get(route('admin.settings', 'voice'))
+            ->assertOk();
+
+        foreach (AdminSettingsController::GROUPS['ai']['sections'] as $key) {
+            $response->assertSee('href="' . route('admin.settings', $key) . '"', false);
+            $response->assertSee(AdminSettingsController::SECTIONS[$key]['label']);
+        }
+        $response->assertDontSee('href="' . route('admin.settings', 'branding') . '" aria-current', false);
     }
 
     public function test_a_workspace_admin_sees_no_admin_settings_group(): void

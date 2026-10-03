@@ -50,6 +50,11 @@
         'rerank' => ['Qwen3-Reranker-4B', 'B'],
         'guard' => ['Qwen3Guard-Gen-4B', 'B'],
         'vision' => ['Qwen3-VL-8B', 'B'],
+        // The three newer jobs are short, structured calls the intent model
+        // already handles well, so they share its process on node B.
+        'expand' => ['Qwen3.5-35B-A3B (shared with Intent)', 'B'],
+        'verify' => ['Qwen3.5-35B-A3B (shared with Intent)', 'B'],
+        'context' => ['Qwen3.5-35B-A3B, batch at night', 'B'],
     ];
 
     foreach ($modelRoles as $role => $meta) {
@@ -60,12 +65,55 @@
         ];
     }
 
+    // Every retrieval and security technique worth naming, and where this
+    // install stands on it. The question the Techniques tab answers is "do we
+    // already do X", so each row says how, and where it is switched.
+    $statuses = [
+        'on' => ['Built, on', 'bg-success-subtle text-success-emphasis'],
+        'choice' => ['Built, a choice', 'bg-primary-subtle text-primary-emphasis'],
+        'model' => ['Built, needs its model', 'bg-info-subtle text-info-emphasis'],
+        'sparks' => ['On the Sparks', 'bg-warning-subtle text-warning-emphasis'],
+        'not' => ['Not planned yet', 'bg-secondary-subtle text-secondary-emphasis'],
+    ];
+    $techniques = [
+        'Retrieval' => [
+            ['Dense vector search', 'on', 'pgvector HNSW, cosine. Every bot with a knowledge base.'],
+            ['Sparse keyword search, BM25', 'on', 'Okapi BM25 in the engine, Malay and English alike. Postgres full text instead under Chunking and search.'],
+            ['Hybrid search', 'on', 'Both branches on every question. Behaviour, Search mode.'],
+            ['Reciprocal Rank Fusion', 'on', 'Merged by rank, weighted. Behaviour, Keyword weight.'],
+            ['Query rewriting', 'on', 'Follow-ups rewritten to stand alone by the Intent model. Behaviour, Understand follow-up questions.'],
+            ['Multi-query expansion', 'choice', 'Rephrasings searched too. Behaviour, Query expansion.'],
+            ['HyDE', 'choice', 'A hypothetical answer searched by meaning. Behaviour, Query expansion.'],
+            ['Cross-encoder reranking', 'model', 'Needs a reranker on /v1/rerank (bge-reranker-v2-m3 now). A chat model cannot stand in.'],
+            ['Small-to-big retrieval', 'choice', 'Neighbouring passages from the same section. Behaviour, Neighbouring passages.'],
+            ['Contextual retrieval', 'choice', 'A model-written context line per chunk. Chunking and search, Contextual chunks.'],
+            ['Structure-aware chunking', 'on', 'Headings, tables and code decide where a chunk ends.'],
+            ['Semantic cache', 'choice', 'Reused answers for reworded questions. Behaviour, Answer cache.'],
+            ['Grounding check (self-RAG)', 'choice', 'Unsupported claims flagged. Behaviour, Check answers against their sources.'],
+            ['Text-to-SQL', 'on', 'The database source, read-only and validated twice.'],
+            ['Learned sparse (SPLADE, BGE-M3)', 'sparks', 'Needs a model that outputs sparse vectors. BM25 covers exact terms until then.'],
+            ['Agentic retrieval', 'sparks', 'The model deciding when to search. Tool calling is unreliable at 4B; revisit with the 120B model.'],
+            ['GraphRAG', 'not', 'Pays off for questions that hop across linked entities. Support material is mostly policy and FAQ, and the database source answers relational questions. Revisit if the test set shows multi-hop failures.'],
+        ],
+        'Security' => [
+            ['History from the engine\'s records', 'on', 'A visitor cannot invent earlier turns. Security, Conversation history.'],
+            ['Injection shield, messages', 'on', 'Patterns and hidden characters, no model. Security, Injection shield.'],
+            ['Injection shield, retrieved material', 'on', 'Passages written as instructions are dropped. Security.'],
+            ['Spotlighting', 'on', 'All material wrapped and marked as data, never instructions. Always.'],
+            ['Prompt leak canary', 'on', 'A secret marker stops a reply reciting its prompt. Security, Prompt leak guard.'],
+            ['Guard model, in and out', 'choice', 'Categories and topics. Per bot under Behaviour; rules under Guard.'],
+            ['Origin allowlist, message cap, read-only SQL', 'on', 'Per workspace, 4,000 characters, SELECT only.'],
+            ['Voice in and out', 'choice', 'Four voices, English and Malay, female and male: the browser, Azure Speech or a speech server. Behaviour, Voice; Admin settings, Voice.'],
+            ['Web search keys per workspace', 'choice', 'A workspace brings its own Tavily or Brave key, never shown again once saved. Behaviour, Web search.'],
+        ],
+    ];
+
     $nodes = [
         'A' => ['title' => 'Node A', 'job' => 'Conversation', 'parts' => [
             ['System', 8, 'sys'], ['Main model, ~120B MoE', 70, 'main'], ['KV cache, concurrent chats', 40, 'cache'],
         ]],
         'B' => ['title' => 'Node B', 'job' => 'Every other job', 'parts' => [
-            ['System', 8, 'sys'], ['Intent + SQL, ~30B-A3B MoE', 36, 'main'], ['Embedding', 16, 'job'],
+            ['System', 8, 'sys'], ['Intent, SQL, expansion, checks · ~30B-A3B MoE', 36, 'main'], ['Embedding', 16, 'job'],
             ['Reranker', 8, 'job'], ['Guard', 8, 'job'], ['Vision OCR', 10, 'job'], ['Image, deferred', 30, 'later'],
         ]],
     ];
@@ -91,6 +139,9 @@
                         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#arch-ingest" type="button" role="tab">Indexing</button>
                     </li>
                     <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#arch-techniques" type="button" role="tab">Techniques</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#arch-models" type="button" role="tab">Models</button>
                     </li>
                     <li class="nav-item" role="presentation">
@@ -114,7 +165,7 @@
                         <div class="arch-node arch-core" style="grid-area: engine;">
                             <i class="bi bi-lightning-charge"></i>
                             <strong>api-engine <code>:8000</code></strong>
-                            <span>FastAPI. Streams answers, runs the guard and intent, consults sources combined or in the bot's order, chunks, embeds, retrieves, reranks.</span>
+                            <span>FastAPI. Streams answers, runs the security layers, guard and intent, consults sources combined or in the bot's order, chunks, embeds, retrieves (vectors + BM25), reranks, caches and checks answers.</span>
                         </div>
                         <div class="arch-link" style="grid-area: l2;"><span>admin token: index, search, list models</span><span>portal token: run a SQL query</span></div>
 
@@ -136,7 +187,7 @@
                         <div class="arch-node arch-store" style="grid-area: db;">
                             <i class="bi bi-database"></i>
                             <strong>PostgreSQL + pgvector</strong>
-                            <span>One database for both services. HNSW vectors, tsvector keywords. SQLite fallback behind the same interface.</span>
+                            <span>One database for both services. HNSW vectors, chunk text for BM25, the answer cache and every transcript. SQLite fallback behind the same interface.</span>
                         </div>
                         <div class="arch-node arch-edge" style="grid-area: customer;">
                             <i class="bi bi-server"></i>
@@ -149,6 +200,8 @@
                         <div><i class="bi bi-diagram-2"></i><span><strong>Two services, one database.</strong> The only contract between them is the table schema; they share no code.</span></div>
                         <div><i class="bi bi-sort-numeric-down"></i><span><strong>The operator picks the source.</strong> No model routes between them. By default the knowledge base and database answer together; a bot can use a fixed order instead.</span></div>
                         <div><i class="bi bi-arrow-return-left"></i><span><strong>Blank falls back.</strong> A model job with no provider does what the system did before the job existed.</span></div>
+                        <div><i class="bi bi-shield-lock"></i><span><strong>Defence in layers.</strong> Patterns, markers and records stop prompt injection without a model; the guard model and answer check add judgement on top.</span></div>
+                        <div><i class="bi bi-toggles"></i><span><strong>Competing techniques are a choice.</strong> BM25 or Postgres search, HyDE or multi-query, cache or not: each is a setting, off or neutral until switched on.</span></div>
                         <div><i class="bi bi-shield-check"></i><span><strong>Failure is quiet for visitors.</strong> A guard, source or model that is down lets the conversation carry on, and the log says why.</span></div>
                     </div>
                 </div>
@@ -158,22 +211,32 @@
                     <ol class="arch-steps">
                         <li>
                             <div class="arch-step-title">Message arrives</div>
-                            <div class="arch-step-body">The widget posts the message with recent history. An origin not on the workspace's allowlist gets 403.</div>
+                            <div class="arch-step-body">An origin not on the workspace's allowlist gets 403, and a message over 4,000 characters is refused. The conversation so far is read from the engine's own records, not from the browser, so a visitor cannot invent earlier turns.</div>
+                        </li>
+                        <li>
+                            <div class="arch-step-title">Screen it, without a model</div>
+                            <div class="arch-row">
+                                <div class="arch-chip-card"><i class="bi bi-shield-exclamation"></i><strong>Injection shield</strong><span>"Ignore your instructions", fake system tags, hidden characters. Blocked, flagged or let through, as set under Security. Instant.</span></div>
+                                <div class="arch-chip-card"><i class="bi bi-chat-dots"></i><strong>Greeting gate</strong><span>Word rules, no model. A greeting consults no source.</span></div>
+                            </div>
                         </li>
                         <li>
                             <div class="arch-step-title">Read it, in parallel</div>
                             <div class="arch-row">
                                 <div class="arch-chip-card"><i class="bi bi-shield-check"></i><strong>Input guard</strong><span>Blocks the categories and topics set under Guard. Unsafe gets the bot's refusal and nothing else runs.</span></div>
                                 <div class="arch-chip-card"><i class="bi bi-signpost-split"></i><strong>Intent</strong><span><em>chat</em> or <em>facts</em>, and the follow-up rewritten as a question that stands on its own. On for new bots.</span></div>
-                                <div class="arch-chip-card"><i class="bi bi-chat-dots"></i><strong>Greeting gate</strong><span>Word rules, no model. A greeting consults no source.</span></div>
                             </div>
+                        </li>
+                        <li>
+                            <div class="arch-step-title">Answer cache, when the bot keeps one</div>
+                            <div class="arch-step-body">A question worded close enough to one answered from the knowledge base before gets that answer back at once: no search, no model. Only standalone questions; never database or web answers.</div>
                         </li>
                         <li>
                             <div class="arch-step-title">Sources, the way the bot is set to ask them</div>
                             <div class="arch-row">
-                                <div class="arch-chip-card"><i class="bi bi-journal-text"></i><strong>Knowledge base</strong><span>Embed + keyword search, fused by rank (RRF), reranked, kept only above the floor.</span></div>
+                                <div class="arch-chip-card"><i class="bi bi-journal-text"></i><strong>Knowledge base</strong><span>Vector and BM25 search, optionally on rephrasings and a hypothetical answer (HyDE), fused by weighted rank (RRF), injected passages dropped, reranked, kept above the floor, widened with neighbouring passages.</span></div>
                                 <div class="arch-chip-card"><i class="bi bi-database"></i><strong>Database</strong><span>SQL model writes a SELECT or declines; validated in the engine and again in the portal.</span></div>
-                                <div class="arch-chip-card"><i class="bi bi-globe2"></i><strong>Web</strong><span>DuckDuckGo, Tavily or Brave.</span></div>
+                                <div class="arch-chip-card"><i class="bi bi-globe2"></i><strong>Web</strong><span>DuckDuckGo, Tavily or Brave, on the platform's key or the workspace's own.</span></div>
                             </div>
 
                             {{-- The two answer-source modes a bot chooses between under
@@ -215,11 +278,16 @@
                         </li>
                         <li>
                             <div class="arch-step-title">Answer</div>
-                            <div class="arch-step-body">The bot's model, set with its temperature and max tokens under Behaviour, reads its prompt and the context, and streams over SSE. A sources event goes first, each source marked with its kind, so the widget can show where the answer came from.</div>
+                            <div class="arch-step-body">The bot's model reads its prompt and the material, which is wrapped and marked as reference rather than instructions, and streams over SSE. The prompt carries a secret marker: a reply that starts reciting its instructions is stopped before the marker shows, replaced with the refusal, and flagged.</div>
                         </li>
                         <li>
-                            <div class="arch-step-title">Check and record</div>
-                            <div class="arch-step-body">The output guard checks the finished exchange and flags an unsafe answer for review. The message stores its intent, SQL, guard flag and the model behind each job.</div>
+                            <div class="arch-step-title">Check and record, after the visitor has the answer</div>
+                            <div class="arch-row">
+                                <div class="arch-chip-card"><i class="bi bi-shield-check"></i><strong>Output guard</strong><span>Flags an unsafe answer for review.</span></div>
+                                <div class="arch-chip-card"><i class="bi bi-patch-check"></i><strong>Answer check</strong><span>Flags a claim the material does not support, such as an invented price.</span></div>
+                                <div class="arch-chip-card"><i class="bi bi-lightning"></i><strong>Cache</strong><span>A clean knowledge-base answer is kept for the next visitor who asks.</span></div>
+                            </div>
+                            <div class="arch-step-body mt-2">The message stores its intent, SQL, flags, grounding verdict, cache hit, timings, tokens and the model behind each job.</div>
                         </li>
                     </ol>
                 </div>
@@ -235,13 +303,44 @@
                         <div class="arch-then" aria-hidden="true"><i class="bi bi-chevron-right"></i></div>
                         <div class="arch-chip-card"><i class="bi bi-scissors"></i><strong>Chunks</strong><span>A new section starts a new chunk. Size is a ceiling. Section and About lines on top.</span></div>
                         <div class="arch-then" aria-hidden="true"><i class="bi bi-chevron-right"></i></div>
+                        <div class="arch-chip-card arch-chip-optional"><i class="bi bi-card-text"></i><strong>Context</strong><span>Optional. A model writes a sentence placing each chunk in its document.</span></div>
+                        <div class="arch-then" aria-hidden="true"><i class="bi bi-chevron-right"></i></div>
                         <div class="arch-chip-card"><i class="bi bi-vector-pen"></i><strong>Embed</strong><span>The Embedding model, normalised vectors.</span></div>
                         <div class="arch-then" aria-hidden="true"><i class="bi bi-chevron-right"></i></div>
-                        <div class="arch-chip-card"><i class="bi bi-database"></i><strong>Store</strong><span><code>kb_chunks</code>: content, vector, keywords.</span></div>
+                        <div class="arch-chip-card"><i class="bi bi-database"></i><strong>Store</strong><span><code>kb_chunks</code>: content and vector. The BM25 index is built from it on the next question.</span></div>
                     </div>
                     <div class="settings-note mt-3">
                         <i class="bi bi-info-circle"></i>
-                        <span>A question and answer pair is one chunk, never split. Changing the embedding model or dimensions needs every source indexed again, from Rebuild the index.</span>
+                        <span>A question and answer pair is one chunk, never split. Re-indexing a collection empties the answer cache of every bot that reads it. Changing the embedding model or dimensions, or switching contextual chunks, needs every source indexed again, from Rebuild the index.</span>
+                    </div>
+                </div>
+
+                {{-- Techniques -------------------------------------------- --}}
+                <div class="tab-pane fade" id="arch-techniques" role="tabpanel">
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        @foreach($statuses as [$statusLabel, $statusClass])
+                            <span class="badge {{ $statusClass }}">{{ $statusLabel }}</span>
+                        @endforeach
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-2 arch-table">
+                            <tbody>
+                                @foreach($techniques as $group => $rows)
+                                    <tr><th colspan="3" class="pt-3">{{ $group }}</th></tr>
+                                    @foreach($rows as [$name, $status, $how])
+                                        <tr>
+                                            <td class="text-nowrap">{{ $name }}</td>
+                                            <td class="text-nowrap"><span class="badge {{ $statuses[$status][1] }}">{{ $statuses[$status][0] }}</span></td>
+                                            <td class="small text-muted">{{ $how }}</td>
+                                        </tr>
+                                    @endforeach
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="settings-note">
+                        <i class="bi bi-info-circle"></i>
+                        <span>Where two techniques compete, the operator chooses, and every choice starts off or neutral so an existing bot answers as before. Judge a change with the evaluation set (<code>python -m evals</code>) before making it a default.</span>
                     </div>
                 </div>
 

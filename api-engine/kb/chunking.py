@@ -11,6 +11,9 @@ from kb.blocks import Block, parse_blocks
 
 BREADCRUMB_PREFIX = "Section: "
 ABOUT_PREFIX = "About: "
+# Written by a model while indexing, when contextual chunks are on. See
+# kb/contextual.py.
+CONTEXT_PREFIX = "Context: "
 PATH_SEPARATOR = " > "
 
 PROSE_SEPARATORS = ["\n\n", "\n", ". ", " "]
@@ -67,6 +70,24 @@ def _header(path: str, description: str) -> str:
 def prepend_description(body: str, description: str) -> str:
     """Attach an About line to text that bypasses chunking, such as a Q&A pair."""
     return _header("", description) + body
+
+
+def with_context_line(chunk_text: str, context: str) -> str:
+    """The chunk with a Context line added to its header lines.
+
+    Placed after the Section and About lines, so every chunk still opens the
+    same way, and the passage's own text is untouched.
+    """
+    line = " ".join((context or "").split())
+    if not line:
+        return chunk_text
+
+    head, separator, rest = chunk_text.partition("\n\n")
+    lines = head.splitlines()
+    if separator and lines and all(l.startswith((BREADCRUMB_PREFIX, ABOUT_PREFIX)) for l in lines):
+        return f"{head}\n{CONTEXT_PREFIX}{line}\n\n{rest}"
+
+    return f"{CONTEXT_PREFIX}{line}\n\n{chunk_text}"
 
 
 def _group_by_heading(blocks: list[Block]):

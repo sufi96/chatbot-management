@@ -8,10 +8,13 @@ way should_retrieve already is.
 from sqlalchemy import select
 
 import dbquery
+import shield
 import websearch
+from kb import expansion as expansion_module
 from kb import rerank
 from kb.retrieval import build_context_block, fit_to_budget, retrieve_for_collections
 from sources.result import SourceResult
+from websearch.account import account_for
 from websearch.context import build_web_context_block, fit_results_to_budget
 
 
@@ -37,7 +40,8 @@ async def _titles_for(session, chunks) -> dict:
 
 
 async def documents(session, bot, message: str, settings: dict, collection_ids,
-                    retrieve=None, load_titles=None, make_reranker=None) -> SourceResult:
+                    retrieve=None, load_titles=None, make_reranker=None,
+                    expand=None, query_vector=None) -> SourceResult:
     retrieve = retrieve or retrieve_for_collections
     load_titles = load_titles or _titles_for
 
@@ -45,6 +49,11 @@ async def documents(session, bot, message: str, settings: dict, collection_ids,
     # the RRF floor, exactly as before the rerank role existed.
     reranker = (make_reranker or rerank.client_for)(settings)
 
+    # Other phrasings and a hypothetical answer, when the bot asks for them.
+    # Nothing at all when it does not, and nothing when the call fails.
+    expansion = await (expand or expansion_module.expand)(bot, message, settings)
+
+    weight = getattr(bot, "retrieval_keyword_weight", None)
     chunks = await retrieve(
         session=session, collection_ids=collection_ids, query=message,
         mode=bot.retrieval_mode or "hybrid",
@@ -53,7 +62,11 @@ async def documents(session, bot, message: str, settings: dict, collection_ids,
         min_score=bot.retrieval_min_score or 0.0,
         reranker=reranker,
         rerank_min_score=getattr(bot, "rerank_min_score", None) or 0.0,
-        min_similarity=getattr(bot, "retrieval_min_similarity", None) or 0.0)
+        min_similarity=getattr(bot, "retrieval_min_similarity", None) or 0.0,
+        keyword_weight=1.0 if weight is None else float(weight),
+        expansion=expansion,
+        neighbours=int(getattr(bot, "context_neighbours", None) or 0),
+        query_vector=query_vector)
 
     # Bigger chunks mean a bigger prompt. Trim before the titles are looked up
     # so the citations match what the model actually saw.
@@ -71,6 +84,7 @@ async def documents(session, bot, message: str, settings: dict, collection_ids,
                     "source_id": chunk.source_id}
                    for i, chunk in enumerate(chunks)],
         reranked_by=reranker.model if (reranker and getattr(chunks[0], "reranked", False)) else "",
+        expanded_by=getattr(expansion, "model", "") or "",
         has_content=True)
 
 
@@ -93,14 +107,22 @@ async def database(session, bot, message: str, settings: dict, ask=None) -> Sour
         has_content=True)
 
 
-async def web(bot, message: str, settings: dict, search=None) -> SourceResult:
+async def web(bot, message: str, settings: dict, search=None, session=None,
+              account=None) -> SourceResult:
     search = search or websearch.search
 
-    results = await search(
-        provider=settings["web_search_provider"], query=message,
-        count=int(bot.web_search_max_results or 3),
-        country=bot.web_search_country, api_key=key_for(settings))
+    # The bot's own choice of search and whose key pays for it. See
+    # websearch/account.py. Without a session (an older caller) the bot can
+    # only be on the platform's search or DuckDuckGo.
+    chosen = account or await account_for(session, bot, settings)
 
+    results = await search(
+        provider=chosen.provider, query=message,
+        count=int(bot.web_search_max_results or 3),
+        country=bot.web_search_country, api_key=chosen.api_key)
+
+    # A web page is the likeliest place for text aimed at the model.
+    results, _ = shield.screen_passages(results, lambda item: f"{item.title}\n{item.text}", settings)
     results = fit_results_to_budget(results, int(settings["context_char_budget"]))
 
     if not results:

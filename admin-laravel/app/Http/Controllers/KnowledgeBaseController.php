@@ -258,7 +258,8 @@ class KnowledgeBaseController extends Controller
             'query' => '',
             'selected' => [],
             'settings' => ['mode' => 'hybrid', 'top_k' => 5, 'candidates' => 30, 'min_score' => 0,
-                'rerank_min_score' => 0.1, 'min_similarity' => 0.65],
+                'rerank_min_score' => 0.1, 'min_similarity' => 0.65,
+                'keyword_weight' => 1.0, 'neighbours' => 0],
             'reranked' => false,
         ]);
     }
@@ -278,6 +279,8 @@ class KnowledgeBaseController extends Controller
             'min_score' => ['required', 'numeric', 'min:0', 'max:1'],
             'rerank_min_score' => ['sometimes', 'numeric', 'min:0', 'max:1'],
             'min_similarity' => ['sometimes', 'numeric', 'min:0', 'max:1'],
+            'keyword_weight' => ['sometimes', 'numeric', 'min:0', 'max:3'],
+            'neighbours' => ['sometimes', 'integer', 'min:0', 'max:2'],
         ]);
 
         // Whatever the form posted, only this workspace's collections are searched.
@@ -291,6 +294,8 @@ class KnowledgeBaseController extends Controller
             (float) $validated['min_score'],
             isset($validated['rerank_min_score']) ? (float) $validated['rerank_min_score'] : null,
             isset($validated['min_similarity']) ? (float) $validated['min_similarity'] : null,
+            isset($validated['keyword_weight']) ? (float) $validated['keyword_weight'] : null,
+            isset($validated['neighbours']) ? (int) $validated['neighbours'] : null,
         );
 
         // The breadcrumb is part of the indexed text, so it comes back inside
@@ -299,7 +304,8 @@ class KnowledgeBaseController extends Controller
             $result['heading_path'] = $result['heading_path'] ?? '';
             $break = strpos($result['content'], "\n\n");
             $hasHeader = str_starts_with($result['content'], 'Section: ')
-                || str_starts_with($result['content'], 'About: ');
+                || str_starts_with($result['content'], 'About: ')
+                || str_starts_with($result['content'], 'Context: ');
             if ($hasHeader && $break !== false) {
                 $result['content'] = ltrim(substr($result['content'], $break + 2));
             }
@@ -324,6 +330,8 @@ class KnowledgeBaseController extends Controller
                 'min_score' => (float) $validated['min_score'],
                 'rerank_min_score' => (float) ($validated['rerank_min_score'] ?? 0.1),
                 'min_similarity' => (float) ($validated['min_similarity'] ?? 0.65),
+                'keyword_weight' => (float) ($validated['keyword_weight'] ?? 1.0),
+                'neighbours' => (int) ($validated['neighbours'] ?? 0),
             ],
             // Whether the scores shown are a reranker's, so they are not read
             // against the fusion floor's scale.

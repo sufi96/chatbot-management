@@ -65,7 +65,9 @@ class EngineClient
     public static function search(array $collectionIds, string $query, string $mode,
                                   int $topK, int $candidates, float $minScore,
                                   ?float $rerankMinScore = null,
-                                  ?float $minSimilarity = null): array
+                                  ?float $minSimilarity = null,
+                                  ?float $keywordWeight = null,
+                                  ?int $neighbours = null): array
     {
         try {
             $body = [
@@ -84,6 +86,12 @@ class EngineClient
             }
             if ($minSimilarity !== null) {
                 $body['min_similarity'] = $minSimilarity;
+            }
+            if ($keywordWeight !== null) {
+                $body['keyword_weight'] = $keywordWeight;
+            }
+            if ($neighbours !== null) {
+                $body['neighbours'] = $neighbours;
             }
 
             $response = self::request()->post(self::base() . '/api/v1/kb/search', $body);
@@ -124,6 +132,50 @@ class EngineClient
             return $response->successful()
                 ? $response->json()
                 : ['ok' => false, 'message' => 'Engine returned HTTP ' . $response->status()];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => 'Could not reach the engine: ' . $e->getMessage()];
+        }
+    }
+
+    /**
+     * One real search with a web search key. The engine reports success with
+     * the number of results, or the provider's complaint, so a typo is found
+     * before a visitor finds it.
+     */
+    public static function testWebSearch(string $provider, string $apiKey): array
+    {
+        try {
+            $response = self::request()->post(self::base() . '/api/v1/kb/websearch/test', [
+                'provider' => $provider,
+                'api_key' => $apiKey,
+            ]);
+
+            if (!$response->successful()) {
+                return ['success' => false, 'message' => 'Engine returned HTTP ' . $response->status()];
+            }
+
+            $body = $response->json();
+
+            return ['success' => (bool) ($body['ok'] ?? false), 'message' => (string) ($body['message'] ?? '')];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => 'Could not reach the engine: ' . $e->getMessage()];
+        }
+    }
+
+    /** A short sample in one of the four voices, from the saved settings. */
+    public static function testVoice(string $voice, string $text = '', string $voiceName = '', array $unsaved = []): array
+    {
+        try {
+            $response = self::request()->post(self::base() . '/api/v1/voice/test',
+                array_filter(['voice' => $voice, 'text' => $text, 'voice_name' => $voiceName] + $unsaved,
+                    fn ($v) => $v !== ''));
+
+            if (!$response->successful()) {
+                return ['ok' => false, 'message' => $response->body() ?: 'Engine returned HTTP ' . $response->status()];
+            }
+
+            return ['ok' => true, 'audio' => $response->body(),
+                'type' => $response->header('Content-Type') ?: 'audio/mpeg'];
         } catch (\Throwable $e) {
             return ['ok' => false, 'message' => 'Could not reach the engine: ' . $e->getMessage()];
         }

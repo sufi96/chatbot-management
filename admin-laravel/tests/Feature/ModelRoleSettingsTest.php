@@ -33,10 +33,10 @@ class ModelRoleSettingsTest extends TestCase
 
     public function test_the_roles_match_the_engine(): void
     {
-        // api-engine/roles.py lists the same five. A role the portal does not
+        // api-engine/roles.py lists the same eight. A role the portal does not
         // offer can never be configured; one the engine does not know is
         // silently ignored.
-        $this->assertSame(['intent', 'sql', 'rerank', 'guard', 'vision'],
+        $this->assertSame(['intent', 'sql', 'rerank', 'guard', 'vision', 'expand', 'verify', 'context'],
             array_keys(AdminSettingsController::MODEL_ROLES));
     }
 

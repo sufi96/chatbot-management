@@ -89,11 +89,36 @@ class BotProfile(Base):
     # when some passage is at least this similar to the question.
     retrieval_min_similarity = Column(Float, default=0.65)
     retrieval_fallback = Column(String(20), default="say_unknown")
+    # How much the keyword branch counts in rank fusion against meaning, 1
+    # being equal. See kb/fusion.py.
+    retrieval_keyword_weight = Column(Float, default=1.0)
+    # off, multi_query, hyde or both. See kb/expansion.py.
+    query_expansion = Column(String(20), default="off")
+    # How many passages either side of each hit, from the same section, are
+    # handed to the model with it. 0 is the hit alone.
+    context_neighbours = Column(Integer, default=0)
+    # Answers to questions already answered, reused. See answer_cache.py.
+    cache_enabled = Column(Boolean, default=False)
+    cache_min_similarity = Column(Float, default=0.95)
+    cache_ttl_hours = Column(Integer, default=24)
+    # Checks each sourced answer against its passages. See grounding.py.
+    grounding_check = Column(Boolean, default=False)
+    # Voice. See speech.py. output reads answers aloud on request, autoplay
+    # without being asked; language auto follows each answer's language.
+    voice_output = Column(Boolean, default=False)
+    voice_autoplay = Column(Boolean, default=False)
+    voice_gender = Column(String(10), default="female")
+    voice_language = Column(String(10), default="auto")
+    voice_input = Column(Boolean, default=False)
 
     # The web is consulted only when the knowledge base above found nothing.
     web_search_enabled = Column(Boolean, default=False)
     web_search_max_results = Column(Integer, default=3)
     web_search_country = Column(String(2), nullable=True)
+    # platform, duckduckgo or own; own reads web_search_key_id. See
+    # websearch/account.py.
+    web_search_mode = Column(String(20), default="platform")
+    web_search_key_id = Column(String(36), ForeignKey("web_search_keys.id", ondelete="SET NULL"), nullable=True)
 
     # The database branch. A router picks between it, the documents and the
     # web; these only say whether it is available and how much it may return.
@@ -194,6 +219,12 @@ class ChatMessage(Base):
     # endpoint reported no usage, and on answers saved before they were kept.
     tokens_in = Column(Integer, nullable=True)
     tokens_out = Column(Integer, nullable=True)
+    # Served from the answer cache rather than written by the model.
+    cache_hit = Column(Boolean, default=False)
+    # The grounding check's verdict, or None when it did not run; and the claim
+    # it found unsupported.
+    grounded = Column(Boolean, nullable=True)
+    grounding_note = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     conversation = relationship("ChatConversation", back_populates="messages")
@@ -247,6 +278,43 @@ class KbChunk(Base):
     heading_path = Column(String(500), nullable=True)
     embedding_model = Column(String(120), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class WebSearchKey(Base):
+    """A workspace's own Tavily or Brave key. Laravel owns the table."""
+    __tablename__ = "web_search_keys"
+
+    id = Column(String(36), primary_key=True)
+    system_id = Column(String(36), ForeignKey("systems.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(120), nullable=False)
+    provider = Column(String(20), nullable=False)
+    api_key = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AnswerCache(Base):
+    """Answers worth giving again. Laravel owns the table and empties a bot's
+    rows when its behaviour is saved; the engine writes and reads them.
+
+    The question's vector is kept as JSON text rather than a pgvector column:
+    a bot holds at most a few hundred rows, so comparing them in numpy costs
+    less than a column whose width must follow the embedding setting.
+    """
+    __tablename__ = "answer_cache"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    bot_id = Column(String(36), ForeignKey("bot_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
+    question = Column(Text, nullable=False)
+    embedding_model = Column(String(120), nullable=False)
+    embedding = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+    citations = Column(Text, nullable=True)
+    source_kind = Column(String(20), nullable=True)
+    hits = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_hit_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
 
 
 class BotKbCollection(Base):
@@ -338,6 +406,9 @@ SETTING_DEFAULTS = {
     "web_search_provider": "duckduckgo",
     "web_search_tavily_key": "",
     "web_search_brave_key": "",
+    # all lends the search above to every workspace's bots; none keeps it for
+    # the console's own, and a workspace bot on it searches DuckDuckGo.
+    "web_search_lending": "all",
     # Blank means each bot uses its own endpoint and model. Small models are
     # markedly weaker at SQL than at conversation, so an install can point
     # query work somewhere stronger without making every chat cost more.
@@ -368,6 +439,51 @@ SETTING_DEFAULTS = {
     "vision_model_base_url": "",
     "vision_model_api_key": "",
     "vision_model_name": "",
+    # Writes other phrasings of a question and a hypothetical answer passage,
+    # for a bot with query expansion switched on. Blank borrows the bot's model.
+    "expand_model_provider_id": "",
+    "expand_model_base_url": "",
+    "expand_model_api_key": "",
+    "expand_model_name": "",
+    # Checks a finished answer against the passages it was given.
+    "verify_model_provider_id": "",
+    "verify_model_base_url": "",
+    "verify_model_api_key": "",
+    "verify_model_name": "",
+    # Writes the context line for each chunk when contextual chunks are on.
+    "context_model_provider_id": "",
+    "context_model_base_url": "",
+    "context_model_api_key": "",
+    "context_model_name": "",
+    # bm25 ranks keywords inside the engine, the same on either database;
+    # postgres uses the database's own full-text search. See kb/bm25.py.
+    "keyword_engine": "bm25",
+    # off or on. On writes one sentence of context into every chunk while
+    # indexing, by the context role, and needs a re-index to take effect.
+    "contextual_chunks": "off",
+    # Voice. browser speaks and listens on the visitor's device, with nothing
+    # to install; server and azure speak through this engine. See speech.py.
+    "speech_engine": "browser",
+    "speech_provider_id": "",
+    "speech_base_url": "",
+    "speech_api_key": "",
+    "speech_model": "tts-1",
+    "azure_speech_region": "",
+    "azure_speech_key": "",
+    "voice_en_female": "en-US-AvaNeural",
+    "voice_en_male": "en-US-AndrewNeural",
+    "voice_ms_female": "ms-MY-YasminNeural",
+    "voice_ms_male": "ms-MY-OsmanNeural",
+    "transcribe_engine": "browser",
+    "transcribe_provider_id": "",
+    "transcribe_base_url": "",
+    "transcribe_api_key": "",
+    "transcribe_model": "whisper-1",
+    # Security. See history.py, shield.py and leak.py.
+    "history_source": "server",
+    "injection_shield": "block",
+    "injection_shield_sources": "drop",
+    "leak_guard": "on",
 }
 
 

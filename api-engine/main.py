@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Chatbot Management - Streaming Engine API",
-    version="1.1.0",
+    version="1.2.0",
     lifespan=lifespan
 )
 
@@ -47,7 +47,7 @@ async def health_check():
     return {
         "status": "degraded" if degraded else "ok",
         "service": "fastapi-llm-engine",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "database": database.active_backend,
     }
 

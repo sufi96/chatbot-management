@@ -1,4 +1,4 @@
-# ChitChat Command Center (C⁴) 🤖 `v1.1.0`
+# ChitChat Command Center (C⁴) 🤖 `v1.2.0`
 
 A production-ready, multi-tenant AI Chatbot Management platform featuring a **Laravel 13 Admin Portal**, a **Python FastAPI Streaming Engine**, and a **Zero-Dependency Shadow DOM JS Widget**.
 
@@ -20,12 +20,14 @@ Two services over one database. Laravel owns every table's schema and all the
 human-facing screens. The engine owns chat streaming, chunking, embedding and
 retrieval. They share no code, only the table contract.
 
-Laravel calls the engine over HTTP for four things only: index a source, delete
-a source's chunks, list or test embedding models, and run a retrieval preview
-for the playground. Those routes are guarded by a shared secret that lives only
-in gitignored `.env` files.
+Laravel calls the engine over HTTP for admin work only: index a source, delete
+a source's chunks, list or test models, run a retrieval preview for the
+playground, test a web search key, and play a voice sample. Those routes are
+guarded by a shared secret that lives only in gitignored `.env` files. The
+widget calls the engine for chat, its configuration and, when voice is on,
+speech; those routes hold to the workspace's allowed sites.
 
-- **In the portal:** the info button in the top bar opens the live version of this diagram, with tabs for answering, indexing, models and the DGX Sparks plan. The images above are its System and Answering tabs.
+- **In the portal:** the info button in the top bar opens the live version of this diagram, with tabs for answering, indexing, techniques, models and the DGX Sparks plan. The images above are its System and Answering tabs. The **Techniques** tab lists every retrieval and security technique with its status: built, a choice, needs its own model, or waiting for the DGX Sparks.
 - **Earlier detailed diagram:** [`docs/architecture.excalidraw`](docs/architecture.excalidraw) — open it at [excalidraw.com](https://excalidraw.com)
 - **Written notes:** [`docs/architecture.md`](docs/architecture.md) — the reasoning behind each decision
 
@@ -83,12 +85,17 @@ role), so the engine carries no PyTorch.
 
 ---
 
-## 🆕 What's New in `v1.1.0`
+## 🆕 What's New in `v1.2.0`
 
-Run `php artisan migrate` after pulling. Everything below that changes how a bot
-answers starts switched off; the security layers start on.
+Run `php artisan migrate` after pulling, and let `start-dev` reinstall the
+engine's requirements (it now needs `python-multipart`). Everything below that
+changes how a bot answers starts switched off; the security layers start on.
 
-### 🔒 Security (Admin settings → Security)
+### 🧭 Admin settings and the Behaviour tab
+- **Admin settings is two sidebar entries, with tabs inside.** **AI and answering** holds Providers, Models, Guard, Security, Chunking and search, Voice and Web search; **Console** holds Branding and Maintenance. **Bots** sits between them. Each tab keeps its own address, and a red dot marks the tab and the entry a save refused.
+- **The Behaviour tab folds.** Every card on the left has an icon and folds to its header; a first visit opens the prompt and generation only, and after that each card stays as you left it. A card with a field that failed to save always opens. **Safety** is now last, below Voice.
+
+### 🔒 Security (Admin settings → AI and answering → Security)
 - **Conversation history from the engine's records.** The widget's copy of the conversation is no longer trusted: a visitor could send a fake `system` turn, or a fake reply in which the bot agreed to drop its rules. The engine reads the session's last ten turns itself. *Widget copy* is still a choice, cleaned to visitor and assistant turns only. Clearing the widget now starts a new session.
 - **Injection shield.** "Ignore your previous instructions", requests for the hidden prompt, fake role tags and invisible Unicode characters are caught by pattern, in English and Malay, with no model. Block, flag only, or off.
 - **Retrieved material is screened and marked.** A knowledge-base passage or web result written as instructions is dropped. Every source's material is wrapped and marked as reference, never instructions.
@@ -96,7 +103,7 @@ answers starts switched off; the security layers start on.
 - **Messages are capped at 4,000 characters.**
 - Flags appear as *Prompt injection* and *Prompt leak* in conversations and in the analytics flag chart.
 
-### 🔎 Retrieval (Behaviour → Knowledge base, and Admin settings → Chunking and search)
+### 🔎 Retrieval (Behaviour → Knowledge base, and Admin settings → AI and answering → Chunking and search)
 - **BM25 keyword ranking** inside the engine, the same on Postgres and SQLite, reading Malay and English alike. Postgres full text remains a choice, and now matches any of a question's words rather than all of them, which used to leave hybrid search running on vectors alone.
 - **Keyword weight:** how much keywords count against meaning in rank fusion.
 - **Query expansion:** multi-query, HyDE, or both, from one model call.
@@ -106,24 +113,26 @@ answers starts switched off; the security layers start on.
 - **Grounding check:** a sourced answer is checked against its material after it is sent, and an unsupported claim is flagged.
 - The retrieval playground takes keyword weight and neighbouring passages too.
 
-### 🔊 Voice (Behaviour → Voice, and Admin settings → Voice)
+### 🔊 Voice (Behaviour → Voice, and Admin settings → AI and answering → Voice)
 - **Bots read answers aloud** (a speaker on every answer, or every answer as it arrives) and **take spoken questions** (a microphone by the message box).
-- **Visitors decide:** a *Read answers aloud* tick above the message box, shown only on bots with voice switched on, turns hearing the bot on or off; the bot's setting is only where it starts.
+- **Visitors decide:** a *Read answers aloud* on/off switch, right-aligned above the message box and shown only on bots with voice switched on. The bot's setting is only where a first-time visitor starts; the widget remembers each visitor's choice.
 - **Four voices:** English or Malay, female or male. Visitors switch in the widget's voice menu; the bot sets where they start, or follows each answer's language.
-- **Nothing to install by default:** the visitor's browser speaks and listens. For the same voices on every device, point Admin settings → Voice at **Azure Speech** (Microsoft's `ms-MY-YasminNeural`, `ms-MY-OsmanNeural` and English pair) or at any speech server on the OpenAI audio API, and at a Whisper server for listening.
+- **Choose each voice** under Admin settings → Voice, grouped by language with a female and a male row: American, British, Singaporean, Australian and Indian English voices, Malaysian Malay (Yasmin, Osman), and Indonesian beside them. *Another name* takes any speech server's own voice name.
+- **Hear before you save.** Type any text and press play, on the Voice settings page (with the engine as the page shows it, saved or not) and on a bot's Behaviour tab (in its starting voice). A speech server that is not running, or is not a speech server at all, is named as such.
+- **Nothing to install by default:** the visitor's browser speaks and listens. For the same four voices on every device, use **Azure Speech** or a speech server (see [Setting up voice](#-setting-up-voice)), and a Whisper server for listening.
 - Answers are spoken a sentence at a time while they stream; Markdown, citations, links and code are never read out.
 
 ### 🔑 Web search keys per workspace (Behaviour → Web search)
 - **Each bot chooses its search:** the platform's (as before), DuckDuckGo with no key, or one of its workspace's own Tavily or Brave keys, billed to the workspace.
 - **A workspace's system admins manage its keys** in a modal on the Behaviour tab, with a Test that runs one real search. Keys are never shown again once saved, and a key in use cannot be deleted.
-- **Admin settings → Web search** can stop lending the platform's search to workspaces; their bots then use DuckDuckGo unless they bring a key.
+- **Admin settings → AI and answering → Web search** can stop lending the platform's search to workspaces; their bots then use DuckDuckGo unless they bring a key.
 
-### 🤖 Three new model roles (Admin settings → Models)
+### 🤖 Three new model roles (Admin settings → AI and answering → Models)
 - **Query expansion**, **Answer check** and **Chunk context**. Left blank, each borrows the bot's own model, so one chat model and one embedding model still run everything. Only the reranker needs a model of its own.
 
 ### 📊 Analytics and architecture
 - The Guard card counts answers served from the cache and answers with an unsupported claim.
-- The architecture overview has a **Techniques** tab: every retrieval and security technique, whether it is built, a choice, needs its own model, or waits for the DGX Sparks.
+- The architecture overview has a **Techniques** tab: every retrieval and security technique, whether it is built, a choice, needs its own model, or waits for the DGX Sparks. The Indexing tab's flow fits all seven steps on one row, the optional one dashed.
 
 ---
 
@@ -205,7 +214,7 @@ answers starts switched off; the security layers start on.
 - While a reply is being prepared, the engine streams `status` events for each step it actually takes, and the widget's bubble shows them as they happen: *"Reading your message..."* (shown by the widget the moment the message is sent) ➔ *"Understanding intent..."* ➔ *"Consulting the knowledge base..."* / *"Retrieving records..."* / *"Researching the web..."* (each source in the bot's order, as it is tried) ➔ *"Composing a response..."*.
 
 ### 5. 📦 1-Line Embeddable Widget (`widget.js`)
-- **Zero NPM Dependencies:** Pure vanilla JS (~14KB).
+- **Zero NPM Dependencies:** pure vanilla JS, served as one script with its Markdown renderer and voice helpers.
 - **Shadow DOM Isolation:** Host page CSS (Bootstrap, Tailwind, WordPress) cannot interfere with the chat widget styling, and widget styles cannot leak into the host.
 - **Real-Time SSE Streaming:** Low-latency typewriter token streaming.
 
@@ -213,7 +222,7 @@ answers starts switched off; the security layers start on.
 - **Three source types:** pasted text, uploaded documents (PDF, Word, PowerPoint, Excel, CSV, Markdown, HTML), and question-answer pairs kept whole.
 - **Structure-aware chunking:** headings, tables and code blocks decide where a passage ends. Size is a ceiling, not a target.
 - **Heading breadcrumbs on every passage**, so a bare table still says which section and which document it came from.
-- **Hybrid retrieval:** vector search and keyword search merged by Reciprocal Rank Fusion, so paraphrase and exact terms both land.
+- **Hybrid retrieval:** vector search and BM25 keyword search merged by weighted Reciprocal Rank Fusion, so paraphrase and exact terms both land. Optional query expansion (multi-query, HyDE), neighbouring passages, a reranker, an answer cache and a grounding check build on it; see What's New.
 - **A gate before the search.** A greeting never triggers retrieval, and never costs an embedding call.
 - **Retrieval playground:** ask what a bot would ask and see the exact passages that come back, with scores.
 - **Source detail:** read, correct, download or re-index any source, and see every passage it produced.
@@ -235,7 +244,7 @@ answers starts switched off; the security layers start on.
 - **A playground for tuning.** Run a statement the way a bot would and see exactly what your annotations bought you.
 
 ### 8. 🤖 Bot Settings and Safe Deletion
-- **Profile and Behaviour tabs:** a bot's settings are split in two. Profile holds identity, the on/off switch and widget styling; Behaviour holds the prompt, generation (temperature, max tokens, sampling), answer sources, web search, safety, the model and endpoint, and the Brain: its knowledge base and databases. A new bot still picks its model on the create form. Each tab saves on its own.
+- **Profile and Behaviour tabs:** a bot's settings are split in two. Profile holds identity, the on/off switch and widget styling; Behaviour holds the prompt, generation (temperature, max tokens, sampling), answer sources, web search, the answer cache, voice and safety on the left, folding to their headers, and the model and endpoint and the Brain (its knowledge base and databases) on the right. A new bot still picks its model on the create form. Each tab saves on its own.
 - **A clear On/Off switch:** a large Online/Offline card beside the identity section decides whether the bot answers at all. Green when online, red when offline, with the same state shown next to the bot's name.
 - **Save bar that only shows when needed:** the floating save bar stays hidden until something changes, then counts the unsaved changes (*"2 unsaved changes"*) with **Discard** and **Save**. It sits on the left so it never covers the chat launcher.
 - **Test inference in the model card header**, with the result shown in the card once there is one.
@@ -386,6 +395,37 @@ The seeder automatically provisions 4 pre-configured accounts with different rol
 
 ---
 
+## 🔊 Setting up voice
+
+Out of the box the **browser** speaks and listens on each visitor's device, so
+there is nothing to install. Its voices vary by device; Malay especially. For
+the same four voices on every device, pick one of these under
+**Admin settings → AI and answering → Voice → Speaking**:
+
+- **Azure Speech** (recommended for production). Create a *Speech* resource in
+  the Azure portal, then enter its region (for example `southeastasia`) and one
+  of its keys. Its neural voices include all four defaults, and there is a
+  free monthly allowance.
+- **Speech server**: any server on the OpenAI audio API
+  (`POST /v1/audio/speech`). To hear the Microsoft voices locally for testing:
+  ```bash
+  docker run -d --name chitchat-tts -p 5050:5050 -e REQUIRE_API_KEY=False travisvn/openai-edge-tts:latest
+  ```
+  then add a provider with base URL `http://localhost:5050/v1` under
+  **Providers**, pick it under Voice, keep model `tts-1`, and press ▶ on a
+  voice. This container uses Microsoft's Edge read-aloud service unofficially
+  and is licensed for personal use, so use it to try voices, not to run a
+  product. On the DGX Sparks, a TTS model of your own takes its place.
+
+For **listening**, the browser's recognition works best in Chrome and Edge; a
+Whisper-family server (`POST /v1/audio/transcriptions`) can replace it under
+**Listening**.
+
+Then switch voice on per bot under **Behaviour → Voice**, and try it with the
+**Hear it** box there.
+
+---
+
 ## 📋 How to Embed into Any Website
 
 Once a bot profile is configured, open the **Embed Code** page (`/bots/{id}/embed`) to grab the universal snippet:
@@ -455,5 +495,5 @@ Switch drivers in Admin Settings, then rebuild the index.
 ---
 
 ## 📄 License & Version
-- **Version:** `1.1.0`
+- **Version:** `1.2.0`
 - **License:** MIT

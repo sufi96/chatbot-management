@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AiProvider;
 use App\Models\BotProfile;
 use App\Services\EngineClient;
+use App\Support\ModelPurpose;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -37,6 +38,8 @@ class AiProviderController extends Controller
         $provider = AiProvider::create($validated + [
             'id' => 'aip_' . Str::random(12),
             'system_id' => $systemId,
+            // A workspace's provider only ever serves its bots.
+            'purposes' => ['chat'],
         ]);
 
         return response()->json([
@@ -119,7 +122,7 @@ class AiProviderController extends Controller
         if (empty($validated['base_url'])) {
             $provider = $this->reachableProvider($request, $validated['provider_id'] ?? null, $validated['bot_id'] ?? null);
 
-            return response()->json(EngineClient::chatModels($provider->base_url, (string) $provider->api_key));
+            return response()->json(self::chatOnly(EngineClient::chatModels($provider->base_url, (string) $provider->api_key)));
         }
 
         $systemId = (string) ($validated['system_id'] ?? view()->shared('activeSystem')?->id);
@@ -133,7 +136,27 @@ class AiProviderController extends Controller
             }
         }
 
-        return response()->json(EngineClient::chatModels($validated['base_url'], $apiKey));
+        return response()->json(self::chatOnly(EngineClient::chatModels($validated['base_url'], $apiKey)));
+    }
+
+    /** A bot's model list without the embedding, speech and other models an endpoint also publishes. */
+    private static function chatOnly(array $result): array
+    {
+        if (!is_array($result['models'] ?? null)) {
+            return $result;
+        }
+        $filtered = ModelPurpose::filter($result['models'], 'chat');
+        $result['models'] = $filtered['models'];
+        $result['hidden'] = $filtered['hidden'];
+        if (isset($result['count'])) {
+            $result['count'] = count($filtered['models']);
+        }
+        if ($filtered['hidden'] && !empty($result['success'])) {
+            $result['message'] = count($filtered['models']) . ' chat model(s); '
+                . $filtered['hidden'] . ' for embedding, speech and other jobs are left out.';
+        }
+
+        return $result;
     }
 
     /** Test inference against a saved provider, with its key looked up here. */

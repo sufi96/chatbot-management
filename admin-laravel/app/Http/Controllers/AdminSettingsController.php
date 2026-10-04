@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AiProvider;
 use App\Models\AppSetting;
 use App\Services\EngineClient;
+use App\Support\ModelPurpose;
 use App\Support\Brand;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -182,6 +183,7 @@ class AdminSettingsController extends Controller
             'job' => 'Scores each retrieved passage against the question. Needs an endpoint that serves /v1/rerank, such as vLLM or llama.cpp. Ollama does not.',
             'blank' => 'Off: no reranking',
             'placeholder' => 'bge-reranker-v2-m3',
+            'purpose' => 'rerank',
         ],
         'guard' => [
             'icon' => 'bi-shield-check',
@@ -219,6 +221,26 @@ class AdminSettingsController extends Controller
             'placeholder' => 'qwen3.5:4b',
         ],
     ];
+
+    /**
+     * What each provider link needs its provider to serve. Model roles not
+     * named here write text, so they need chat.
+     */
+    private const LINK_PURPOSES = [
+        'embedding_provider_id' => 'embedding',
+        'speech_provider_id' => 'speech',
+        'transcribe_provider_id' => 'transcription',
+    ];
+
+    public static function purposeOf(string $linkKey): string
+    {
+        if (isset(self::LINK_PURPOSES[$linkKey])) {
+            return self::LINK_PURPOSES[$linkKey];
+        }
+        $role = substr($linkKey, 0, -strlen('_model_provider_id'));
+
+        return self::MODEL_ROLES[$role]['purpose'] ?? 'chat';
+    }
 
     /** The stored keys, each role's provider link and model included. */
     private static function keys(): array
@@ -295,9 +317,14 @@ class AdminSettingsController extends Controller
      * A provider Admin Settings may link: platform rows only. A workspace's
      * provider carries that workspace's key, and is not ours to spend.
      */
-    private static function platformProviderRule(): Exists
+    private static function platformProviderRule(?string $purpose = null): Exists
     {
-        return Rule::exists('ai_providers', 'id')->whereNull('system_id');
+        $rule = Rule::exists('ai_providers', 'id')->whereNull('system_id');
+
+        // Only a provider serving the job: a crafted id cannot link a speech
+        // server as the reranker any more than the list could.
+        return $purpose === null ? $rule
+            : $rule->where(fn ($q) => $q->whereNull('purposes')->orWhere('purposes', 'like', '%"' . $purpose . '"%'));
     }
 
     private static function modelRoleRules(): array
@@ -307,7 +334,7 @@ class AdminSettingsController extends Controller
         foreach (array_keys(self::MODEL_ROLES) as $role) {
             // Both halves, or neither: the engine calls nothing with only one.
             $rules["{$role}_model_provider_id"] = ['nullable', 'string',
-                "required_with:{$role}_model_name", self::platformProviderRule()];
+                "required_with:{$role}_model_name", self::platformProviderRule(self::purposeOf("{$role}_model_provider_id"))];
             $rules["{$role}_model_name"] = ['nullable', 'string', 'max:255',
                 "required_with:{$role}_model_provider_id"];
         }
@@ -321,7 +348,8 @@ class AdminSettingsController extends Controller
 
         foreach (self::MODEL_ROLES as $role => $meta) {
             $messages["{$role}_model_provider_id.required_with"] = "{$meta['label']} needs a provider to run its model on.";
-            $messages["{$role}_model_provider_id.exists"] = "Choose one of the providers listed for {$meta['label']}.";
+            $purpose = AiProvider::PURPOSES[self::purposeOf("{$role}_model_provider_id")];
+            $messages["{$role}_model_provider_id.exists"] = "Choose a provider that serves {$purpose} for {$meta['label']}.";
             $messages["{$role}_model_name.required_with"] = "{$meta['label']} needs a model as well as a provider.";
         }
 
@@ -345,6 +373,7 @@ class AdminSettingsController extends Controller
                 ->map(fn (AiProvider $provider) => self::providerJson($provider))
                 ->values(),
             'modelRoles' => self::MODEL_ROLES,
+            'providerPurposes' => AiProvider::PURPOSES,
             'defaultEmbeddingUrl' => self::DEFAULT_EMBEDDING_URL,
             'guardCategories' => self::GUARD_CATEGORIES,
             'guardChosen' => array_filter(explode(',', (string) AppSetting::get('guard_categories'))),
@@ -367,7 +396,7 @@ class AdminSettingsController extends Controller
             ? $request->input('section') : 'providers';
 
         $validator = Validator::make($request->all(), array_merge([
-            'embedding_provider_id' => ['nullable', 'string', self::platformProviderRule()],
+            'embedding_provider_id' => ['nullable', 'string', self::platformProviderRule('embedding')],
             'embedding_model' => ['required', 'string', 'max:120'],
             'embedding_dimensions' => ['required', 'integer', 'min:64', 'max:4096'],
             'chunk_size' => ['required', 'integer', 'min:400', 'max:8000'],
@@ -378,7 +407,7 @@ class AdminSettingsController extends Controller
             'web_search_brave_key' => ['nullable', 'string', 'max:200'],
             'web_search_lending' => ['sometimes', 'in:all,none'],
             'speech_engine' => ['sometimes', 'in:browser,server,azure'],
-            'speech_provider_id' => ['nullable', 'string', 'required_if:speech_engine,server', self::platformProviderRule()],
+            'speech_provider_id' => ['nullable', 'string', 'required_if:speech_engine,server', self::platformProviderRule('speech')],
             'speech_model' => ['sometimes', 'nullable', 'string', 'max:120'],
             'azure_speech_region' => ['nullable', 'string', 'max:40', 'regex:/^[a-z0-9]+$/', 'required_if:speech_engine,azure'],
             'azure_speech_key' => ['nullable', 'string', 'max:200', 'required_if:speech_engine,azure'],
@@ -387,7 +416,7 @@ class AdminSettingsController extends Controller
             'voice_ms_female' => ['sometimes', 'nullable', 'string', 'max:120'],
             'voice_ms_male' => ['sometimes', 'nullable', 'string', 'max:120'],
             'transcribe_engine' => ['sometimes', 'in:browser,server'],
-            'transcribe_provider_id' => ['nullable', 'string', 'required_if:transcribe_engine,server', self::platformProviderRule()],
+            'transcribe_provider_id' => ['nullable', 'string', 'required_if:transcribe_engine,server', self::platformProviderRule('transcription')],
             'transcribe_model' => ['sometimes', 'nullable', 'string', 'max:120'],
             // Read only from the form that has the checkboxes; see below.
             'guard_categories' => ['exclude_unless:guard_categories_present,1', 'nullable', 'array'],
@@ -413,6 +442,9 @@ class AdminSettingsController extends Controller
             'brand_logo.mimes' => 'The logo must be a PNG, JPG or WebP image.',
             'brand_icon.mimes' => 'The icon must be a PNG, JPG or WebP image.',
             'speech_provider_id.required_if' => 'A speech server needs a provider to run on.',
+            'embedding_provider_id.exists' => 'Choose a provider that serves Embedding; tick it on the provider under Providers.',
+            'speech_provider_id.exists' => 'Choose a provider that serves Text to speech; tick it on the provider under Providers.',
+            'transcribe_provider_id.exists' => 'Choose a provider that serves Speech to text; tick it on the provider under Providers.',
             'transcribe_provider_id.required_if' => 'A transcription server needs a provider to run on.',
             'azure_speech_region.required_if' => 'Azure Speech needs the region of your Speech resource, such as southeastasia.',
             'azure_speech_region.regex' => 'The region is one word, such as southeastasia.',
@@ -492,7 +524,7 @@ class AdminSettingsController extends Controller
             'voice_name' => ['nullable', 'string', 'max:120'],
             // The form as it is now, so a choice can be heard before saving.
             'speech_engine' => ['nullable', 'in:browser,server,azure'],
-            'speech_provider_id' => ['nullable', 'string', self::platformProviderRule()],
+            'speech_provider_id' => ['nullable', 'string', self::platformProviderRule('speech')],
             'speech_model' => ['nullable', 'string', 'max:120'],
             'azure_speech_region' => ['nullable', 'string', 'max:40', 'regex:/^[a-z0-9]*$/'],
             'azure_speech_key' => ['nullable', 'string', 'max:200'],
@@ -533,12 +565,12 @@ class AdminSettingsController extends Controller
     public function speechServer(Request $request)
     {
         $validated = $request->validate([
-            'provider_id' => ['required', 'string', self::platformProviderRule()],
+            'provider_id' => ['required', 'string', self::platformProviderRule('speech')],
         ]);
 
         $provider = AiProvider::platform()->findOrFail($validated['provider_id']);
         [$baseUrl, $apiKey] = [$provider->base_url, (string) $provider->api_key];
-        $models = EngineClient::listModels($baseUrl, $apiKey);
+        $models = ModelPurpose::filter(EngineClient::listModels($baseUrl, $apiKey)['models'] ?? [], 'speech');
         $voices = EngineClient::speechVoices($baseUrl, $apiKey);
 
         return response()->json([
@@ -564,7 +596,7 @@ class AdminSettingsController extends Controller
     public function test(Request $request)
     {
         $validated = $request->validate([
-            'provider_id' => ['nullable', 'string', self::platformProviderRule()],
+            'provider_id' => ['nullable', 'string', self::platformProviderRule('embedding')],
             'embedding_model' => ['required', 'string'],
         ]);
 
@@ -586,6 +618,8 @@ class AdminSettingsController extends Controller
             'provider_id' => ['nullable', 'required_without:base_url', 'string', self::platformProviderRule()],
             'base_url' => ['nullable', 'required_without:provider_id', 'string', 'max:500'],
             'api_key' => ['nullable', 'string', 'max:500'],
+            // The job asking, so its list shows that job's models. None: all of them.
+            'purpose' => ['nullable', Rule::in(array_keys(AiProvider::PURPOSES))],
         ], [
             'provider_id.required_without' => 'Choose a provider first.',
             'provider_id.exists' => 'That provider no longer exists. Reload the page.',
@@ -599,7 +633,12 @@ class AdminSettingsController extends Controller
             [$baseUrl, $apiKey] = [$validated['base_url'], (string) ($validated['api_key'] ?? '')];
         }
 
-        return response()->json(EngineClient::listModels($baseUrl, $apiKey));
+        $result = EngineClient::listModels($baseUrl, $apiKey);
+        if (!empty($validated['purpose']) && ($result['ok'] ?? false)) {
+            $result = array_merge($result, ModelPurpose::filter($result['models'] ?? [], $validated['purpose']));
+        }
+
+        return response()->json($result);
     }
 
     /** @return array{0: string, 1: string} */
@@ -623,6 +662,8 @@ class AdminSettingsController extends Controller
             'base_url' => $provider->base_url,
             'api_key' => $provider->api_key,
             'merge_system_prompt' => (bool) $provider->merge_system_prompt,
+            // Null, not yet categorised, serves every job.
+            'purposes' => $provider->purposes ?? array_keys(AiProvider::PURPOSES),
             'label' => $provider->label(),
             'used_by' => self::usageOf($provider->id),
         ];

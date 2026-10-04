@@ -85,6 +85,7 @@
                                 'modelField' => 'embedding_model',
                                 'blank' => 'Ollama on this machine',
                                 'placeholder' => 'nomic-embed-text',
+                                'purpose' => 'embedding',
                             ])
                             <div class="input-group input-group-sm has-validation">
                                 <label for="embedding_dimensions" class="input-group-text picker-label">Dimensions</label>
@@ -116,6 +117,7 @@
                                     'modelField' => "{$role}_model_name",
                                     'blank' => $meta['blank'],
                                     'placeholder' => $meta['placeholder'],
+                                    'purpose' => $meta['purpose'] ?? 'chat',
                                 ])
                             </div>
                         </div>
@@ -412,12 +414,12 @@
                                     <select name="speech_provider_id" id="speech_provider_id"
                                             class="form-select form-select-sm @error('speech_provider_id') is-invalid @enderror">
                                         <option value="">Choose a provider…</option>
-                                        @foreach($providers as $provider)
+                                        @foreach(collect($providers)->filter(fn ($p) => in_array('speech', $p['purposes'], true)) as $provider)
                                             <option value="{{ $provider['id'] }}" @selected(old('speech_provider_id', $settings['speech_provider_id']) === $provider['id'])>{{ $provider['label'] }}</option>
                                         @endforeach
                                     </select>
                                     @error('speech_provider_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                                    <div class="form-text">Add one under <a href="{{ route('admin.settings', 'providers') }}">Providers</a>, such as <code>http://localhost:5051/v1</code> for the Malaysian TTS server.</div>
+                                    <div class="form-text">Lists providers that serve Text to speech. Add one under <a href="{{ route('admin.settings', 'providers') }}">Providers</a>, such as <code>http://localhost:5051/v1</code> for the Malaysian TTS server.</div>
                                 </div>
                                 <div class="col-md-5">
                                     <label for="speech_model" class="form-label">Model</label>
@@ -469,7 +471,7 @@
                                     <select name="transcribe_provider_id" id="transcribe_provider_id"
                                             class="form-select form-select-sm @error('transcribe_provider_id') is-invalid @enderror">
                                         <option value="">Choose a provider…</option>
-                                        @foreach($providers as $provider)
+                                        @foreach(collect($providers)->filter(fn ($p) => in_array('transcription', $p['purposes'], true)) as $provider)
                                             <option value="{{ $provider['id'] }}" @selected(old('transcribe_provider_id', $settings['transcribe_provider_id']) === $provider['id'])>{{ $provider['label'] }}</option>
                                         @endforeach
                                     </select>

@@ -5,11 +5,14 @@
      $providerField, $modelField  setting keys
      $blank                       what None means for this job
      $placeholder                 an example model name
-     $inline                      provider and model side by side (default: stacked) --}}
+     $inline                      provider and model side by side (default: stacked)
+     $purpose                     what the provider must serve: chat, embedding, rerank (default: chat) --}}
 @php
     $providerValue = (string) old($providerField, $settings[$providerField] ?? '');
     $modelValue = (string) old($modelField, $settings[$modelField] ?? '');
     $inline = $inline ?? false;
+    $purpose = $purpose ?? 'chat';
+    $serving = collect($providers)->filter(fn ($provider) => in_array($purpose, $provider['purposes'], true));
 @endphp
 
 <div class="model-picker" data-picker>
@@ -19,16 +22,16 @@
                 <label for="{{ $providerField }}" class="input-group-text picker-label">Provider</label>
                 <select name="{{ $providerField }}" id="{{ $providerField }}"
                         class="form-select @error($providerField) is-invalid @enderror"
-                        data-picker-provider data-blank="{{ $blank }}" title="No provider: {{ $blank }}">
+                        data-picker-provider data-purpose="{{ $purpose }}" data-blank="{{ $blank }}" title="No provider: {{ $blank }}">
                     <option value="">{{ $blank }}</option>
-                    @foreach($providers as $provider)
+                    @foreach($serving as $provider)
                         <option value="{{ $provider['id'] }}" @selected($providerValue === $provider['id'])>
                             {{ $provider['name'] }}
                         </option>
                     @endforeach
                     {{-- A value the list no longer holds stays visible, so a
                          deleted provider reads as broken rather than as None. --}}
-                    @if($providerValue !== '' && !collect($providers)->contains('id', $providerValue))
+                    @if($providerValue !== '' && !$serving->contains('id', $providerValue))
                         <option value="{{ $providerValue }}" selected>Missing provider ({{ $providerValue }})</option>
                     @endif
                 </select>

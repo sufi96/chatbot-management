@@ -22,13 +22,40 @@ class AiProvider extends Model
     protected $keyType = 'string';
     public $incrementing = false;
 
-    protected $fillable = ['id', 'system_id', 'name', 'base_url', 'api_key', 'merge_system_prompt'];
+    protected $fillable = ['id', 'system_id', 'name', 'base_url', 'api_key', 'merge_system_prompt', 'purposes'];
+
+    /**
+     * What a provider can serve, each a kind of endpoint. Every picker lists
+     * only the providers serving its job: chat for a bot's model and the model
+     * roles that write text (Vision and Guard included), embedding, rerank,
+     * speech for the Speaking server, transcription for the Listening one.
+     * One provider may serve several, as OpenAI does with one key.
+     */
+    public const PURPOSES = [
+        'chat' => 'Language model',
+        'embedding' => 'Embedding',
+        'rerank' => 'Reranker',
+        'speech' => 'Text to speech',
+        'transcription' => 'Speech to text',
+    ];
 
     /**
      * merge_system_prompt: the gateway drops system messages, so the engine
      * puts instructions in the user message. See the migration that added it.
      */
-    protected $casts = ['merge_system_prompt' => 'boolean'];
+    protected $casts = ['merge_system_prompt' => 'boolean', 'purposes' => 'array'];
+
+    /** Whether it serves a purpose. Not yet categorised (null) serves every one. */
+    public function serves(string $purpose): bool
+    {
+        return $this->purposes === null || in_array($purpose, $this->purposes, true);
+    }
+
+    public function scopeServing(Builder $query, string $purpose): Builder
+    {
+        return $query->where(fn (Builder $q) => $q->whereNull('purposes')
+            ->orWhere('purposes', 'like', '%"' . $purpose . '"%'));
+    }
 
     public function scopePlatform(Builder $query): Builder
     {

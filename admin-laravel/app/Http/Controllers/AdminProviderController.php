@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiProvider;
+use App\Models\AppSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 /**
  * Platform providers, edited from Admin Settings.
@@ -24,6 +26,7 @@ class AdminProviderController extends Controller
         $provider = AiProvider::create($validated + [
             'id' => 'aip_' . Str::random(12),
             'system_id' => null,
+            'purposes' => ['chat'],
         ]);
 
         return response()->json([
@@ -39,6 +42,21 @@ class AdminProviderController extends Controller
 
         $validated = $this->validated($request);
         AiProvider::refuseLookalike(null, $validated, $provider->id);
+
+        // A purpose a saved job still uses stays ticked; the job would
+        // otherwise run on a provider its own list no longer offers.
+        $stillUsed = [];
+        foreach (isset($validated['purposes']) ? self::purposesInUse($provider) : [] as $purpose => $jobs) {
+            if (!in_array($purpose, $validated['purposes'], true)) {
+                $stillUsed[] = AiProvider::PURPOSES[$purpose] . ' (used by ' . implode(', ', $jobs) . ')';
+            }
+        }
+        if ($stillUsed) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Still needed: ' . implode('; ', $stillUsed) . '. Move those to another provider first.',
+            ], 409);
+        }
 
         $provider->update($validated);
 
@@ -77,16 +95,48 @@ class AdminProviderController extends Controller
         return response()->json(['success' => true, 'message' => "{$name} deleted."]);
     }
 
+    /**
+     * The purposes saved settings and bots use this provider for, each with
+     * the jobs that use it.
+     *
+     * @return array<string, array<int, string>>
+     */
+    public static function purposesInUse(AiProvider $provider): array
+    {
+        $inUse = [];
+
+        foreach (AdminSettingsController::providerLinks() as $key => $label) {
+            if (AppSetting::get($key) === $provider->id) {
+                $inUse[AdminSettingsController::purposeOf($key)][] = $label;
+            }
+        }
+        foreach ($provider->bots()->orderBy('name')->pluck('name') as $bot) {
+            $inUse['chat'][] = "the bot {$bot}";
+        }
+
+        return $inUse;
+    }
+
     private function validated(Request $request): array
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'base_url' => ['required', 'string', 'max:500'],
             'api_key' => ['nullable', 'string', 'max:500'],
+            // Sometimes: a client written before purposes keeps working;
+            // a new provider is then chat, and an edit keeps what it had.
+            'purposes' => ['sometimes', 'array', 'min:1'],
+            'purposes.*' => ['string', Rule::in(array_keys(AiProvider::PURPOSES))],
         ], [
             'name.required' => 'Give it a name you will recognise, like "DGX Spark A".',
             'base_url.required' => 'The base URL is what the engine calls, so it cannot be blank.',
+            'purposes.min' => 'Tick at least one job this provider serves.',
         ]);
+
+        // In the order of the list, without repeats.
+        if (isset($validated['purposes'])) {
+            $validated['purposes'] = array_values(array_intersect(array_keys(AiProvider::PURPOSES), $validated['purposes']));
+        }
 
         $validated['api_key'] = (string) ($validated['api_key'] ?? '');
         // An unticked box sends nothing, which means the provider keeps system messages.

@@ -804,7 +804,7 @@ widget remembers. Nothing outside Admin Settings ever names a vendor's voice.
 
 | Speaking engine | What it needs | Voices |
 |---|---|---|
-| Browser (default) | Nothing | The visitor's device: English nearly everywhere, Malay on fewer devices, and not always both genders. The widget says which is missing and uses the nearest (an Indonesian voice for Malay before none). |
+| Browser (default) | Nothing | The visitor's device: English nearly everywhere, Malay on fewer devices, and not always both genders. The widget says which is missing. Malay is only spoken by a Malay voice; a device without one uses the browser's default voice, so a Malay install should use a speech server or Azure. |
 | Speech server | A platform provider speaking the OpenAI audio API, `POST /v1/audio/speech` | Whatever that server names them: Kokoro or a Malaysian VITS model on the Sparks, OpenAI, or the `openai-edge-tts` container for testing |
 | Azure Speech | A Speech resource's region and key | Microsoft's neural voices: `en-US-AvaNeural`, `en-US-AndrewNeural`, `ms-MY-YasminNeural`, `ms-MY-OsmanNeural` |
 

@@ -62,6 +62,16 @@ def engine_for(settings: dict) -> str:
     return value if value in ENGINES else "browser"
 
 
+def engine_for_bot(bot, settings: dict) -> str:
+    """Where one bot's voice is made: its own choice, or the install's.
+
+    A bot can pick the browser, the speech server or Azure over the install's
+    default; the server's and Azure's details stay the install's.
+    """
+    choice = (getattr(bot, "voice_engine", None) or "default").strip().lower()
+    return choice if choice in ENGINES else engine_for(settings)
+
+
 def listen_engine_for(settings: dict) -> str:
     value = (settings.get("transcribe_engine") or "browser").strip().lower()
     return value if value in LISTEN_ENGINES else "browser"
@@ -151,6 +161,43 @@ async def _ask_engine(engine, settings, slot, voice, text, rate, transport):
                       "input": text, "response_format": "mp3", "speed": rate})
         else:
             raise SpeechError("The install speaks in the browser; there is no server voice to ask.")
+
+
+async def server_voices(base_url: str, api_key: str = "", transport=None) -> list[dict]:
+    """The voices a speech server names at GET {base}/audio/voices, for the Voice page's lists.
+
+    The OpenAI audio API has no such route, so a server without one simply
+    lists nothing and the page keeps its own names. Each voice is
+    {"id": name, "aliases": [other names it answers to]}.
+    """
+    base = (base_url or "").strip().rstrip("/")
+    if not base:
+        raise SpeechError("The speech server has no base URL.")
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=3.0), transport=transport) as client:
+            response = await client.get(f"{base}/audio/voices", headers=headers)
+    except httpx.HTTPError:
+        raise SpeechError(f"Could not reach the speech server at {base}. Is it running?")
+    if response.status_code == 404:
+        return []
+    if response.status_code != 200:
+        raise SpeechError(f"The speech server answered HTTP {response.status_code}.")
+    try:
+        body = response.json()
+    except ValueError:
+        return []
+    if not isinstance(body, dict):
+        return []
+    items = body.get("data") or body.get("voices") or []
+    voices = []
+    for item in items:
+        if isinstance(item, str):
+            voices.append({"id": item, "aliases": []})
+        elif isinstance(item, dict) and isinstance(item.get("id"), str):
+            aliases = [a for a in item.get("aliases") or [] if isinstance(a, str)]
+            voices.append({"id": item["id"], "aliases": aliases})
+    return voices
 
 
 async def transcribe(settings: dict, audio: bytes, filename: str, content_type: str,

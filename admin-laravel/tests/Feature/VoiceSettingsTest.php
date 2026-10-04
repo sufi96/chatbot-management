@@ -81,7 +81,18 @@ class VoiceSettingsTest extends TestCase
             ->assertSee('name="transcribe_engine"', false)
             ->assertSee('Osman · Malaysian')
             ->assertSee('id="voice_preview_text"', false)
-            ->assertSee('ms-MY-OsmanNeural');
+            ->assertSee('ms-MY-OsmanNeural')
+            ->assertDontSee('Indonesian');
+    }
+
+    public function test_every_category_in_the_settings_form_can_be_saved(): void
+    {
+        foreach (['models', 'guard', 'security', 'chunking', 'voice', 'web-search', 'branding'] as $section) {
+            $this->actingAs($this->root())
+                ->get(route('admin.settings', $section))
+                ->assertOk()
+                ->assertSee('Save settings');
+        }
     }
 
     public function test_azure_needs_its_region_and_key(): void
@@ -149,10 +160,10 @@ class VoiceSettingsTest extends TestCase
         Http::assertSent(fn ($request) => $request['voice'] === 'ms_female');
 
         $this->actingAs($this->root())
-            ->postJson(route('admin.settings.voice-test'), ['voice' => 'ms_female', 'text' => 'Helo.', 'voice_name' => 'id-ID-GadisNeural'])
+            ->postJson(route('admin.settings.voice-test'), ['voice' => 'ms_female', 'text' => 'Helo.', 'voice_name' => 'yasmin'])
             ->assertOk();
 
-        Http::assertSent(fn ($request) => ($request['voice_name'] ?? '') === 'id-ID-GadisNeural' && $request['text'] === 'Helo.');
+        Http::assertSent(fn ($request) => ($request['voice_name'] ?? '') === 'yasmin' && $request['text'] === 'Helo.');
     }
 
     public function test_a_sample_uses_the_speech_server_chosen_but_not_saved(): void
@@ -170,6 +181,40 @@ class VoiceSettingsTest extends TestCase
         Http::assertSent(fn ($request) => $request['speech_engine'] === 'server'
             && $request['speech_base_url'] === 'http://localhost:5050/v1' && $request['speech_api_key'] === 'k');
         $this->assertSame('browser', AppSetting::get('speech_engine'), 'A sample saves nothing.');
+    }
+
+    public function test_the_voice_page_lists_a_speech_servers_models_and_voices(): void
+    {
+        Http::fake([
+            '*/api/v1/kb/embedding/models' => Http::response(['ok' => true, 'models' => ['tts-1']]),
+            '*/api/v1/voice/server-voices' => Http::response(['ok' => true, 'voices' => [
+                ['id' => 'yasmin', 'aliases' => ['ms-MY-YasminNeural']]]]),
+        ]);
+        AiProvider::create(['id' => 'aip_tts', 'system_id' => null, 'name' => 'Malaysian TTS',
+            'base_url' => 'http://localhost:5051/v1', 'api_key' => 'k']);
+
+        $this->actingAs($this->root())
+            ->postJson(route('admin.settings.speech-server'), ['provider_id' => 'aip_tts'])
+            ->assertOk()
+            ->assertExactJson(['models' => ['tts-1'], 'message' => '',
+                'voices' => [['id' => 'yasmin', 'aliases' => ['ms-MY-YasminNeural']]]]);
+
+        // The key goes from the portal to the engine, never through the browser.
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/api/v1/voice/server-voices')
+            && $request['base_url'] === 'http://localhost:5051/v1' && $request['api_key'] === 'k');
+    }
+
+    public function test_only_a_super_admin_asks_a_speech_server(): void
+    {
+        AiProvider::create(['id' => 'aip_tts', 'system_id' => null, 'name' => 'Malaysian TTS',
+            'base_url' => 'http://localhost:5051/v1']);
+
+        $this->actingAs($this->editor())
+            ->postJson(route('admin.settings.speech-server'), ['provider_id' => 'aip_tts'])
+            ->assertForbidden();
+        $this->actingAs($this->root())
+            ->postJson(route('admin.settings.speech-server'), [])
+            ->assertStatus(422);
     }
 
     public function test_a_speech_server_sample_needs_a_provider_picked(): void
@@ -206,6 +251,7 @@ class VoiceSettingsTest extends TestCase
     public function test_an_editor_hears_typed_text_in_a_voice(): void
     {
         Http::fake(['*/api/v1/voice/test' => Http::response('mp3-bytes', 200, ['Content-Type' => 'audio/mpeg'])]);
+        AppSetting::put('speech_engine', 'azure');
 
         $this->actingAs($this->editor())
             ->postJson(route('bots.brain.voice-preview', 'bot_1'), ['voice' => 'ms_male', 'text' => 'Selamat datang.'])
@@ -213,6 +259,70 @@ class VoiceSettingsTest extends TestCase
             ->assertHeader('Content-Type', 'audio/mpeg');
 
         Http::assertSent(fn ($request) => $request['voice'] === 'ms_male' && $request['text'] === 'Selamat datang.');
+    }
+
+    private function speechServer(): void
+    {
+        AiProvider::create(['id' => 'aip_tts', 'system_id' => null, 'name' => 'Malaysian TTS',
+            'base_url' => 'http://localhost:5051/v1']);
+        AppSetting::put('speech_provider_id', 'aip_tts');
+    }
+
+    public function test_a_bot_speaks_with_the_speech_server_while_the_install_uses_browsers(): void
+    {
+        $this->speechServer();
+
+        $this->actingAs($this->editor())
+            ->put(route('bots.brain.update', 'bot_1'), $this->brainPayload([
+                'upgrades_present' => '1', 'voice_output' => '1', 'voice_engine' => 'server',
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('server', BotProfile::find('bot_1')->voice_engine);
+        $this->assertSame('browser', AppSetting::get('speech_engine'), 'The install keeps its own default.');
+    }
+
+    public function test_a_bot_cannot_pick_an_engine_the_install_has_not_set_up(): void
+    {
+        $this->actingAs($this->editor())
+            ->put(route('bots.brain.update', 'bot_1'), $this->brainPayload([
+                'upgrades_present' => '1', 'voice_engine' => 'server',
+            ]))
+            ->assertSessionHasErrors('voice_engine');
+
+        $this->assertSame('default', BotProfile::find('bot_1')->voice_engine);
+    }
+
+    public function test_the_voice_card_offers_only_the_engines_set_up(): void
+    {
+        $editor = $this->editor();
+        $this->actingAs($editor)
+            ->get(route('bots.brain', 'bot_1'))
+            ->assertOk()
+            ->assertSee('Default settings by Admin (Visitor&#039;s browser)', false)
+            ->assertDontSee('<option value="server"', false);
+
+        $this->speechServer();
+        $this->actingAs($editor)
+            ->get(route('bots.brain', 'bot_1'))
+            ->assertSee('<option value="server"', false);
+    }
+
+    public function test_a_preview_uses_the_engine_the_card_shows(): void
+    {
+        $editor = $this->editor();
+        Http::fake(['*/api/v1/voice/test' => Http::response('mp3', 200, ['Content-Type' => 'audio/mpeg'])]);
+        $this->speechServer();
+
+        $this->actingAs($editor)
+            ->postJson(route('bots.brain.voice-preview', 'bot_1'), ['voice' => 'ms_female', 'text' => 'Helo.', 'engine' => 'server'])
+            ->assertOk();
+        Http::assertSent(fn ($request) => $request['speech_engine'] === 'server');
+
+        // A bot on the browser plays in the page; the engine is not asked.
+        $this->actingAs($editor)
+            ->postJson(route('bots.brain.voice-preview', 'bot_1'), ['voice' => 'ms_female', 'text' => 'Helo.', 'engine' => 'browser'])
+            ->assertStatus(422);
     }
 
     public function test_a_preview_needs_text_and_a_known_voice(): void

@@ -136,6 +136,7 @@ Route::middleware(['auth', 'system.access'])->group(function () {
             ->name('admin.settings');
         Route::put('/admin/settings', [AdminSettingsController::class, 'update'])->name('admin.settings.update');
         Route::post('/admin/settings/voice-test', [AdminSettingsController::class, 'voiceTest'])->name('admin.settings.voice-test');
+        Route::post('/admin/settings/speech-server', [AdminSettingsController::class, 'speechServer'])->name('admin.settings.speech-server');
         Route::post('/admin/settings/test', [AdminSettingsController::class, 'test'])->name('admin.settings.test');
         Route::post('/admin/settings/models', [AdminSettingsController::class, 'models'])->name('admin.settings.models');
         Route::post('/admin/settings/reindex', [AdminSettingsController::class, 'reindex'])->name('admin.settings.reindex');

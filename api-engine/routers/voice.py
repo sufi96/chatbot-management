@@ -1,7 +1,8 @@
 """The widget's voice: answers read aloud, and questions spoken.
 
-Only used when the install has a server engine. With the default, browser,
-the widget speaks and listens on the visitor's own device and never calls here.
+Only used when a bot speaks with a server engine: its own choice, or the
+install's (speech.engine_for_bot). With the browser, the widget speaks and
+listens on the visitor's own device and never calls here.
 
 These routes spend the install's speech account, so they hold to the same
 rules as chat: an active bot that has the feature switched on, asked from a
@@ -48,6 +49,8 @@ async def speak(req: SpeechRequest, request: Request, db: AsyncSession = Depends
         raise HTTPException(status_code=403, detail="This bot does not read answers aloud.")
 
     settings = await get_settings(db)
+    # The bot's own choice of engine, over the install's.
+    settings = {**settings, "speech_engine": speech.engine_for_bot(bot, settings)}
     try:
         audio = await speech.synthesize(settings, req.voice, req.text, req.rate)
     except speech.SpeechError as error:
@@ -91,6 +94,22 @@ class VoiceTestRequest(BaseModel):
     speech_model: str = Field(default="", max_length=120)
     azure_speech_region: str = Field(default="", max_length=40)
     azure_speech_key: str = Field(default="", max_length=200)
+
+
+class ServerVoicesRequest(BaseModel):
+    base_url: str = Field(max_length=500)
+    api_key: str = Field(default="", max_length=500)
+
+
+@router.post("/server-voices", dependencies=[Depends(require_admin_token)])
+async def server_voices(req: ServerVoicesRequest):
+    """The voices a speech server offers, for the Voice settings page. Admin only:
+    it calls whatever URL it is given, with the provider's key."""
+    try:
+        voices = await speech.server_voices(req.base_url, req.api_key)
+    except speech.SpeechError as error:
+        return {"ok": False, "voices": [], "message": str(error)}
+    return {"ok": True, "voices": voices}
 
 
 SAMPLES = {

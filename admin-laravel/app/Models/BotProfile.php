@@ -56,6 +56,7 @@ class BotProfile extends Model
         'voice_gender' => 'female',
         'voice_language' => 'auto',
         'voice_input' => false,
+        'voice_engine' => 'default',
     ];
 
     protected $fillable = [
@@ -135,6 +136,7 @@ class BotProfile extends Model
         'voice_gender',
         'voice_language',
         'voice_input',
+        'voice_engine',
     ];
 
     protected function casts(): array

@@ -44,3 +44,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.log
+
+# Malaysian TTS server: voices and reference clips made on the settings page
+tts-server/data/

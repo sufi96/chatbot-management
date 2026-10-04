@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Malaysian TTS</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #fff; --text: #1b1f24; --muted: #5f6b7a; --line: #dfe3e8;
+  --accent: #0b6bcb; --accent-text: #fff; --ok: #1a7f37; --warn: #9a6700; --bad: #c62828;
+  --chip: #eef1f4; --input: #fff;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111418; --panel: #1a1e24; --text: #e6e9ed; --muted: #97a1ad; --line: #2c323a;
+          --accent: #4c9bf0; --accent-text: #0b1520; --ok: #4ac26b; --warn: #d4a72c; --bad: #f47067;
+          --chip: #242a31; --input: #12161b; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+       font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 20px;
+         border-bottom: 1px solid var(--line); background: var(--panel); }
+header h1 { font-size: 17px; margin: 0 12px 0 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { background: var(--chip); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; color: var(--muted); }
+.chip b { color: var(--text); font-weight: 600; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--muted); }
+.dot.ready { background: var(--ok); } .dot.loading { background: var(--warn); } .dot.error { background: var(--bad); }
+main { display: grid; grid-template-columns: 240px 1fr; gap: 16px; padding: 16px 20px; max-width: 1200px; margin: 0 auto; }
+@media (max-width: 800px) { main { grid-template-columns: 1fr; padding: 12px 16px; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+.panel h2 { font-size: 14px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.voice-list { list-style: none; margin: 0 0 12px; padding: 0; }
+.voice-list li { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px;
+                 border-radius: 8px; cursor: pointer; }
+.voice-list li:hover { background: var(--chip); }
+.voice-list li.active { background: var(--accent); color: var(--accent-text); }
+.voice-list li.active .tag { color: var(--accent-text); border-color: var(--accent-text); }
+.tag { font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; color: var(--muted); }
+label { display: block; font-weight: 600; margin: 12px 0 4px; }
+.hint { font-weight: 400; color: var(--muted); font-size: 12.5px; }
+input[type=text], input[type=number], input[type=password], select, textarea {
+  width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px;
+  background: var(--input); color: var(--text); font: inherit; }
+textarea { resize: vertical; min-height: 64px; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 16px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: transparent; color: var(--text); }
+.seg button.on { background: var(--accent); color: var(--accent-text); }
+button { font: inherit; padding: 7px 13px; border-radius: 7px; border: 1px solid var(--line);
+         background: var(--panel); color: var(--text); cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+button.danger { color: var(--bad); }
+button:disabled { opacity: .5; cursor: default; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; align-items: center; }
+.samples { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.samples button { padding: 3px 9px; font-size: 12.5px; }
+.msg { font-size: 13px; color: var(--muted); }
+.msg.bad { color: var(--bad); } .msg.ok { color: var(--ok); } .msg.warn { color: var(--warn); }
+audio { width: 100%; margin-top: 8px; }
+.results { list-style: none; padding: 0; margin: 8px 0 0; }
+.results li { border-top: 1px solid var(--line); padding: 8px 0; }
+code { background: var(--chip); border-radius: 4px; padding: 1px 5px; font-size: 12.5px; word-break: break-all; }
+.rec { color: var(--bad); font-weight: 600; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Malaysian TTS</h1>
+  <div class="chips" id="chips"></div>
+  <div style="flex:1"></div>
+  <div id="keyBox" class="hidden" style="display:flex;gap:6px">
+    <input type="password" id="key" placeholder="API key" style="width:180px">
+    <button id="keySave">Use key</button>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <div class="panel">
+      <h2>Voices</h2>
+      <ul class="voice-list" id="voiceList"></ul>
+      <button id="newVoice">+ New voice</button>
+    </div>
+  </aside>
+
+  <section>
+    <div class="panel" id="editor">
+      <h2 id="editorTitle">Voice</h2>
+      <div class="row">
+        <div>
+          <label for="vName">Name <span class="hint">what the chat app asks for</span></label>
+          <input type="text" id="vName" placeholder="e.g. amira-f5">
+        </div>
+        <div>
+          <label>Engine</label>
+          <div class="seg" id="engineSeg">
+            <button data-engine="vits">VITS (CPU)</button>
+            <button data-engine="f5">F5-TTS (GPU)</button>
+          </div>
+        </div>
+      </div>
+
+      <label for="vAliases">Also answers to <span class="hint">other names for this voice, comma-separated, such as the chat app's ms-MY-YasminNeural</span></label>
+      <input type="text" id="vAliases" placeholder="ms-MY-YasminNeural">
+
+      <div id="vitsFields">
+        <div class="row">
+          <div>
+            <label for="vModel">Model</label>
+            <select id="vModel"></select>
+          </div>
+          <div id="speakerBox">
+            <label for="vSpeaker">Speaker</label>
+            <input type="number" id="vSpeaker" min="0" value="0">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="vTemp">Expressiveness <span class="hint" id="vTempOut"></span></label>
+            <input type="range" id="vTemp" min="0" max="1.5" step="0.05">
+          </div>
+          <div>
+            <label for="vDur">Rhythm variation <span class="hint" id="vDurOut"></span></label>
+            <input type="range" id="vDur" min="0" max="1.5" step="0.05">
+          </div>
+        </div>
+        <p class="hint">0 gives the same reading every time; about 0.67 is the model's default.</p>
+      </div>
+
+      <div id="f5Fields">
+        <label>Reference clip <span class="hint">5 to 12 seconds of one person speaking clearly, no music</span></label>
+        <div class="actions" style="margin-top:4px">
+          <input type="file" id="refFile" accept=".wav,.mp3,.flac,.ogg,.m4a,.webm,audio/*" class="hidden">
+          <button id="refUpload">Upload…</button>
+          <button id="refRecord">● Record</button>
+          <span class="msg" id="refMsg"></span>
+        </div>
+        <audio id="refPlayer" controls class="hidden"></audio>
+        <label for="fRefText">Words in the clip <span class="hint">exactly as spoken; blank makes F5 load Whisper (+1.5 GB) to guess</span></label>
+        <textarea id="fRefText" placeholder="Selamat datang, saya boleh bantu anda hari ini."></textarea>
+        <div class="row">
+          <div>
+            <label for="fSteps">Quality steps <span class="hint" id="fStepsOut"></span></label>
+            <input type="range" id="fSteps" min="8" max="64" step="2">
+          </div>
+          <div>
+            <label for="fCfg">Follow the voice <span class="hint" id="fCfgOut"></span></label>
+            <input type="range" id="fCfg" min="0" max="5" step="0.1">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="fSeed">Seed <span class="hint">-1 is different each time</span></label>
+            <input type="number" id="fSeed" min="-1" value="-1">
+          </div>
+          <div>
+            <label><input type="checkbox" id="fSilence"> Trim long silences</label>
+          </div>
+        </div>
+        <p class="hint">More steps is cleaner and slower: 16 is quick, 32 is the default. Mesolitica's checkpoint is CC-BY-NC: fine to test, not to sell.</p>
+      </div>
+
+      <div class="actions">
+        <button class="primary" id="saveVoice">Save voice</button>
+        <button class="danger" id="deleteVoice">Delete</button>
+        <span class="msg" id="saveMsg"></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Try it</h2>
+      <div class="samples" id="samples"></div>
+      <textarea id="testText" rows="3"></textarea>
+      <div class="row">
+        <div>
+          <label for="speed">Speed <span class="hint" id="speedOut"></span></label>
+          <input type="range" id="speed" min="0.5" max="2" step="0.05" value="1">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="primary" id="play">▶ Play this voice</button>
+        <button id="playAll">Play every saved voice</button>
+        <span class="msg" id="testMsg"></span>
+      </div>
+      <p class="hint">Plays the voice as the form has it, saved or not.</p>
+      <audio id="player" controls class="hidden"></audio>
+      <ul class="results" id="results"></ul>
+    </div>
+
+    <div class="panel">
+      <h2>Engines</h2>
+      <div class="row">
+        <div>
+          <label>VITS <span class="hint" id="vitsState"></span></label>
+          <label for="vitsDevice" class="hint" style="margin-top:0">Device</label>
+          <select id="vitsDevice">
+            <option value="cpu">CPU</option><option value="cuda">GPU (CUDA)</option><option value="auto">GPU if there is one</option>
+          </select>
+          <div class="actions" style="margin-top:8px">
+            <button data-load="vits">Load</button><button data-unload="vits">Unload</button>
+          </div>
+        </div>
+        <div>
+          <label>F5-TTS <span class="hint" id="f5State"></span></label>
+          <label for="f5Checkpoint" class="hint" style="margin-top:0">Checkpoint</label>
+          <select id="f5Checkpoint"></select>
+          <input type="text" id="f5Custom" class="hidden" placeholder="hf://owner/repo/file.pt or /path/to/model.pt" style="margin-top:6px">
+          <label for="f5Device" class="hint">Device</label>
+          <select id="f5Device">
+            <option value="auto">GPU if there is one</option><option value="cuda">GPU (CUDA)</option><option value="cpu">CPU (slow)</option>
+          </select>
+          <label class="hint"><input type="checkbox" id="f5Preload"> Load when the server starts</label>
+          <div class="actions" style="margin-top:8px">
+            <button data-load="f5">Load</button><button data-unload="f5">Unload</button>
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="primary" id="saveEngines">Save engine settings</button>
+        <span class="msg" id="engineMsg"></span>
+      </div>
+      <p class="hint">Changing a model or device unloads it; it loads again on next use. The first F5 load downloads 5.4 GB.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Connect the chat app</h2>
+      <p>Admin settings → <b>Providers</b>: add one with base URL <code id="baseUrl"></code><span id="keyNote"></span>.
+      If the API engine runs in Docker on this machine, use <code id="dockerUrl"></code> instead.</p>
+      <p>Admin settings → <b>Voice → Speaking</b>: choose <b>Speech server</b> and that provider, keep model <code>tts-1</code>,
+      and pick these voices for each slot (the Voice page lists them; a voice's other names work too):</p>
+      <p id="connectVoices"></p>
+    </div>
+  </section>
+</main>
+
+<script>
+const SAMPLES = {
+  "Melayu": "Selamat datang! Saya boleh membantu anda dengan soalan tentang perkhidmatan kami. Apa yang boleh saya bantu hari ini?",
+  "English": "Hello! I can help you with questions about our services. What would you like to know today?",
+  "Campur": "Boleh, I check dulu ya. Your order sampai dalam dua hari bekerja.",
+  "Nombor": "Waktu operasi kami ialah 8.30 pagi hingga 5.30 petang, Isnin hingga Jumaat. Hubungi 03-8888 1234.",
+};
+const $ = id => document.getElementById(id);
+let state = null, current = null, engine = "vits", refAudio = "", poll = null;
+
+function key() { try { return localStorage.getItem("ttsKey") || ""; } catch { return ""; } }
+async function api(path, options = {}) {
+  const headers = {...(options.headers || {})};
+  if (key()) headers.Authorization = "Bearer " + key();
+  if (options.json !== undefined) { headers["Content-Type"] = "application/json"; options.body = JSON.stringify(options.json); }
+  const res = await fetch(path, {...options, headers});
+  if (res.status === 401) { $("keyBox").classList.remove("hidden"); throw new Error("This server needs its API key (top right)."); }
+  return res;
+}
+async function errorText(res) {
+  try { const body = await res.json(); return body.detail || body.error?.message || res.statusText; }
+  catch { return res.statusText; }
+}
+function say(id, text, kind = "") { const el = $(id); el.textContent = text; el.className = "msg " + kind; }
+
+async function load() {
+  const res = await api("/api/state");
+  state = await res.json();
+  renderChips(); renderVoices(); renderEngines(); renderConnect();
+  const busy = Object.values(state.engines).some(e => e.state === "loading");
+  clearTimeout(poll);
+  poll = setTimeout(refreshStatus, busy ? 2000 : 10000);
+}
+async function refreshStatus() {
+  try {
+    const res = await api("/api/state");
+    const next = await res.json();
+    state.engines = next.engines; state.gpu = next.gpu;
+    renderChips(); renderEngineStates();
+    const busy = Object.values(state.engines).some(e => e.state === "loading");
+    poll = setTimeout(refreshStatus, busy ? 2000 : 10000);
+  } catch { poll = setTimeout(refreshStatus, 10000); }
+}
+
+function renderChips() {
+  const chips = [];
+  for (const [name, e] of Object.entries(state.engines)) {
+    const label = name === "vits" ? "VITS" : "F5-TTS";
+    const text = !e.installed ? "not installed" : e.state;
+    chips.push(`<span class="chip"><span class="dot ${e.installed ? e.state : "error"}"></span><b>${label}</b> ${text}</span>`);
+  }
+  const g = state.gpu;
+  chips.push(g ? `<span class="chip"><b>${esc(g.name)}</b> ${(g.used_mb/1024).toFixed(1)} / ${(g.total_mb/1024).toFixed(1)} GB in use · this server ${(g.this_server_mb/1024).toFixed(1)} GB</span>`
+               : `<span class="chip"><b>No GPU</b> seen by PyTorch</span>`);
+  $("chips").innerHTML = chips.join("");
+}
+
+function renderVoices() {
+  const names = Object.keys(state.voices).sort();
+  $("voiceList").innerHTML = names.map(n =>
+    `<li data-name="${esc(n)}" class="${current === n ? "active" : ""}"><span>${esc(n)}</span><span class="tag">${state.voices[n].engine}</span></li>`
+  ).join("") || `<li class="msg">No voices yet</li>`;
+  if (current === null && names.length) select(names[0]);
+  else if (current !== null && !state.voices[current]) newVoice();
+}
+
+function select(name) {
+  current = name;
+  const v = state.voices[name];
+  $("editorTitle").textContent = "Voice: " + name;
+  $("vName").value = name;
+  fill(v);
+  document.querySelectorAll("#voiceList li").forEach(li => li.classList.toggle("active", li.dataset.name === name));
+  $("deleteVoice").disabled = false; say("saveMsg", "");
+}
+function newVoice() {
+  current = "";
+  $("editorTitle").textContent = "New voice";
+  $("vName").value = "";
+  fill({engine: "f5"});
+  document.querySelectorAll("#voiceList li").forEach(li => li.classList.remove("active"));
+  $("deleteVoice").disabled = true; say("saveMsg", "");
+}
+function fill(v) {
+  setEngine(v.engine);
+  $("vModel").value = v.model || "mesolitica/VITS-yasmin";
+  $("vSpeaker").value = v.speaker ?? 0;
+  $("vTemp").value = v.temperature ?? 0.6666;
+  $("vDur").value = v.temperature_durator ?? 0.6666;
+  setRef(v.ref_audio || "");
+  $("fRefText").value = v.ref_text || "";
+  $("fSteps").value = v.nfe_step ?? 32;
+  $("fCfg").value = v.cfg_strength ?? 2;
+  $("fSeed").value = v.seed ?? -1;
+  $("fSilence").checked = !!v.remove_silence;
+  $("vAliases").value = (v.aliases || []).join(", ");
+  outputs();
+}
+function setEngine(e) {
+  engine = e;
+  document.querySelectorAll("#engineSeg button").forEach(b => b.classList.toggle("on", b.dataset.engine === e));
+  $("vitsFields").classList.toggle("hidden", e !== "vits");
+  $("f5Fields").classList.toggle("hidden", e !== "f5");
+}
+function setRef(ref) {
+  refAudio = ref;
+  const player = $("refPlayer");
+  if (!ref) { player.classList.add("hidden"); player.removeAttribute("src"); say("refMsg", "No clip yet", "warn"); return; }
+  say("refMsg", "");
+  api("/api/refs/" + ref).then(r => r.blob()).then(b => { player.src = URL.createObjectURL(b); player.classList.remove("hidden"); });
+}
+function outputs() {
+  $("vTempOut").textContent = (+$("vTemp").value).toFixed(2);
+  $("vDurOut").textContent = (+$("vDur").value).toFixed(2);
+  $("fStepsOut").textContent = $("fSteps").value;
+  $("fCfgOut").textContent = (+$("fCfg").value).toFixed(1);
+  $("speedOut").textContent = (+$("speed").value).toFixed(2) + "×";
+  const speakers = state?.choices.vits_models[$("vModel").value] || 1;
+  $("speakerBox").classList.toggle("hidden", speakers < 2);
+  $("vSpeaker").max = speakers - 1;
+}
+function formVoice() {
+  const aliases = $("vAliases").value;
+  if (engine === "vits") {
+    const v = {engine, aliases, model: $("vModel").value, temperature: +$("vTemp").value, temperature_durator: +$("vDur").value};
+    if ((state.choices.vits_models[v.model] || 1) > 1) v.speaker = +$("vSpeaker").value;
+    return v;
+  }
+  return {engine, aliases, ref_audio: refAudio, ref_text: $("fRefText").value, nfe_step: +$("fSteps").value,
+          cfg_strength: +$("fCfg").value, seed: +$("fSeed").value, remove_silence: $("fSilence").checked};
+}
+
+async function saveVoice() {
+  const name = $("vName").value.trim().toLowerCase();
+  try {
+    const res = await api("/api/voices/" + encodeURIComponent(name), {method: "PUT", json: {voice: formVoice(), rename_from: current || ""}});
+    if (!res.ok) return say("saveMsg", await errorText(res), "bad");
+    current = (await res.json()).name;
+    await load(); select(current);
+    say("saveMsg", "Saved", "ok");
+  } catch (e) { say("saveMsg", e.message, "bad"); }
+}
+async function deleteVoice() {
+  if (!current) return;
+  if ($("deleteVoice").dataset.confirm !== current) {
+    $("deleteVoice").dataset.confirm = current; $("deleteVoice").textContent = "Click again to delete";
+    setTimeout(() => { $("deleteVoice").dataset.confirm = ""; $("deleteVoice").textContent = "Delete"; }, 3000);
+    return;
+  }
+  await api("/api/voices/" + encodeURIComponent(current), {method: "DELETE"});
+  $("deleteVoice").textContent = "Delete"; current = null; await load();
+}
+
+async function synth(body) {
+  const started = performance.now();
+  const res = await api("/api/test", {method: "POST", json: body});
+  if (!res.ok) throw new Error(await errorText(res));
+  const blob = await res.blob();
+  const made = +res.headers.get("X-Synth-Seconds"), length = +res.headers.get("X-Audio-Seconds");
+  return {url: URL.createObjectURL(blob), made, length,
+          note: `${length.toFixed(1)} s of audio made in ${made.toFixed(2)} s` +
+                (length ? ` (${(made/length).toFixed(2)}× real time)` : "") +
+                `, ${((performance.now()-started)/1000).toFixed(2)} s round trip`};
+}
+async function play() {
+  const text = $("testText").value.trim();
+  if (!text) return say("testMsg", "Type something to say.", "warn");
+  say("testMsg", "Speaking…"); $("play").disabled = true;
+  try {
+    const r = await synth({voice: formVoice(), text, speed: +$("speed").value});
+    const p = $("player"); p.src = r.url; p.classList.remove("hidden"); p.play();
+    say("testMsg", r.note, "ok"); refreshStatus();
+  } catch (e) { say("testMsg", e.message, "bad"); }
+  $("play").disabled = false;
+}
+async function playAll() {
+  const text = $("testText").value.trim();
+  if (!text) return say("testMsg", "Type something to say.", "warn");
+  $("results").innerHTML = ""; $("playAll").disabled = true;
+  for (const name of Object.keys(state.voices).sort()) {
+    const li = document.createElement("li");
+    li.innerHTML = `<b>${esc(name)}</b> <span class="tag">${state.voices[name].engine}</span> <span class="msg">speaking…</span>`;
+    $("results").append(li);
+    try {
+      const r = await synth({name, text, speed: +$("speed").value});
+      li.querySelector(".msg").textContent = r.note;
+      const a = document.createElement("audio"); a.controls = true; a.src = r.url; li.append(a);
+    } catch (e) { li.querySelector(".msg").textContent = e.message; li.querySelector(".msg").className = "msg bad"; }
+  }
+  $("playAll").disabled = false; refreshStatus();
+}
+
+// Reference clips: uploaded as they are, or recorded here and sent as WAV so
+// the server needs no ffmpeg to read them.
+async function uploadRef(blob, filename) {
+  const form = new FormData(); form.append("file", blob, filename);
+  const res = await api("/api/refs", {method: "POST", body: form});
+  if (!res.ok) return say("refMsg", await errorText(res), "bad");
+  setRef((await res.json()).ref);
+  say("refMsg", "New clip; save the voice to keep it.", "ok");
+}
+let recorder = null, recTimer = null;
+async function toggleRecord() {
+  if (recorder) { recorder.stop(); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({audio: true}); }
+  catch (e) { return say("refMsg", "No microphone: " + e.message + " (recording needs localhost or https).", "bad"); }
+  const chunks = []; recorder = new MediaRecorder(stream);
+  recorder.ondataavailable = e => chunks.push(e.data);
+  recorder.onstop = async () => {
+    clearInterval(recTimer); stream.getTracks().forEach(t => t.stop()); recorder = null;
+    $("refRecord").textContent = "● Record";
+    const wav = await toWav(new Blob(chunks));
+    await uploadRef(wav, "recording.wav");
+  };
+  recorder.start();
+  const started = Date.now();
+  $("refRecord").textContent = "■ Stop";
+  recTimer = setInterval(() => {
+    const s = (Date.now() - started) / 1000;
+    $("refMsg").innerHTML = `<span class="rec">● ${s.toFixed(0)} s</span> <span class="hint">read the words below, then stop</span>`;
+    if (s >= 15) recorder?.stop();
+  }, 250);
+}
+async function toWav(blob) {
+  const ctx = new AudioContext();
+  const buffer = await ctx.decodeAudioData(await blob.arrayBuffer());
+  ctx.close();
+  const rate = buffer.sampleRate, length = buffer.length, mono = new Float32Array(length);
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const data = buffer.getChannelData(c);
+    for (let i = 0; i < length; i++) mono[i] += data[i] / buffer.numberOfChannels;
+  }
+  const out = new DataView(new ArrayBuffer(44 + length * 2));
+  const text = (o, s) => [...s].forEach((ch, i) => out.setUint8(o + i, ch.charCodeAt(0)));
+  text(0, "RIFF"); out.setUint32(4, 36 + length * 2, true); text(8, "WAVE"); text(12, "fmt ");
+  out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
+  out.setUint32(24, rate, true); out.setUint32(28, rate * 2, true); out.setUint16(32, 2, true);
+  out.setUint16(34, 16, true); text(36, "data"); out.setUint32(40, length * 2, true);
+  for (let i = 0; i < length; i++) out.setInt16(44 + i * 2, Math.max(-1, Math.min(1, mono[i])) * 32767, true);
+  return new Blob([out], {type: "audio/wav"});
+}
+
+function renderEngines() {
+  const s = state.engine_settings;
+  $("vitsDevice").value = s.vits.device;
+  const known = state.choices.f5_checkpoints;
+  $("f5Checkpoint").innerHTML = known.map(c => `<option value="${esc(c)}">${esc(c.split("/").pop())}${c === known[0] ? " (newest)" : ""}</option>`).join("")
+    + `<option value="custom">Other…</option>`;
+  const custom = !known.includes(s.f5.checkpoint);
+  $("f5Checkpoint").value = custom ? "custom" : s.f5.checkpoint;
+  $("f5Custom").value = custom ? s.f5.checkpoint : "";
+  $("f5Custom").classList.toggle("hidden", !custom);
+  $("f5Device").value = s.f5.device;
+  $("f5Preload").checked = s.f5.preload;
+  renderEngineStates();
+}
+function renderEngineStates() {
+  for (const name of ["vits", "f5"]) {
+    const e = state.engines[name];
+    let text = !e.installed ? "not installed in this server" : e.state + (e.message ? ": " + e.message : "");
+    if (name === "vits" && e.loaded?.length) text += " · " + e.loaded.map(m => m.split("VITS-")[1]).join(", ");
+    if (e.device) text += " · on " + e.device;
+    $(name + "State").textContent = text;
+  }
+}
+async function saveEngines() {
+  const checkpoint = $("f5Checkpoint").value === "custom" ? $("f5Custom").value.trim() : $("f5Checkpoint").value;
+  const preload = [...new Set(Object.values(state.voices).filter(v => v.engine === "vits").map(v => v.model))];
+  try {
+    const res = await api("/api/engines", {method: "PUT", json: {
+      vits: {device: $("vitsDevice").value, preload},
+      f5: {device: $("f5Device").value, checkpoint, preload: $("f5Preload").checked}}});
+    if (!res.ok) return say("engineMsg", await errorText(res), "bad");
+    say("engineMsg", "Saved", "ok"); await load();
+  } catch (e) { say("engineMsg", e.message, "bad"); }
+}
+async function engineAction(name, action) {
+  try {
+    const res = await api(`/api/engines/${name}/${action}`, {method: "POST"});
+    if (!res.ok) return say("engineMsg", await errorText(res), "bad");
+    say("engineMsg", ""); await refreshStatus();
+  } catch (e) { say("engineMsg", e.message, "bad"); }
+}
+
+function renderConnect() {
+  $("baseUrl").textContent = location.origin + "/v1";
+  $("dockerUrl").textContent = location.protocol + "//host.docker.internal:" + (location.port || 80) + "/v1";
+  $("keyNote").textContent = key() ? " and this server's API key" : "";
+  $("connectVoices").innerHTML = Object.keys(state.voices).sort().map(n => {
+    const aliases = state.voices[n].aliases || [];
+    return `<code>${esc(n)}</code>` + (aliases.length ? ` <span class="hint">(also ${aliases.map(esc).join(", ")})</span>` : "");
+  }).join("<br>") || "none yet";
+}
+
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]); }
+
+$("samples").innerHTML = Object.keys(SAMPLES).map(k => `<button data-sample="${k}">${k}</button>`).join("");
+$("samples").onclick = e => { if (e.target.dataset.sample) $("testText").value = SAMPLES[e.target.dataset.sample]; };
+$("testText").value = SAMPLES.Melayu;
+$("voiceList").onclick = e => { const li = e.target.closest("li[data-name]"); if (li) select(li.dataset.name); };
+$("newVoice").onclick = newVoice;
+$("engineSeg").onclick = e => { if (e.target.dataset.engine) setEngine(e.target.dataset.engine); };
+["vTemp", "vDur", "fSteps", "fCfg", "speed", "vModel"].forEach(id => $(id).addEventListener("input", outputs));
+$("refUpload").onclick = () => $("refFile").click();
+$("refFile").onchange = e => { const f = e.target.files[0]; if (f) uploadRef(f, f.name); e.target.value = ""; };
+$("refRecord").onclick = toggleRecord;
+$("saveVoice").onclick = saveVoice;
+$("deleteVoice").onclick = deleteVoice;
+$("play").onclick = play;
+$("playAll").onclick = playAll;
+$("saveEngines").onclick = saveEngines;
+$("f5Checkpoint").onchange = () => $("f5Custom").classList.toggle("hidden", $("f5Checkpoint").value !== "custom");
+document.querySelectorAll("[data-load]").forEach(b => b.onclick = () => engineAction(b.dataset.load, "load"));
+document.querySelectorAll("[data-unload]").forEach(b => b.onclick = () => engineAction(b.dataset.unload, "unload"));
+$("keySave").onclick = () => { try { localStorage.setItem("ttsKey", $("key").value.trim()); } catch {} load().then(() => $("keyBox").classList.add("hidden")).catch(e => say("saveMsg", e.message, "bad")); };
+$("key").value = key();
+
+(async () => {
+  try {
+    await load();
+    $("vModel").innerHTML = Object.entries(state.choices.vits_models)
+      .map(([m, n]) => `<option value="${m}">${m.replace("mesolitica/VITS-", "")}${n > 1 ? ` (${n} speakers)` : ""}</option>`).join("");
+    if (current) select(current);
+  } catch (e) { say("saveMsg", e.message, "bad"); }
+})();
+</script>
+</body>
+</html>

@@ -6,9 +6,11 @@ Write-Host "==========================================================" -Foregro
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ApiDir = Join-Path $ScriptDir "api-engine"
 $LaravelDir = Join-Path $ScriptDir "admin-laravel"
+$TtsDir = Join-Path $ScriptDir "tts-server"
 
 . (Join-Path $ScriptDir "dev-ports.ps1")
 . (Join-Path $ScriptDir "dev-secrets.ps1")
+. (Join-Path $ScriptDir "dev-tts.ps1")
 
 function Test-PortOpen {
     param([string]$TargetHost, [int]$Port)
@@ -39,16 +41,16 @@ function Wait-ForPort {
 # [1/4] Bootstrap Python FastAPI Streaming Engine
 # ---------------------------------------------------------------
 # ---------------------------------------------------------------
-# [1/5] Clear anything left over from a previous run.
+# [1/6] Clear anything left over from a previous run.
 #       A window closed with the X button never runs the shutdown
 #       below, and an orphaned worker holds its port and goes on
 #       serving the code it started with. Starting from free ports
 #       is the only way to be sure this run is the one answering.
 # ---------------------------------------------------------------
-Write-Host "`n[1/5] Clearing stale services..." -ForegroundColor Yellow
+Write-Host "`n[1/6] Clearing stale services..." -ForegroundColor Yellow
 if ((Stop-PortOwners) -and $true) { Write-Host "      Ports $($DevPorts -join ', ') are free." -ForegroundColor Gray }
 
-Write-Host "`n[2/5] Preparing Python FastAPI Streaming Engine..." -ForegroundColor Yellow
+Write-Host "`n[2/6] Preparing Python FastAPI Streaming Engine..." -ForegroundColor Yellow
 $PythonExe = Join-Path $ApiDir ".venv\Scripts\python.exe"
 $Requirements = Join-Path $ApiDir "requirements.txt"
 $RequirementsStamp = Join-Path $ApiDir ".venv\requirements.sha256"
@@ -88,7 +90,7 @@ if ($RequirementsHash -ne $InstalledHash) {
 #       clone has none of them. Without this block "artisan serve"
 #       dies instantly and port 8080 never opens.
 # ---------------------------------------------------------------
-Write-Host "[3/5] Preparing Laravel 13 Admin Portal..." -ForegroundColor Yellow
+Write-Host "[3/6] Preparing Laravel 13 Admin Portal..." -ForegroundColor Yellow
 
 if (-not (Test-Path (Join-Path $LaravelDir "vendor\autoload.php"))) {
     Write-Host "      Installing Composer dependencies (first run, may take a few minutes)..." -ForegroundColor Gray
@@ -165,21 +167,42 @@ if (-not (Test-Path (Join-Path $LaravelDir "public\storage"))) {
 Pop-Location
 
 # ---------------------------------------------------------------
-# [4/5] Launch both services
+# [4/6] Prepare the Malaysian TTS server. Optional: the portal and
+#       engine start without it, and the browser voice still works.
 # ---------------------------------------------------------------
-Write-Host "[4/5] Launching services..." -ForegroundColor Yellow
-Write-Host "      Two console windows will open, one per service. Leave them be." -ForegroundColor Gray
-$ApiProcess = Start-Process -FilePath $PythonExe -ArgumentList "-m uvicorn main:app --host 127.0.0.1 --port 8000 --reload" -WorkingDirectory $ApiDir -PassThru
-$PhpProcess = Start-Process -FilePath "php" -ArgumentList "artisan serve --host=127.0.0.1 --port=8080" -WorkingDirectory $LaravelDir -PassThru
+$TtsPython = $null
+if ($env:SKIP_TTS -eq "1") {
+    Write-Host "[4/6] Skipping the Malaysian TTS server (SKIP_TTS=1)." -ForegroundColor Yellow
+} else {
+    Write-Host "[4/6] Preparing Malaysian TTS server..." -ForegroundColor Yellow
+    try {
+        $TtsPython = Initialize-TtsServer -TtsDir $TtsDir
+    } catch {
+        Write-Host "      WARNING: $($_.Exception.Message) Starting without the TTS server." -ForegroundColor Yellow
+    }
+}
 
 # ---------------------------------------------------------------
-# [5/5] Verify the ports actually accept connections before
+# [5/6] Launch the services
+# ---------------------------------------------------------------
+Write-Host "[5/6] Launching services..." -ForegroundColor Yellow
+Write-Host "      A console window opens per service. Leave them be." -ForegroundColor Gray
+$ApiProcess = Start-Process -FilePath $PythonExe -ArgumentList "-m uvicorn main:app --host 127.0.0.1 --port 8000 --reload" -WorkingDirectory $ApiDir -PassThru
+$PhpProcess = Start-Process -FilePath "php" -ArgumentList "artisan serve --host=127.0.0.1 --port=8080" -WorkingDirectory $LaravelDir -PassThru
+# No --reload: a reload would drop the loaded voice models.
+$TtsProcess = if ($TtsPython) {
+    Start-Process -FilePath $TtsPython -ArgumentList "-m uvicorn app:app --host 127.0.0.1 --port $TtsPort" -WorkingDirectory $TtsDir -PassThru
+}
+
+# ---------------------------------------------------------------
+# [6/6] Verify the ports actually accept connections before
 #       claiming success. The old script printed "RUNNING" even when
 #       both processes had already crashed.
 # ---------------------------------------------------------------
-Write-Host "[5/5] Waiting for services to accept connections..." -ForegroundColor Yellow
+Write-Host "[6/6] Waiting for services to accept connections..." -ForegroundColor Yellow
 $ApiUp = Wait-ForPort -TargetHost "127.0.0.1" -Port 8000 -TimeoutSeconds 45
 $PhpUp = Wait-ForPort -TargetHost "127.0.0.1" -Port 8080 -TimeoutSeconds 45
+$TtsUp = $TtsProcess -and (Wait-ForPort -TargetHost "127.0.0.1" -Port $TtsPort -TimeoutSeconds 60)
 
 if (-not ($ApiUp -and $PhpUp)) {
     Write-Host "`n==========================================================" -ForegroundColor Red
@@ -191,18 +214,24 @@ if (-not ($ApiUp -and $PhpUp)) {
     Write-Host "A port already in use is the other common cause." -ForegroundColor Gray
     if ($ApiProcess -and -not $ApiProcess.HasExited) { Stop-ProcessTree -ProcessId $ApiProcess.Id }
     if ($PhpProcess -and -not $PhpProcess.HasExited) { Stop-ProcessTree -ProcessId $PhpProcess.Id }
+    if ($TtsProcess -and -not $TtsProcess.HasExited) { Stop-ProcessTree -ProcessId $TtsProcess.Id }
     Stop-PortOwners | Out-Null
     exit 1
 }
 
 Write-Host "`n==========================================================" -ForegroundColor Green
-Write-Host "   SERVICES ARE RUNNING (both ports verified)             " -ForegroundColor Green
+Write-Host "   SERVICES ARE RUNNING (ports verified)                  " -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Green
 Write-Host "Admin Portal:       http://localhost:8080" -ForegroundColor White
 Write-Host "FastAPI Engine:     http://localhost:8000" -ForegroundColor White
 Write-Host "Widget Script:      http://localhost:8000/widget.js" -ForegroundColor White
+if ($TtsUp) {
+    Write-Host "Malaysian TTS:      http://localhost:$TtsPort  (voices and settings)" -ForegroundColor White
+} elseif ($TtsProcess) {
+    Write-Host "Malaysian TTS:      DOWN - see its window. Voice falls back to whatever Admin Settings choose." -ForegroundColor Yellow
+}
 Write-Host "`nLogin: admin@chatbothub.com / password" -ForegroundColor Cyan
-Write-Host "`nPress CTRL+C in this window to stop both services." -ForegroundColor Gray
+Write-Host "`nPress CTRL+C in this window to stop all services." -ForegroundColor Gray
 Write-Host "If you close this window instead, run stop-dev.bat to free the ports.`n" -ForegroundColor Gray
 
 Write-Host "Opening the admin portal..." -ForegroundColor Gray
@@ -215,11 +244,17 @@ try {
             Write-Host "`nA service exited unexpectedly. Shutting down the other." -ForegroundColor Red
             break
         }
+        # The TTS server is optional: losing it is reported, not fatal.
+        if ($TtsProcess -and $TtsUp -and $TtsProcess.HasExited) {
+            Write-Host "`nThe Malaysian TTS server stopped; the portal and engine keep running." -ForegroundColor Yellow
+            $TtsUp = $false
+        }
     }
 } finally {
     Write-Host "`nStopping services..." -ForegroundColor Yellow
     if ($ApiProcess -and -not $ApiProcess.HasExited) { Stop-ProcessTree -ProcessId $ApiProcess.Id }
     if ($PhpProcess -and -not $PhpProcess.HasExited) { Stop-ProcessTree -ProcessId $PhpProcess.Id }
+    if ($TtsProcess -and -not $TtsProcess.HasExited) { Stop-ProcessTree -ProcessId $TtsProcess.Id }
     # Killing a parent orphans the worker that actually holds the port, so the
     # ports get the last word rather than the process handles we remembered.
     Stop-PortOwners | Out-Null

@@ -1,0 +1,38 @@
+# The Malaysian TTS server, on http://localhost:5051 (settings page at /).
+#
+#   docker compose -f tts-server/compose.yaml --profile gpu up -d --build   # NVIDIA GPU
+#   docker compose -f tts-server/compose.yaml --profile cpu up -d --build   # no GPU
+#
+# Voices and reference clips are kept in the tts-data volume, downloaded
+# models in tts-models, so a rebuild downloads nothing again.
+
+name: chitchat-tts
+
+x-tts: &tts
+  restart: unless-stopped
+  ports:
+    - "5051:5051"
+  environment:
+    TTS_API_KEY: ${TTS_API_KEY:-}
+  volumes:
+    - tts-data:/data
+    - tts-models:/models
+
+services:
+  tts-cpu:
+    <<: *tts
+    profiles: ["cpu"]
+    build: .
+
+  tts-gpu:
+    <<: *tts
+    profiles: ["gpu"]
+    build:
+      context: .
+      args:
+        BASE: pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+    gpus: all
+
+volumes:
+  tts-data:
+  tts-models:

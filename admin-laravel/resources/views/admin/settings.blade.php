@@ -417,26 +417,30 @@
                                         @endforeach
                                     </select>
                                     @error('speech_provider_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                                    <div class="form-text">Add one under <a href="{{ route('admin.settings', 'providers') }}">Providers</a>, such as <code>http://localhost:5050/v1</code>.</div>
+                                    <div class="form-text">Add one under <a href="{{ route('admin.settings', 'providers') }}">Providers</a>, such as <code>http://localhost:5051/v1</code> for the Malaysian TTS server.</div>
                                 </div>
                                 <div class="col-md-5">
                                     <label for="speech_model" class="form-label">Model</label>
                                     <input type="text" name="speech_model" id="speech_model" class="form-control form-control-sm font-monospace"
-                                           value="{{ old('speech_model', $settings['speech_model'] ?: 'tts-1') }}" placeholder="tts-1">
+                                           value="{{ old('speech_model', $settings['speech_model'] ?: 'tts-1') }}" placeholder="tts-1" list="speech_model_list">
+                                    <datalist id="speech_model_list"></datalist>
                                 </div>
+                                <div class="col-12 form-text mt-0" id="speechServerStatus" aria-live="polite"></div>
                             </div>
 
                             <div class="row g-3 mt-1" data-speech-for="azure">
                                 <div class="col-md-5">
                                     <label for="azure_speech_region" class="form-label">Region</label>
-                                    <input type="text" name="azure_speech_region" id="azure_speech_region"
+                                    {{-- Not a login: without these, Chrome fills the saved
+                                         username and password into region and key. --}}
+                                    <input type="text" name="azure_speech_region" id="azure_speech_region" autocomplete="off" data-1p-ignore data-lpignore="true"
                                            class="form-control form-control-sm font-monospace @error('azure_speech_region') is-invalid @enderror"
                                            value="{{ old('azure_speech_region', $settings['azure_speech_region']) }}" placeholder="southeastasia">
                                     @error('azure_speech_region')<div class="invalid-feedback">{{ $message }}</div>@enderror
                                 </div>
                                 <div class="col-md-7">
                                     <label for="azure_speech_key" class="form-label">Key</label>
-                                    <input type="password" name="azure_speech_key" id="azure_speech_key" autocomplete="off"
+                                    <input type="password" name="azure_speech_key" id="azure_speech_key" autocomplete="new-password"
                                            class="form-control form-control-sm font-monospace @error('azure_speech_key') is-invalid @enderror"
                                            value="{{ old('azure_speech_key', $settings['azure_speech_key']) }}">
                                     @error('azure_speech_key')<div class="invalid-feedback">{{ $message }}</div>@enderror
@@ -486,7 +490,8 @@
                 <div class="card-header d-flex align-items-center gap-2"><i class="bi bi-people"></i> The four voices</div>
                 <div class="p-3" id="voiceBoard"
                      data-engine="{{ $speechEngine }}"
-                     data-test-url="{{ route('admin.settings.voice-test') }}">
+                     data-test-url="{{ route('admin.settings.voice-test') }}"
+                     data-server-url="{{ route('admin.settings.speech-server') }}">
                     <label for="voice_preview_text" class="form-label">Preview text</label>
                     <textarea id="voice_preview_text" rows="2" maxlength="300" class="form-control form-control-sm mb-1"
                               placeholder="Type anything to hear it in a voice below.">Hello! Selamat datang. How can I help you today?</textarea>
@@ -534,8 +539,9 @@
                         <span data-speech-for="server azure">
                             Pick a voice and press play to hear it, with the engine as this page shows it, before saving.
                             The names are Microsoft's, the same in Azure Speech and in the openai-edge-tts container. Malay has
-                            one female and one male voice; Indonesian, which Malay listeners follow, is offered beside them.
-                            For another speech server, choose "Another name" and type its voice's name.
+                            one female and one male voice.
+                            A speech server that lists its voices, such as this project's Malaysian TTS server, adds them
+                            to each list; for another, choose "Another name" and type its voice's name.
                         </span>
                         <span data-speech-for="browser">
                             With the browser engine, each visitor's device speaks with whatever voices it has. Play uses this
@@ -575,14 +581,14 @@
                             <label for="web_search_tavily_key" class="form-label">Tavily API key</label>
                             <input type="password" name="web_search_tavily_key" id="web_search_tavily_key"
                                    class="form-control form-control-sm font-monospace @error('web_search_tavily_key') is-invalid @enderror"
-                                   autocomplete="off" value="{{ old('web_search_tavily_key', $settings['web_search_tavily_key']) }}">
+                                   autocomplete="new-password" value="{{ old('web_search_tavily_key', $settings['web_search_tavily_key']) }}">
                             @error('web_search_tavily_key')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                         <div class="col-md-4">
                             <label for="web_search_brave_key" class="form-label">Brave API key</label>
                             <input type="password" name="web_search_brave_key" id="web_search_brave_key"
                                    class="form-control form-control-sm font-monospace @error('web_search_brave_key') is-invalid @enderror"
-                                   autocomplete="off" value="{{ old('web_search_brave_key', $settings['web_search_brave_key']) }}">
+                                   autocomplete="new-password" value="{{ old('web_search_brave_key', $settings['web_search_brave_key']) }}">
                             @error('web_search_brave_key')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                     </div>
@@ -675,14 +681,16 @@
             </div>
         </div>
 
-        @if(in_array($section, ['models', 'guard', 'chunking', 'web-search', 'branding'], true))
+        {{-- Every category in this form saves here. Listing the ones that do
+             left Security and Voice, added later, with no way to save. --}}
+        @unless(in_array($section, ['providers', 'maintenance'], true))
             <div class="form-actions">
                 <span class="text-muted d-none d-sm-inline" style="font-size: 0.75rem;">Saves every category, and applies to every workspace.</span>
                 <div class="d-flex align-items-center gap-2 ms-auto">
                     <button type="submit" class="btn btn-sm btn-brand">Save settings</button>
                 </div>
             </div>
-        @endif
+        @endunless
     </form>
 
     {{-- Maintenance ----------------------------------------------------- --}}
@@ -784,6 +792,64 @@
                 if (custom) { input.value = ''; input.focus(); } else { input.value = select.value; }
             });
         });
+
+        // A speech server that names its voices adds them to each list, and its
+        // models to the Model box, so nothing has to be typed. Asked whenever
+        // the provider changes; a server that names none leaves the lists be.
+        var serverStatus = document.getElementById('speechServerStatus');
+        var asked = 0;
+        function loadSpeechServer() {
+            var providerSelect = document.getElementById('speech_provider_id');
+            document.querySelectorAll('optgroup[data-server-voices]').forEach(function (group) { group.remove(); });
+            serverStatus.textContent = '';
+            if (engine() !== 'server' || !providerSelect || !providerSelect.value) { return; }
+            var ticket = ++asked;
+            var providerName = providerSelect.options[providerSelect.selectedIndex].text;
+            serverStatus.textContent = 'Asking ' + providerName + ' for its models and voices…';
+            fetch(document.getElementById('voiceBoard').dataset.serverUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json',
+                           'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+                body: JSON.stringify({ provider_id: providerSelect.value })
+            }).then(function (response) { return response.json(); }).then(function (found) {
+                if (ticket !== asked) { return; }
+                var modelList = document.getElementById('speech_model_list');
+                modelList.innerHTML = '';
+                (found.models || []).forEach(function (model) {
+                    var option = document.createElement('option'); option.value = model; modelList.appendChild(option);
+                });
+                var modelInput = document.getElementById('speech_model');
+                if ((found.models || []).length && found.models.indexOf(modelInput.value) === -1) { modelInput.value = found.models[0]; }
+                var voices = found.voices || [];
+                document.querySelectorAll('[data-voice-pick]').forEach(function (select) { addServerVoices(select, voices, providerName); });
+                serverStatus.textContent = found.message ? found.message
+                    : voices.length ? providerName + ' offers ' + voices.length + ' voice(s); they are at the top of each list below.'
+                    : providerName + ' does not list its voices; type their names under "Another name".';
+            }).catch(function () {
+                if (ticket === asked) { serverStatus.textContent = 'Could not ask ' + providerName + ' for its voices.'; }
+            });
+        }
+        function addServerVoices(select, voices, providerName) {
+            if (!voices.length) { return; }
+            var input = document.getElementById('voice_' + select.dataset.voicePick);
+            var group = document.createElement('optgroup');
+            group.label = 'On ' + providerName;
+            group.dataset.serverVoices = '1';
+            voices.forEach(function (voice) {
+                var option = document.createElement('option');
+                option.value = voice.id;
+                option.textContent = voice.id + (voice.aliases.length ? ' (also ' + voice.aliases.join(', ') + ')' : '');
+                group.appendChild(option);
+            });
+            select.insertBefore(group, select.firstChild);
+            // A saved name that is one of the server's voices shows as picked.
+            var own = voices.filter(function (voice) { return voice.id === input.value; })[0];
+            if (own) { select.value = own.id; input.classList.add('d-none'); }
+        }
+        document.addEventListener('change', function (event) {
+            if (event.target.id === 'speech_provider_id' || event.target.name === 'speech_engine') { loadSpeechServer(); }
+        });
+        loadSpeechServer();
 
         var kit = window.__ChatbotVoice || null;
         var status = document.getElementById('voiceTestStatus');

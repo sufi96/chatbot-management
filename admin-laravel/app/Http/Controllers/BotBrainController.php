@@ -46,6 +46,7 @@ class BotBrainController extends Controller
             'platformSearch' => self::platformSearch(),
             'platformLent' => AppSetting::get('web_search_lending') !== 'none',
             'speechEngine' => AppSetting::get('speech_engine'),
+            'voiceEngines' => self::voiceEngines(),
             'listenEngine' => AppSetting::get('transcribe_engine'),
             // The real widget rides along on this page too, so a change to the
             // prompt or the sources can be tried without going anywhere.
@@ -103,6 +104,9 @@ class BotBrainController extends Controller
             'web_search_mode' => ['sometimes', 'in:platform,duckduckgo,own'],
             'voice_gender' => ['sometimes', 'in:female,male'],
             'voice_language' => ['sometimes', 'in:auto,en,ms'],
+            // Only an engine the install has set up: a bot on an unset speech
+            // server would offer a speaker that never makes a sound.
+            'voice_engine' => ['sometimes', Rule::in(array_keys(self::voiceEngines()))],
             // Only one of this workspace's keys. A crafted id from another
             // workspace would otherwise spend that workspace's account.
             'web_search_key_id' => ['nullable', 'required_if:web_search_mode,own', 'string',
@@ -110,6 +114,7 @@ class BotBrainController extends Controller
         ], [
             'web_search_key_id.required_if' => 'Choose one of this workspace\'s keys, or add one.',
             'web_search_key_id.exists' => 'Choose one of this workspace\'s keys.',
+            'voice_engine.in' => 'That voice engine is not set up. A super admin sets it up under Voice in admin settings.',
         ]);
 
         // A key is kept only while it is the one in use.
@@ -202,18 +207,53 @@ class BotBrainController extends Controller
         $validated = $request->validate([
             'voice' => ['required', 'in:en_female,en_male,ms_female,ms_male'],
             'text' => ['required', 'string', 'max:300'],
+            // The engine as the card shows it, saved or not.
+            'engine' => ['nullable', Rule::in(array_keys(self::voiceEngines()))],
         ], [
             'text.required' => 'Type something to hear.',
             'text.max' => 'A preview is at most 300 characters.',
         ]);
 
-        $result = EngineClient::testVoice($validated['voice'], $validated['text']);
+        $engine = ($validated['engine'] ?? 'default') === 'default'
+            ? (string) AppSetting::get('speech_engine') : $validated['engine'];
+        if ($engine === 'browser' || $engine === '') {
+            return response('This engine speaks in the browser; the page plays it itself.', 422)
+                ->header('Content-Type', 'text/plain');
+        }
+
+        $result = EngineClient::testVoice($validated['voice'], $validated['text'], '', ['speech_engine' => $engine]);
 
         if (!$result['ok']) {
             return response($result['message'], 502)->header('Content-Type', 'text/plain');
         }
 
         return response($result['audio'], 200)->header('Content-Type', $result['type']);
+    }
+
+    /**
+     * The engines a bot may speak with: the install's default, the visitor's
+     * browser, and each service the install has set up under Admin Settings,
+     * Voice. The default's label says what it currently is.
+     *
+     * @return array<string, string>
+     */
+    public static function voiceEngines(): array
+    {
+        $names = ['browser' => "Visitor's browser", 'server' => 'Speech server', 'azure' => 'Azure Speech'];
+        $installEngine = (string) AppSetting::get('speech_engine') ?: 'browser';
+
+        $engines = [
+            'default' => 'Default settings by Admin (' . ($names[$installEngine] ?? $names['browser']) . ')',
+            'browser' => $names['browser'],
+        ];
+        if (AppSetting::get('speech_provider_id')) {
+            $engines['server'] = $names['server'];
+        }
+        if (AppSetting::get('azure_speech_region') && AppSetting::get('azure_speech_key')) {
+            $engines['azure'] = $names['azure'];
+        }
+
+        return $engines;
     }
 
     private static function forgetCache(string $botId): int

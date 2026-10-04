@@ -64,8 +64,8 @@ test("a device with one Malay voice still speaks Malay", () => {
     assert.strictEqual(picked.match, "language");
 });
 
-test("Indonesian stands in for Malay, and nothing is nothing", () => {
-    assert.strictEqual(voice.pickVoice([{ name: "Damayanti", lang: "id-ID" }], "ms", "female").match, "near");
+test("Indonesian never stands in for Malay, and nothing is nothing", () => {
+    assert.deepStrictEqual(voice.pickVoice([{ name: "Damayanti", lang: "id-ID" }], "ms", "female"), { voice: null, match: "none" });
     assert.deepStrictEqual(voice.pickVoice([], "en", "female"), { voice: null, match: "none" });
 });
 

@@ -6,7 +6,7 @@
 # later run finds the port taken and silently serves stale code. Everything
 # here works from the port inwards rather than from a remembered PID outwards.
 
-$DevPorts = @(8000, 8080)
+$DevPorts = @(8000, 8080, 5051)   # 5051: the Malaysian TTS server
 
 function Get-PortOwners {
     param([int]$Port)

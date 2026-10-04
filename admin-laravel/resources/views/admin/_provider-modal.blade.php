@@ -33,6 +33,22 @@
                            placeholder="Not needed for local Ollama" maxlength="500" autocomplete="off">
                 </div>
 
+                {{-- Each picker lists only the providers serving its job, so a
+                     speech server is never offered as a bot's model. --}}
+                <div class="mb-3" role="group" aria-labelledby="providerPurposesLabel">
+                    <label class="form-label mb-1 d-block" id="providerPurposesLabel">Serves <span style="color: var(--danger);">*</span></label>
+                    <div class="d-flex flex-wrap gap-3">
+                        @foreach($providerPurposes as $value => $label)
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" value="{{ $value }}"
+                                       id="providerPurpose_{{ $value }}" data-provider-purpose>
+                                <label class="form-check-label" for="providerPurpose_{{ $value }}">{{ $label }}</label>
+                            </div>
+                        @endforeach
+                    </div>
+                    <div class="form-text">Only the jobs ticked here offer this provider. One endpoint can serve several, as OpenAI does with one key.</div>
+                </div>
+
                 {{-- For a gateway that silently drops system messages: the bot then
                      answers without its prompt, its knowledge or its database. --}}
                 <div class="form-check mb-3">
@@ -66,6 +82,7 @@
         base: @json(url('/admin/providers')),
     };
     var providers = @json($providers);
+    var purposeNames = @json($providerPurposes);
     var csrf = document.querySelector('meta[name="csrf-token"]').content;
 
     var modalEl = document.getElementById('providerModal');
@@ -124,11 +141,15 @@
     function renderSelects() {
         document.querySelectorAll('[data-picker-provider]').forEach(function (select) {
             var current = select.value;
-            var missing = current && !providers.some(function (p) { return p.id === current; });
+            var missing;
+
+            var purpose = select.dataset.purpose || 'chat';
+            var serving = providers.filter(function (p) { return p.purposes.indexOf(purpose) !== -1; });
+            missing = current && !serving.some(function (p) { return p.id === current; });
 
             select.textContent = '';
             select.appendChild(new Option(select.dataset.blank, ''));
-            providers.forEach(function (p) { select.appendChild(new Option(p.name, p.id)); });
+            serving.forEach(function (p) { select.appendChild(new Option(p.name, p.id)); });
             if (missing) select.appendChild(new Option('Missing provider (' + current + ')', current));
             select.value = current;
         });
@@ -172,14 +193,19 @@
             top.appendChild(actions);
             body.appendChild(top);
 
-            var chips = el('div', 'd-flex flex-wrap gap-1 mt-auto');
-            chips.appendChild(el('span', 'chip', p.api_key ? 'Key saved' : 'No key'));
-            if (p.used_by.length) {
-                p.used_by.forEach(function (job) { chips.appendChild(el('span', 'chip chip-accent', job)); });
-            } else {
-                chips.appendChild(el('span', 'chip', 'Not used yet'));
-            }
-            body.appendChild(chips);
+            // Its tags: what it serves, so what each job's list offers it for.
+            var serves = el('div', 'd-flex flex-wrap gap-1');
+            p.purposes.forEach(function (purpose) {
+                serves.appendChild(el('span', 'chip chip-accent', purposeNames[purpose] || purpose));
+            });
+            body.appendChild(serves);
+
+            // Which saved jobs run on it now: plain words, not more tags.
+            var footer = el('div', 'd-flex flex-wrap align-items-center gap-2 mt-auto');
+            footer.appendChild(el('span', 'chip', p.api_key ? 'Key saved' : 'No key'));
+            footer.appendChild(el('span', 'small text-muted',
+                p.used_by.length ? 'Used by ' + p.used_by.join(', ') : 'Not used yet'));
+            body.appendChild(footer);
 
             card.appendChild(body);
             col.appendChild(card);
@@ -231,6 +257,11 @@
         document.getElementById('providerBaseUrl').value = provider ? provider.base_url : '';
         document.getElementById('providerApiKey').value = provider ? (provider.api_key || '') : '';
         document.getElementById('providerMergeSystem').checked = !!(provider && provider.merge_system_prompt);
+        // A new provider asked for by a job's picker starts serving that job.
+        var ticked = provider ? provider.purposes : [select ? (select.dataset.purpose || 'chat') : 'chat'];
+        document.querySelectorAll('[data-provider-purpose]').forEach(function (box) {
+            box.checked = ticked.indexOf(box.value) !== -1;
+        });
         document.getElementById('providerModalResult').textContent = '';
 
         modal.show();
@@ -246,6 +277,8 @@
             base_url: document.getElementById('providerBaseUrl').value.trim(),
             api_key: document.getElementById('providerApiKey').value.trim(),
             merge_system_prompt: document.getElementById('providerMergeSystem').checked,
+            purposes: Array.prototype.filter.call(document.querySelectorAll('[data-provider-purpose]'),
+                function (box) { return box.checked; }).map(function (box) { return box.value; }),
         };
     }
 
@@ -410,7 +443,7 @@
             icon.className = 'spinner-border spinner-border-sm';
             setStatus(status, 'muted', 'Asking the provider...');
 
-            send('POST', routes.models, {provider_id: select.value})
+            send('POST', routes.models, {provider_id: select.value, purpose: select.dataset.purpose || 'chat'})
                 .then(function (data) {
                     if (!data.ok) {
                         setStatus(status, 'danger', failure(data));
@@ -420,7 +453,8 @@
                     var models = data.models || [];
                     renderModels(models);
                     filter.value = '';
-                    setStatus(status, 'success', 'Connected. ' + models.length + (models.length === 1 ? ' model' : ' models') + ' available.');
+                    setStatus(status, 'success', 'Connected. ' + models.length + (models.length === 1 ? ' model' : ' models') + ' available'
+                        + (data.hidden ? '; ' + data.hidden + ' for other jobs left out.' : '.'));
 
                     loaded = true;
                     toggle.disabled = false;

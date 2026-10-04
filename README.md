@@ -93,6 +93,7 @@ changes how a bot answers starts switched off; the security layers start on.
 
 ### 🧭 Admin settings and the Behaviour tab
 - **Admin settings is two sidebar entries, with tabs inside.** **AI and answering** holds Providers, Models, Guard, Security, Chunking and search, Voice and Web search; **Console** holds Branding and Maintenance. **Bots** sits between them. Each tab keeps its own address, and a red dot marks the tab and the entry a save refused.
+- **Providers say what they serve.** Each platform provider ticks the jobs it serves: Language model, Embedding, Reranker, Text to speech, Speech to text (several for one endpoint, such as OpenAI). Every picker lists only the providers serving its job, so a speech server is never offered as a bot's model, and a fetched model list shows that job's models (OpenAI's chat picker leaves out `tts-1`, `whisper-1` and `text-embedding-3-small`). A purpose a job still uses cannot be unticked.
 - **The Behaviour tab folds.** Every card on the left has an icon and folds to its header; a first visit opens the prompt and generation only, and after that each card stays as you left it. A card with a field that failed to save always opens. **Safety** is now last, below Voice.
 
 ### 🔒 Security (Admin settings → AI and answering → Security)

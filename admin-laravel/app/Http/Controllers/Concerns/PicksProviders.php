@@ -17,7 +17,9 @@ trait PicksProviders
      */
     protected function providersFor(User $user, ?string $systemId, ?string $currentId = null)
     {
-        $providers = AiProvider::usableBy($user)->with('system')->withCount('bots')->get();
+        // Only providers serving chat: a bot answers with a language model, so
+        // a speech server or a reranker is no use to it.
+        $providers = AiProvider::usableBy($user)->serving('chat')->with('system')->withCount('bots')->get();
 
         if ($currentId && !$providers->contains('id', $currentId)) {
             $current = AiProvider::with('system')->withCount('bots')->find($currentId);
@@ -45,7 +47,7 @@ trait PicksProviders
             if ($value === $currentId) {
                 return;
             }
-            if (!AiProvider::usableBy($user)->whereKey($value)->exists()) {
+            if (!AiProvider::usableBy($user)->serving('chat')->whereKey($value)->exists()) {
                 $fail('Pick a provider from the list.');
             }
         }];

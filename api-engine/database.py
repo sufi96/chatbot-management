@@ -110,6 +110,9 @@ class BotProfile(Base):
     voice_gender = Column(String(10), default="female")
     voice_language = Column(String(10), default="auto")
     voice_input = Column(Boolean, default=False)
+    # Where this bot's voice is made: default (the install's engine), browser,
+    # server or azure. See speech.engine_for_bot.
+    voice_engine = Column(String(10), default="default")
 
     # The web is consulted only when the knowledge base above found nothing.
     web_search_enabled = Column(Boolean, default=False)

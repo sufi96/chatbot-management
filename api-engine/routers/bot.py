@@ -82,7 +82,7 @@ def voice_config(bot, settings: dict) -> dict:
         "language": getattr(bot, "voice_language", None) or "auto",
         "input": bool(getattr(bot, "voice_input", False)),
         # browser or server: who makes the sound, and who hears the visitor.
-        "speak_with": "browser" if speech.engine_for(settings) == "browser" else "server",
+        "speak_with": "browser" if speech.engine_for_bot(bot, settings) == "browser" else "server",
         "listen_with": speech.listen_engine_for(settings),
     }
 

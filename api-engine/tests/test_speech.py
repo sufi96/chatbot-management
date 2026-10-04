@@ -66,6 +66,28 @@ async def test_a_speech_server_is_asked_openai_style():
 
 
 @pytest.mark.asyncio
+async def test_a_speech_servers_voices_are_listed_with_their_other_names():
+    calls = []
+    body = json.dumps({"voices": ["osman", "yasmin"], "data": [
+        {"id": "osman", "aliases": ["ms-MY-OsmanNeural"]}, {"id": "yasmin", "aliases": ["ms-MY-YasminNeural"]}]})
+    voices = await speech.server_voices("http://tts/v1/", "x", transport=recorder(
+        body=body.encode(), content_type="application/json", calls=calls))
+
+    assert str(calls[0].url) == "http://tts/v1/audio/voices"
+    assert calls[0].headers["Authorization"] == "Bearer x"
+    assert voices[0] == {"id": "osman", "aliases": ["ms-MY-OsmanNeural"]}
+
+
+@pytest.mark.asyncio
+async def test_a_server_without_a_voice_list_lists_nothing():
+    # openai-edge-tts and OpenAI itself have no /audio/voices; the page keeps its own names.
+    assert await speech.server_voices("http://tts/v1", transport=recorder(status=404)) == []
+    plain = await speech.server_voices("http://tts/v1", transport=recorder(
+        body=b'{"voices": ["af_heart", 3]}', content_type="application/json"))
+    assert plain == [{"id": "af_heart", "aliases": []}]
+
+
+@pytest.mark.asyncio
 async def test_the_browser_engine_has_nothing_to_synthesize():
     with pytest.raises(speech.SpeechError):
         await speech.synthesize({"speech_engine": "browser"}, "en_female", "Hi")
@@ -155,6 +177,46 @@ async def test_an_answer_is_spoken_for_an_allowed_page(factory, monkeypatch):
     assert seen == {"slot": "ms_male", "text": "Selamat datang."}
 
 
+def test_a_bot_picks_its_own_engine_or_follows_the_install():
+    class Bot:
+        def __init__(self, engine):
+            self.voice_engine = engine
+    install = {"speech_engine": "browser"}
+    assert speech.engine_for_bot(Bot("server"), install) == "server"
+    assert speech.engine_for_bot(Bot("default"), {"speech_engine": "azure"}) == "azure"
+    assert speech.engine_for_bot(Bot(None), install) == "browser"
+    assert speech.engine_for_bot(Bot("kokoro"), install) == "browser"
+
+
+@pytest.mark.asyncio
+async def test_a_bot_on_the_speech_server_speaks_there_while_the_install_uses_browsers(factory, monkeypatch):
+    async with factory() as s:
+        (await s.get(BotProfile, "bot_1")).voice_engine = "server"
+        (await s.get(AppSetting, "speech_engine")).value = "browser"
+        await s.commit()
+    seen = {}
+
+    async def synthesize(settings, slot, text, rate=1.0, transport=None):
+        seen["engine"] = settings["speech_engine"]
+        return speech.Audio(b"mp3!")
+    monkeypatch.setattr(voice.speech, "synthesize", synthesize)
+
+    config = (await call(factory, "GET", "/api/v1/bot/bot_1/config")).json()
+    assert config["voice"]["speak_with"] == "server"
+    response = await call(factory, "POST", "/api/v1/voice/speech",
+                          json={"bot_id": "bot_1", "text": "Helo.", "voice": "ms_female"})
+    assert response.status_code == 200 and seen == {"engine": "server"}
+
+
+@pytest.mark.asyncio
+async def test_a_bot_on_the_browser_is_told_so_while_the_install_uses_a_server(factory):
+    async with factory() as s:
+        (await s.get(BotProfile, "bot_1")).voice_engine = "browser"
+        await s.commit()
+    config = (await call(factory, "GET", "/api/v1/bot/bot_1/config")).json()
+    assert config["voice"]["speak_with"] == "browser"
+
+
 @pytest.mark.asyncio
 async def test_another_site_cannot_spend_the_voice(factory):
     response = await call(factory, "POST", "/api/v1/voice/speech", origin="https://evil.example",
@@ -226,10 +288,10 @@ async def test_a_sample_can_be_of_a_voice_not_yet_saved(factory, monkeypatch):
     app.dependency_overrides[get_db] = session
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post("/api/v1/voice/test", headers={"X-Admin-Token": "secret"},
-                                     json={"voice": "ms_female", "text": "Helo.", "voice_name": "id-ID-GadisNeural"})
+                                     json={"voice": "ms_female", "text": "Helo.", "voice_name": "yasmin"})
 
     assert response.status_code == 200
-    assert seen == {"name": "id-ID-GadisNeural", "text": "Helo."}
+    assert seen == {"name": "yasmin", "text": "Helo."}
 
 
 @pytest.mark.asyncio

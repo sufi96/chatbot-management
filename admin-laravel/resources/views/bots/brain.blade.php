@@ -425,8 +425,10 @@
                             aria-expanded="false" aria-controls="bcard-voice">
                         <span class="d-flex align-items-center gap-1.5"><i class="bi bi-soundwave"></i> Voice</span>
                         <span class="d-flex align-items-center gap-2">
-                            <span class="text-muted" style="font-size: 0.75rem;">
-                            {{ ['server' => 'Speech server', 'azure' => 'Azure Speech'][$speechEngine] ?? "Visitor's browser" }}
+                            @php($botEngine = old('voice_engine', $bot->voice_engine ?: 'default'))
+                            @php($effectiveEngine = $botEngine === 'default' ? ($speechEngine ?: 'browser') : $botEngine)
+                            <span class="text-muted" style="font-size: 0.75rem;" id="voice_engine_badge">
+                            {{ ['server' => 'Speech server', 'azure' => 'Azure Speech'][$effectiveEngine] ?? "Visitor's browser" }}
                         </span>
                             <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
                         </span>
@@ -467,8 +469,23 @@
                             </div>
                         </div>
 
+                        <div class="mb-3">
+                            <label for="voice_engine" class="form-label">Speaks with</label>
+                            <select name="voice_engine" id="voice_engine" class="form-select form-select-sm"
+                                    data-install-engine="{{ $speechEngine ?: 'browser' }}">
+                                @foreach($voiceEngines as $value => $label)
+                                    <option value="{{ $value }}" @selected($botEngine === $value)>{{ $label }}</option>
+                                @endforeach
+                                @unless(array_key_exists($botEngine, $voiceEngines))
+                                    <option value="{{ $botEngine }}" selected>{{ ucfirst($botEngine) }} (no longer set up)</option>
+                                @endunless
+                            </select>
+                            @error('voice_engine')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                            <div class="form-text" id="voice_engine_hint"></div>
+                        </div>
+
                         <div class="mb-3" id="voicePreview"
-                             data-engine="{{ $speechEngine ?: 'browser' }}"
+                             data-engine="{{ $effectiveEngine }}"
                              data-url="{{ route('bots.brain.voice-preview', $bot->id) }}">
                             <label for="voice_preview_text" class="form-label">Hear it</label>
                             <textarea id="voice_preview_text" rows="2" maxlength="300" class="form-control form-control-sm"
@@ -495,16 +512,13 @@
 
                         <div class="form-text mt-3">
                             <i class="bi bi-info-circle"></i>
-                            @if($speechEngine === 'browser' || !$speechEngine)
-                                Spoken by each visitor's own device, so voices vary and not every device has a Malay male and female voice.
-                            @else
-                                Spoken by the install's speech engine, the same four voices on every device.
-                            @endif
+                            The speech server and Azure, and which voice each of the four is, are set for the whole install
                             @if(auth()->user()->isSuperAdmin())
-                                Set under <a href="{{ route('admin.settings', 'voice') }}">Voice in admin settings</a>.
+                                under <a href="{{ route('admin.settings', 'voice') }}">Voice in admin settings</a>.
                             @else
-                                A super admin sets where speech is made in admin settings.
+                                by a super admin in admin settings.
                             @endif
+                            This bot only chooses which of them speaks.
                         </div>
                     </div>
                     </div>
@@ -1185,6 +1199,27 @@
         var audio = null;
         var busy = false;
 
+        // Which engine speaks, as the card has it now: the bot's own choice,
+        // or the install's when it follows the install.
+        var engineSelect = document.getElementById('voice_engine');
+        var engineBadge = document.getElementById('voice_engine_badge');
+        var engineHint = document.getElementById('voice_engine_hint');
+        var engineNames = { browser: "Visitor's browser", server: 'Speech server', azure: 'Azure Speech' };
+        var engineHints = {
+            browser: "Each visitor's own device speaks, so voices vary, and a device without a Malay voice reads Malay in its default voice.",
+            server: 'The speech server speaks: the same four voices on every device.',
+            azure: 'Azure Speech speaks: the same four voices on every device.'
+        };
+        function syncEngine() {
+            if (!engineSelect) { return; }
+            var picked = engineSelect.value === 'default' ? engineSelect.dataset.installEngine : engineSelect.value;
+            box.dataset.engine = picked;
+            if (engineBadge) { engineBadge.textContent = engineNames[picked] || engineNames.browser; }
+            if (engineHint) { engineHint.textContent = engineHints[picked] || engineHints.browser; }
+        }
+        if (engineSelect) { engineSelect.addEventListener('change', function () { stop(); syncEngine(); }); }
+        syncEngine();
+
         function say(message, tone) {
             status.className = 'small ' + (tone === 'bad' ? 'text-danger' : tone === 'good' ? 'text-success' : 'text-muted');
             status.textContent = message;
@@ -1246,7 +1281,8 @@
                     'Accept': 'audio/mpeg, text/plain, application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                 },
-                body: JSON.stringify({ voice: choice.language + '_' + choice.gender, text: words })
+                body: JSON.stringify({ voice: choice.language + '_' + choice.gender, text: words,
+                                       engine: engineSelect ? engineSelect.value : 'default' })
             }).then(function (response) {
                 if (!response.ok) {
                     return response.text().then(function (body) {

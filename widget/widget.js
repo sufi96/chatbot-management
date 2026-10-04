@@ -2115,7 +2115,6 @@
             var picked = voiceKit.pickVoice(deviceVoices, language, voicePrefs.gender);
             var name = language === "ms" ? "Malay" : "English";
             if (picked.match === "none") { missing.push("no " + name + " voice"); }
-            else if (picked.match === "near") { missing.push("an Indonesian voice for Malay"); }
             else if (picked.match === "language") { missing.push("no " + voicePrefs.gender + " " + name + " voice, so another is used"); }
         });
         note.textContent = missing.length ? "This device has " + missing.join("; ") + "." : "";

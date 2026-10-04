@@ -117,7 +117,7 @@ changes how a bot answers starts switched off; the security layers start on.
 - **Bots read answers aloud** (a speaker on every answer, or every answer as it arrives) and **take spoken questions** (a microphone by the message box).
 - **Visitors decide:** a *Read answers aloud* on/off switch, right-aligned above the message box and shown only on bots with voice switched on. The bot's setting is only where a first-time visitor starts; the widget remembers each visitor's choice.
 - **Four voices:** English or Malay, female or male. Visitors switch in the widget's voice menu; the bot sets where they start, or follows each answer's language.
-- **Choose each voice** under Admin settings → Voice, grouped by language with a female and a male row: American, British, Singaporean, Australian and Indian English voices, Malaysian Malay (Yasmin, Osman), and Indonesian beside them. *Another name* takes any speech server's own voice name.
+- **Choose each voice** under Admin settings → Voice, grouped by language with a female and a male row: American, British, Singaporean, Australian and Indian English voices, and Malaysian Malay (Yasmin, Osman). A speech server that lists its voices, such as the Malaysian TTS server, adds them to each list; *Another name* takes any other server's voice name.
 - **Hear before you save.** Type any text and press play, on the Voice settings page (with the engine as the page shows it, saved or not) and on a bot's Behaviour tab (in its starting voice). A speech server that is not running, or is not a speech server at all, is named as such.
 - **Nothing to install by default:** the visitor's browser speaks and listens. For the same four voices on every device, use **Azure Speech** or a speech server (see [Setting up voice](#-setting-up-voice)), and a Whisper server for listening.
 - Answers are spoken a sentence at a time while they stream; Markdown, citations, links and code are never read out.
@@ -259,11 +259,11 @@ changes how a bot answers starts switched off; the security layers start on.
 
 ## 🚀 How to Run on Another Device (After `git pull`)
 
-Follow these instructions to clone and run the platform on any other computer (Windows, macOS, or Linux).
+Follow these instructions to clone and run the platform on any other computer (Windows, macOS, or Linux). [`INSTALLATION.md`](INSTALLATION.md) has the full picture: the stack, how many servers, every prerequisite, and the TTS server.
 
 ### 📋 Prerequisites
 Ensure the target machine has:
-1. **PHP 8.2+** with `pdo`, `pdo_sqlite` (or `pdo_pgsql`), `curl`, `mbstring` extensions enabled.
+1. **PHP 8.3+** with `pdo`, `pdo_sqlite` (or `pdo_pgsql`), `curl`, `mbstring` extensions enabled.
 2. **Composer** ([getcomposer.org](https://getcomposer.org/)).
 3. **Python 3.10+** ([python.org](https://www.python.org/)).
 4. (Optional) **Ollama** installed locally ([ollama.ai](https://ollama.ai/)) if testing local LLMs.
@@ -416,13 +416,25 @@ the same four voices on every device, pick one of these under
   voice. This container uses Microsoft's Edge read-aloud service unofficially
   and is licensed for personal use, so use it to try voices, not to run a
   product. On the DGX Sparks, a TTS model of your own takes its place.
+- **Malaysian TTS server** (self-hosted, in [`tts-server/`](tts-server/README.md)):
+  Mesolitica's VITS voices (Yasmin, Osman and 12 more, on CPU) and Malaysian
+  F5-TTS (any voice from a short clip, on a GPU), with a settings page at
+  `http://localhost:5051` to add voices and try them:
+  ```bash
+  docker compose -f tts-server/compose.yaml --profile gpu up -d --build
+  ```
+  Add `http://localhost:5051/v1` under **Providers** and use `yasmin` and
+  `osman` for the Malay voices. The F5 checkpoint is CC-BY-NC, so it is for
+  testing only.
 
 For **listening**, the browser's recognition works best in Chrome and Edge; a
 Whisper-family server (`POST /v1/audio/transcriptions`) can replace it under
 **Listening**.
 
 Then switch voice on per bot under **Behaviour → Voice**, and try it with the
-**Hear it** box there.
+**Hear it** box there. **Speaks with** lets one bot differ from the install:
+the visitor's browser, the speech server or Azure, whichever are set up
+above, while the install's choice stays the default for every other bot.
 
 ---
 

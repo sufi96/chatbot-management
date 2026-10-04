@@ -121,8 +121,9 @@
     /**
      * The device voice closest to a language and gender, with how close it
      * came: "exact", "language" (right language, wrong or unknown gender),
-     * "near" (Indonesian for Malay, which a Malay listener follows), or
-     * "none". Natural and online voices are preferred over robotic ones.
+     * or "none". Natural and online voices are preferred over robotic ones.
+     * Malay is only ever spoken by a Malay voice: another language's voice
+     * reading it, Indonesian included, is not offered as a stand-in.
      */
     function pickVoice(voices, language, gender) {
         var list = Array.prototype.slice.call(voices || []);
@@ -150,13 +151,6 @@
         if (same.length) {
             var unknown = best(same.filter(function (v) { return genderOf(v) === ""; }));
             return { voice: unknown || best(same), match: "language" };
-        }
-        if (language === "ms") {
-            var near = byLang(["id"]);
-            if (near.length) {
-                var nearExact = best(near.filter(function (v) { return genderOf(v) === gender; }));
-                return { voice: nearExact || best(near), match: "near" };
-            }
         }
         return { voice: null, match: "none" };
     }

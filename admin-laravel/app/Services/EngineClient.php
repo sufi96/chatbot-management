@@ -181,6 +181,26 @@ class EngineClient
         }
     }
 
+    /**
+     * The voices a speech server names, for the Voice page's lists. A server
+     * that names none (OpenAI, openai-edge-tts) gives an empty list.
+     */
+    public static function speechVoices(string $baseUrl, string $apiKey): array
+    {
+        try {
+            $response = self::request()->post(self::base() . '/api/v1/voice/server-voices', [
+                'base_url' => $baseUrl,
+                'api_key' => $apiKey,
+            ]);
+
+            return $response->successful()
+                ? $response->json()
+                : ['ok' => false, 'voices' => [], 'message' => 'Engine returned HTTP ' . $response->status()];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'voices' => [], 'message' => 'Could not reach the engine: ' . $e->getMessage()];
+        }
+    }
+
     public static function listModels(string $baseUrl, string $apiKey): array
     {
         try {

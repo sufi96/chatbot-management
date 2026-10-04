@@ -5,25 +5,26 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 API="$ROOT/api-engine"
 PORTAL="$ROOT/admin-laravel"
-PORTS=(8000 8080)
+TTS="$ROOT/tts-server"
+PORTS=(8000 8080 5051)   # 5051: the Malaysian TTS server
 
 say()  { printf '\033[33m%s\033[0m\n' "$*"; }
 info() { printf '      %s\n' "$*"; }
 die()  { printf '\033[31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
 # ---------------------------------------------------------------
-# [1/5] Free the ports. An orphaned uvicorn worker or php -S keeps
+# [1/6] Free the ports. An orphaned uvicorn worker or php -S keeps
 #       serving old code, so start from nothing listening.
 # ---------------------------------------------------------------
-say "[1/5] Clearing stale services..."
+say "[1/6] Clearing stale services..."
 for p in "${PORTS[@]}"; do fuser -k "$p/tcp" >/dev/null 2>&1 || true; done
 
 # ---------------------------------------------------------------
-# [2/5] Python engine. The engine's dependencies do not install on
+# [2/6] Python engine. The engine's dependencies do not install on
 #       Python 3.14 yet, so pick the newest interpreter below that,
 #       or have uv fetch 3.12.
 # ---------------------------------------------------------------
-say "[2/5] Preparing Python FastAPI Streaming Engine..."
+say "[2/6] Preparing Python FastAPI Streaming Engine..."
 PY="$API/.venv/bin/python"
 if [ ! -x "$PY" ]; then
     info "Creating virtualenv..."
@@ -51,9 +52,9 @@ else
 fi
 
 # ---------------------------------------------------------------
-# [3/5] Laravel portal: vendor/, .env, shared secrets, database.
+# [3/6] Laravel portal: vendor/, .env, shared secrets, database.
 # ---------------------------------------------------------------
-say "[3/5] Preparing Laravel 13 Admin Portal..."
+say "[3/6] Preparing Laravel 13 Admin Portal..."
 cd "$PORTAL"
 [ -f vendor/autoload.php ] || { info "Installing Composer dependencies..."; composer install --prefer-install=dist --no-interaction; }
 if [ ! -f .env ]; then
@@ -89,29 +90,74 @@ php artisan migrate --seed --no-interaction --force || die "Database migration f
 [ -e public/storage ] || php artisan storage:link --no-interaction
 
 # ---------------------------------------------------------------
-# [4/5] Launch both. Ctrl+C or closing the terminal takes down the
-#       whole process group, reloader workers included.
+# [4/6] Malaysian TTS server, in its own venv so its PyTorch and Malaya
+#       pins never touch the engine's. Optional: a failure here starts
+#       the rest without it. TTS_TORCH picks the PyTorch build: cpu
+#       (default) or cu128 for an NVIDIA GPU. SKIP_TTS=1 leaves it out.
 # ---------------------------------------------------------------
-say "[4/5] Launching services..."
-trap 'trap - EXIT INT TERM HUP; echo; say "Stopping services..."; kill 0 2>/dev/null' EXIT INT TERM HUP
-(cd "$API" && exec "$PY" -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload) &
-(cd "$PORTAL" && exec php artisan serve --host=127.0.0.1 --port=8080) &
+TTS_PY=""
+prepare_tts() {
+    local py="$TTS/.venv/bin/python" torch="${TTS_TORCH:-cpu}" stamp hash
+    if [ ! -x "$py" ]; then info "Creating TTS virtualenv..."; "$PY" -m venv "$TTS/.venv" || return 1; fi
+    if [ "$torch" != "$(cat "$TTS/.venv/torch-index.txt" 2>/dev/null)" ]; then
+        info "Installing PyTorch ($torch); the first time takes a few minutes..."
+        "$py" -m pip install --force-reinstall torch torchaudio --index-url "https://download.pytorch.org/whl/$torch" || return 1
+        echo "$torch" > "$TTS/.venv/torch-index.txt"; rm -f "$TTS/.venv/requirements.sha256"
+    fi
+    stamp="$TTS/.venv/requirements.sha256"; hash="$(sha256sum "$TTS/requirements.txt" | cut -d' ' -f1)"
+    if [ "$hash" != "$(cat "$stamp" 2>/dev/null)" ]; then
+        info "tts-server/requirements.txt changed, installing..."
+        # Hold PyTorch to the build just installed, so no package swaps it.
+        "$py" -m pip freeze | grep -E '^(torch|torchaudio)==' > "$TTS/.venv/torch-constraints.txt"
+        "$py" -m pip install -r "$TTS/requirements.txt" -c "$TTS/.venv/torch-constraints.txt" \
+            --extra-index-url "https://download.pytorch.org/whl/$torch" || return 1
+        echo "$hash" > "$stamp"
+    else
+        info "TTS dependencies are up to date (PyTorch: $torch)."
+    fi
+    TTS_PY="$py"
+}
+if [ "${SKIP_TTS:-}" = 1 ]; then
+    say "[4/6] Skipping the Malaysian TTS server (SKIP_TTS=1)."
+else
+    say "[4/6] Preparing Malaysian TTS server..."
+    prepare_tts || { TTS_PY=""; info "WARNING: TTS setup failed (see above). Starting without it."; }
+fi
 
 # ---------------------------------------------------------------
-# [5/5] Only claim success once both ports accept connections.
+# [5/6] Launch. Ctrl+C or closing the terminal takes down the
+#       whole process group, reloader workers included.
 # ---------------------------------------------------------------
-say "[5/5] Waiting for services to accept connections..."
+say "[5/6] Launching services..."
+trap 'trap - EXIT INT TERM HUP; echo; say "Stopping services..."; kill 0 2>/dev/null' EXIT INT TERM HUP
+(cd "$API" && exec "$PY" -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload) &
+API_PID=$!
+(cd "$PORTAL" && exec php artisan serve --host=127.0.0.1 --port=8080) &
+PHP_PID=$!
+# No --reload: a reload would drop the loaded voice models.
+if [ -n "$TTS_PY" ]; then (cd "$TTS" && exec "$TTS_PY" -m uvicorn app:app --host 127.0.0.1 --port 5051) & fi
+
+# ---------------------------------------------------------------
+# [6/6] Only claim success once both ports accept connections.
+# ---------------------------------------------------------------
+say "[6/6] Waiting for services to accept connections..."
 up() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 for _ in $(seq 90); do up 8000 && up 8080 && break; sleep 0.5; done
 up 8000 && up 8080 || die "Startup failed. FastAPI(8000): $(up 8000 && echo UP || echo DOWN), Laravel(8080): $(up 8080 && echo UP || echo DOWN). See the output above."
 
-printf '\n\033[32m   SERVICES ARE RUNNING (both ports verified)\033[0m\n'
+if [ -n "$TTS_PY" ]; then for _ in $(seq 120); do up 5051 && break; sleep 0.5; done; fi
+
+printf '\n\033[32m   SERVICES ARE RUNNING (ports verified)\033[0m\n'
 echo "Admin Portal:   http://localhost:8080"
 echo "FastAPI Engine: http://localhost:8000"
 echo "Widget Script:  http://localhost:8000/widget.js"
+if [ -n "$TTS_PY" ]; then
+    if up 5051; then echo "Malaysian TTS:  http://localhost:5051  (voices and settings)"
+    else echo "Malaysian TTS:  DOWN - see the output above."; fi
+fi
 echo "Login: admin@chatbothub.com / password"
-echo "Press Ctrl+C to stop both services."
+echo "Press Ctrl+C to stop all services."
 command -v xdg-open >/dev/null && xdg-open http://localhost:8080 >/dev/null 2>&1 || true
 
-wait -n   # either service dying stops the other via the trap
+wait -n "$API_PID" "$PHP_PID"   # either dying stops everything via the trap; the TTS server is optional
 say "A service exited unexpectedly."

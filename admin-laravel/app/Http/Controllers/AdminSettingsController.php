@@ -103,9 +103,9 @@ class AdminSettingsController extends Controller
     /**
      * Voices offered for each of the four, by the name Microsoft gives them:
      * the same names in Azure Speech and in the openai-edge-tts container.
-     * Malay has one female and one male voice; Indonesian, which a Malay
-     * listener follows, is offered beside them. Another speech server names
-     * its voices its own way, so any name can still be typed.
+     * Malay has one female and one male voice, and only Malaysian voices
+     * speak it. Another speech server names its voices its own way, so any
+     * name can still be typed.
      */
     public const VOICE_CATALOGUE = [
         'en_female' => [
@@ -124,10 +124,10 @@ class AdminSettingsController extends Controller
             'en-SG-WayneNeural' => 'Wayne · Singaporean', 'en-IN-PrabhatNeural' => 'Prabhat · Indian',
         ],
         'ms_female' => [
-            'ms-MY-YasminNeural' => 'Yasmin · Malaysian', 'id-ID-GadisNeural' => 'Gadis · Indonesian',
+            'ms-MY-YasminNeural' => 'Yasmin · Malaysian',
         ],
         'ms_male' => [
-            'ms-MY-OsmanNeural' => 'Osman · Malaysian', 'id-ID-ArdiNeural' => 'Ardi · Indonesian',
+            'ms-MY-OsmanNeural' => 'Osman · Malaysian',
         ],
     ];
 
@@ -523,6 +523,29 @@ class AdminSettingsController extends Controller
         }
 
         return response($result['audio'], 200)->header('Content-Type', $result['type']);
+    }
+
+    /**
+     * What a speech server offers, for the Voice page: its models and the
+     * voices it names, so neither has to be typed. Asked through the engine,
+     * so the provider's key stays on the server.
+     */
+    public function speechServer(Request $request)
+    {
+        $validated = $request->validate([
+            'provider_id' => ['required', 'string', self::platformProviderRule()],
+        ]);
+
+        $provider = AiProvider::platform()->findOrFail($validated['provider_id']);
+        [$baseUrl, $apiKey] = [$provider->base_url, (string) $provider->api_key];
+        $models = EngineClient::listModels($baseUrl, $apiKey);
+        $voices = EngineClient::speechVoices($baseUrl, $apiKey);
+
+        return response()->json([
+            'models' => $models['models'] ?? [],
+            'voices' => $voices['voices'] ?? [],
+            'message' => ($voices['ok'] ?? false) ? '' : ($voices['message'] ?? ''),
+        ]);
     }
 
     public function reindex(Request $request)

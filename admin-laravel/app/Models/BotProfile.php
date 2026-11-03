@@ -233,6 +233,12 @@ class BotProfile extends Model
         return $this->belongsTo(WebSearchKey::class, 'web_search_key_id');
     }
 
+    /** The skills this bot may load when it is agentic. */
+    public function skills(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Skill::class, 'bot_skills', 'bot_id', 'skill_id');
+    }
+
     /** The connector operations this bot may call when it is agentic. */
     public function tools(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {

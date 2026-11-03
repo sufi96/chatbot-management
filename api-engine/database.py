@@ -315,6 +315,29 @@ class Connector(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class Skill(Base):
+    """A skill a bot may load. Laravel owns the table; system_id null is a built-in."""
+    __tablename__ = "skills"
+
+    id = Column(String(36), primary_key=True)
+    system_id = Column(String(36), ForeignKey("systems.id", ondelete="CASCADE"), nullable=True)
+    name = Column(String(64), nullable=False)
+    description = Column(Text, nullable=False)
+    body = Column(Text, nullable=False)
+    tools = Column(JSON, nullable=True)
+    origin = Column(String(20), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class BotSkill(Base):
+    """Which skills a bot may load. Laravel owns the table."""
+    __tablename__ = "bot_skills"
+
+    bot_id = Column(String(36), ForeignKey("bot_profiles.id", ondelete="CASCADE"), primary_key=True)
+    skill_id = Column(String(36), ForeignKey("skills.id", ondelete="CASCADE"), primary_key=True)
+
+
 class BotConnectorTool(Base):
     """Which connector operations a bot may call. Laravel owns the table."""
     __tablename__ = "bot_connector_tools"

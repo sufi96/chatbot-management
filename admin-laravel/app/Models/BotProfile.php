@@ -131,6 +131,8 @@ class BotProfile extends Model
         'grounding_check',
         'web_search_mode',
         'web_search_key_id',
+        'agentic_enabled',
+        'agentic_max_calls',
         'voice_output',
         'voice_autoplay',
         'voice_gender',
@@ -171,6 +173,8 @@ class BotProfile extends Model
             'cache_min_similarity' => 'float',
             'cache_ttl_hours' => 'integer',
             'grounding_check' => 'boolean',
+            'agentic_enabled' => 'boolean',
+            'agentic_max_calls' => 'integer',
             'voice_output' => 'boolean',
             'voice_autoplay' => 'boolean',
             'voice_input' => 'boolean',
@@ -227,6 +231,12 @@ class BotProfile extends Model
     public function webSearchKey(): BelongsTo
     {
         return $this->belongsTo(WebSearchKey::class, 'web_search_key_id');
+    }
+
+    /** The connector operations this bot may call when it is agentic. */
+    public function tools(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(ConnectorTool::class, 'bot_connector_tools', 'bot_id', 'connector_tool_id');
     }
 
     public function dbConnections(): \Illuminate\Database\Eloquent\Relations\BelongsToMany

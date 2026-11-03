@@ -58,6 +58,7 @@
                     $sourceLabels = [
                         'documents' => ['Knowledge base', 'The written material attached below.', $bot->retrieval_enabled],
                         'database' => ['Database', 'Live records from a connected database.', $bot->db_query_enabled],
+                        'tools' => ['Connected systems', 'Operations on the workspace\'s connectors, when the bot is agentic.', $bot->agentic_enabled],
                         'web' => ['Web search', 'A public search of the open internet.', $bot->web_search_enabled],
                     ];
                 @endphp

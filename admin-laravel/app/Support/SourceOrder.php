@@ -13,9 +13,9 @@ namespace App\Support;
  */
 class SourceOrder
 {
-    public const SOURCES = ['documents', 'database', 'web'];
+    public const SOURCES = ['documents', 'database', 'tools', 'web'];
 
-    public const DEFAULT = 'documents,database,web';
+    public const DEFAULT = 'documents,database,tools,web';
 
     public static function normalise(?string $raw): string
     {

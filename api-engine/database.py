@@ -134,6 +134,9 @@ class BotProfile(Base):
     # Whether the knowledge base and the database are asked together and both
     # answered from, rather than the first with something. See sources.resolve.
     combine_sources = Column(Boolean, default=True)
+    # Off for every bot: on, its enabled connector tools become a source.
+    agentic_enabled = Column(Boolean, default=False)
+    agentic_max_calls = Column(Integer, default=3)
     # Whether each question is read with the conversation before it. See intent.py.
     intent_enabled = Column(Boolean, default=True)
     # Whether what comes in and what goes out is checked. See guard.py.
@@ -308,6 +311,35 @@ class Connector(Base):
     auth_type = Column(String(20), default="none")
     auth_header = Column(String(120), nullable=True)
     auth_secret = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class BotConnectorTool(Base):
+    """Which connector operations a bot may call. Laravel owns the table."""
+    __tablename__ = "bot_connector_tools"
+
+    bot_id = Column(String(36), ForeignKey("bot_profiles.id", ondelete="CASCADE"), primary_key=True)
+    connector_tool_id = Column(String(36), ForeignKey("connector_tools.id", ondelete="CASCADE"), primary_key=True)
+
+
+class ChatToolCall(Base):
+    """A tool call a bot made or is waiting to make. Laravel owns the table.
+
+    status: ran, failed, awaiting_confirm, confirmed, declined, expired.
+    """
+    __tablename__ = "chat_tool_calls"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    conversation_id = Column(String(36), ForeignKey("chat_conversations.id", ondelete="CASCADE"), nullable=False)
+    message_id = Column(String(36), nullable=True)
+    connector_tool_id = Column(String(36), ForeignKey("connector_tools.id", ondelete="SET NULL"), nullable=True)
+    tool_name = Column(String(64), nullable=False)
+    arguments = Column(JSON, nullable=True)
+    status = Column(String(20), nullable=False)
+    flag = Column(String(20), nullable=True)
+    result_excerpt = Column(Text, nullable=True)
+    duration_ms = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

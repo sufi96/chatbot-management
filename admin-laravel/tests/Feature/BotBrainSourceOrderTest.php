@@ -103,7 +103,7 @@ class BotBrainSourceOrderTest extends TestCase
                 $this->brainPayload(['source_order' => 'web,database,documents']))
             ->assertRedirect();
 
-        $this->assertSame('web,database,documents', $bot->fresh()->source_order);
+        $this->assertSame('web,database,documents,tools', $bot->fresh()->source_order);
     }
 
     public function test_a_malformed_order_is_normalised_rather_than_refused(): void
@@ -116,7 +116,7 @@ class BotBrainSourceOrderTest extends TestCase
             ->assertRedirect()
             ->assertSessionHasNoErrors();
 
-        $this->assertSame('web,documents,database', $bot->fresh()->source_order);
+        $this->assertSame('web,documents,database,tools', $bot->fresh()->source_order);
     }
 
     public function test_an_absent_order_falls_back_to_the_default(): void

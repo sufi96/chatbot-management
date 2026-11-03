@@ -6,7 +6,7 @@ means a token added in a later version is consulted last on an older engine
 instead of breaking it.
 """
 
-SOURCES = ("documents", "database", "web")
+SOURCES = ("documents", "database", "tools", "web")
 
 DEFAULT = ",".join(SOURCES)
 

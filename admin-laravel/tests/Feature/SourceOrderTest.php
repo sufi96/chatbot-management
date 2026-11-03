@@ -12,26 +12,32 @@ class SourceOrderTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_tools_is_appended_to_an_old_order(): void
+    {
+        $this->assertSame('documents,database,web,tools', SourceOrder::normalise('documents,database,web'));
+        $this->assertSame('documents,database,tools,web', SourceOrder::DEFAULT);
+    }
+
     public function test_a_well_formed_order_is_kept_as_it_is(): void
     {
-        $this->assertSame('database,documents,web',
-            SourceOrder::normalise('database,documents,web'));
+        $this->assertSame('database,documents,tools,web',
+            SourceOrder::normalise('database,documents,tools,web'));
     }
 
     public function test_a_missing_source_is_appended_in_default_order(): void
     {
-        $this->assertSame('web,documents,database', SourceOrder::normalise('web'));
+        $this->assertSame('web,documents,database,tools', SourceOrder::normalise('web'));
     }
 
     public function test_an_unknown_token_is_dropped(): void
     {
-        $this->assertSame('web,documents,database',
+        $this->assertSame('web,documents,database,tools',
             SourceOrder::normalise('web,telepathy'));
     }
 
     public function test_a_duplicate_keeps_its_first_position(): void
     {
-        $this->assertSame('web,documents,database',
+        $this->assertSame('web,documents,database,tools',
             SourceOrder::normalise('web,web,web'));
     }
 
@@ -43,13 +49,13 @@ class SourceOrderTest extends TestCase
 
     public function test_spacing_and_case_do_not_matter(): void
     {
-        $this->assertSame('database,web,documents',
+        $this->assertSame('database,web,documents,tools',
             SourceOrder::normalise(' Database , WEB '));
     }
 
     public function test_the_list_form_is_the_normalised_order(): void
     {
-        $this->assertSame(['web', 'documents', 'database'], SourceOrder::toList('web'));
+        $this->assertSame(['web', 'documents', 'database', 'tools'], SourceOrder::toList('web'));
     }
 
     public function test_a_new_bot_consults_its_documents_first(): void

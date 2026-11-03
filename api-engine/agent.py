@@ -219,14 +219,15 @@ def skills_prompt(skills) -> str:
     return "Skills you can load with load_skill when a request matches:\n" + "\n".join(lines)
 
 
-async def skills_for(session, bot, tool_names: set) -> list:
+async def skills_for(session, bot, tool_names: set, mode: str = "progressive") -> list:
     """The bot's skills in its own workspace whose tools it has, minus any that
     read as an attempt to instruct the model. Skill text is data like any other."""
     from database import BotSkill, Skill
 
     rows = (await session.execute(
         select(Skill).join(BotSkill, BotSkill.skill_id == Skill.id)
-        .where(BotSkill.bot_id == bot.id, Skill.system_id == bot.system_id)
+        .where(BotSkill.bot_id == bot.id, Skill.system_id == bot.system_id,
+               Skill.mode == mode if mode == "always" else (Skill.mode != "always") | Skill.mode.is_(None))
         .order_by(Skill.name))).scalars().all()
 
     usable = []

@@ -39,6 +39,10 @@ class SkillTest extends TestCase
 
     private function member(string $role, string $system = 'sys_test'): User
     {
+        if ($existing = User::where('email', "{$role}-{$system}@example.test")->first()) {
+            return $existing;
+        }
+
         $user = User::create([
             'name' => ucfirst($role), 'email' => "{$role}-{$system}@example.test",
             'password' => 'password', 'global_role' => 'user',
@@ -238,5 +242,36 @@ class SkillTest extends TestCase
             ->get(route('skills.index'))
             ->assertOk()
             ->assertSee('id="skillGenerate"', false);
+    }
+
+    public function test_a_skill_starts_progressive_and_can_be_made_always_on(): void
+    {
+        $skill = $this->skill();
+        $this->assertSame('progressive', $skill->fresh()->mode);
+
+        $this->admin()->putJson(route('skills.mode', $skill->id), ['mode' => 'always'])->assertOk();
+        $this->assertSame('always', $skill->fresh()->mode);
+
+        $this->admin()->putJson(route('skills.mode', $skill->id), ['mode' => 'sometimes'])->assertStatus(422);
+    }
+
+    public function test_only_system_admins_change_a_skills_mode(): void
+    {
+        $skill = $this->skill();
+
+        $this->actingAs($this->member('editor'))->putJson(route('skills.mode', $skill->id), ['mode' => 'always'])
+            ->assertForbidden();
+        $this->actingAs($this->member('system_admin'))->putJson(route('skills.mode', 'skl_builtin_ticket'), ['mode' => 'always'])
+            ->assertForbidden();
+    }
+
+    public function test_the_page_offers_the_mode(): void
+    {
+        $skill = $this->skill();
+
+        $this->actingAs($this->member('system_admin'))
+            ->withSession(['active_system_id' => 'sys_test'])
+            ->get(route('skills.index'))
+            ->assertSee('data-skill-mode="' . $skill->id . '"', false);
     }
 }

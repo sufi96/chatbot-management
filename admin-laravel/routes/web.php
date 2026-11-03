@@ -105,6 +105,7 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     Route::post('/skills/upload', [SkillController::class, 'upload'])->name('skills.upload');
     Route::put('/skills/{id}', [SkillController::class, 'update'])->name('skills.update');
     Route::delete('/skills/{id}', [SkillController::class, 'destroy'])->name('skills.destroy');
+    Route::put('/skills/{id}/mode', [SkillController::class, 'mode'])->name('skills.mode');
     Route::post('/skills/{id}/copy', [SkillController::class, 'copy'])->name('skills.copy');
     Route::get('/skills/{id}/download', [SkillController::class, 'download'])->name('skills.download');
 

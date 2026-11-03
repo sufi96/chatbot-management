@@ -287,3 +287,17 @@ async def test_the_conversation_so_far_reaches_the_loop():
     assert [m["role"] for m in sent] == ["system", "user", "assistant", "user"]
     assert sent[-1]["content"] == "A-12345"
     assert "smuggled" not in str(sent)
+
+
+async def test_always_on_skills_are_kept_apart_from_progressive_ones(skill_session):
+    skill_session.add(Skill(id="s_always", system_id="sys_1", name="tone", description="d",
+                            body="Reply in Malay when asked in Malay.", tools=[], origin="typed", mode="always"))
+    skill_session.add(BotSkill(bot_id="b1", skill_id="s_always"))
+    await skill_session.commit()
+    who = SimpleNamespace(id="b1", system_id="sys_1")
+
+    progressive = await agent.skills_for(skill_session, who, {"getA"})
+    always = await agent.skills_for(skill_session, who, {"getA"}, mode="always")
+
+    assert "tone" not in [s.name for s in progressive]
+    assert [s.name for s in always] == ["tone"]

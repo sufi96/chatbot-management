@@ -446,3 +446,37 @@ async def test_the_test_chat_sees_each_call_and_skill_only_with_a_valid_token(fa
     lines = [e["text"] for e in good if e.get("type") == "trace"]
     assert lines == ["Loaded skill ticket-help", "getTicket(id=7) → ran"]
     assert not [e for e in forged if e.get("type") == "trace"]
+
+
+async def test_an_always_on_skill_shapes_every_answer_even_a_greeting(factory, monkeypatch):
+    from database import BotSkill, Skill
+    await update_bot(factory, agentic_enabled=True, retrieval_enabled=False, db_query_enabled=False,
+                     web_search_enabled=False)
+    async with factory() as s:
+        s.add(Skill(id="s_tone", system_id="sys_1", name="tone", description="d",
+                    body="Always greet with Salam.", tools=[], origin="typed", mode="always"))
+        s.add(BotSkill(bot_id="bot_1", skill_id="s_tone"))
+        await s.commit()
+    prompts = []
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("Salam!", calls=prompts))
+
+    await post(factory, message="hello")
+
+    assert "Always greet with Salam." in prompts[0]["system_prompt"]
+
+
+async def test_always_on_skills_need_the_bot_to_be_agentic(factory, monkeypatch):
+    from database import BotSkill, Skill
+    await update_bot(factory, agentic_enabled=False, retrieval_enabled=False, db_query_enabled=False,
+                     web_search_enabled=False)
+    async with factory() as s:
+        s.add(Skill(id="s_tone", system_id="sys_1", name="tone", description="d",
+                    body="Always greet with Salam.", tools=[], origin="typed", mode="always"))
+        s.add(BotSkill(bot_id="bot_1", skill_id="s_tone"))
+        await s.commit()
+    prompts = []
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("Hi", calls=prompts))
+
+    await post(factory, message="hello")
+
+    assert "Salam" not in prompts[0]["system_prompt"]

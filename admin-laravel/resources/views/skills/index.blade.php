@@ -44,6 +44,7 @@
                     <tr>
                         <th>Skill</th>
                         <th>Needs</th>
+                        <th>Used</th>
                         <th>Bots</th>
                         <th class="text-end">Actions</th>
                     </tr>
@@ -58,6 +59,14 @@
                                 <div class="text-muted" style="font-size: 0.75rem;">{{ $skill->description }}</div>
                             </td>
                             <td class="small figure-mono">{{ implode(', ', $skill->tools ?? []) ?: '—' }}</td>
+                            <td>
+                                <select class="form-select form-select-sm" data-skill-mode="{{ $skill->id }}" @disabled(!$canManage)
+                                        title="Always on: a short rule added to every answer">
+                                    @foreach(\App\Models\Skill::MODES as $value => $label)
+                                        <option value="{{ $value }}" @selected(($skill->mode ?? 'progressive') === $value)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </td>
                             <td><span class="figure-mono">{{ $skill->bots_count }}</span></td>
                             <td class="text-end">
                                 <div class="d-flex justify-content-end gap-1">
@@ -191,7 +200,8 @@
         upload: @json(route('skills.upload')),
         update: @json(route('skills.update', '__ID__')),
         destroy: @json(route('skills.destroy', '__ID__')),
-        copy: @json(route('skills.copy', '__ID__'))
+        copy: @json(route('skills.copy', '__ID__')),
+        mode: @json(route('skills.mode', '__ID__'))
     };
     function url(name, id) { return routes[name].replace('__ID__', encodeURIComponent(id)); }
     var token = document.querySelector('meta[name="csrf-token"]').content;
@@ -291,6 +301,14 @@
             send('DELETE', url('destroy', button.dataset.skillDelete)).then(function (data) {
                 say(pageStatus, data.message, data.success);
                 if (data.success) location.reload();
+            });
+        });
+    });
+
+    document.querySelectorAll('[data-skill-mode]').forEach(function (select) {
+        select.addEventListener('change', function () {
+            send('PUT', url('mode', select.dataset.skillMode), {mode: select.value}).then(function (data) {
+                say(pageStatus, data.message, data.success);
             });
         });
     });

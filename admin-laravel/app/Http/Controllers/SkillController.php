@@ -176,6 +176,20 @@ class SkillController extends Controller
         return response()->json(['success' => true, 'message' => "{$skill->name} saved."]);
     }
 
+    /** Loaded when a request matches, or added to every answer. */
+    public function mode(Request $request, string $id): JsonResponse
+    {
+        $skill = Skill::findOrFail($id);
+        abort_if($skill->isBuiltIn(), 403);
+        $this->authorizeAdmin($request, $skill->system_id);
+
+        $validated = $request->validate(['mode' => ['required', 'in:' . implode(',', array_keys(Skill::MODES))]]);
+        $skill->update($validated);
+
+        return response()->json(['success' => true, 'message' => $validated['mode'] === 'always'
+            ? "{$skill->name} now shapes every answer." : "{$skill->name} loads when a request matches."]);
+    }
+
     public function destroy(Request $request, string $id): JsonResponse
     {
         $skill = Skill::findOrFail($id);

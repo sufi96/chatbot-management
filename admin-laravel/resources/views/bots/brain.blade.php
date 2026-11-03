@@ -454,6 +454,9 @@
                                     <label class="form-check-label small" for="skill_{{ $skill->id }}">
                                         <span class="figure-mono">{{ $skill->name }}</span>
                                         <span class="text-muted">· {{ \Illuminate\Support\Str::limit($skill->description, 80) }}</span>
+                                        @if(($skill->mode ?? 'progressive') === 'always')
+                                            <span class="badge text-bg-info ms-1" title="Added to every answer">always on</span>
+                                        @endif
                                         @if($missing)
                                             <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1"
                                                   title="Offered once the bot has these operations">needs: {{ implode(', ', $missing) }}</span>

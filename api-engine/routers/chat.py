@@ -90,6 +90,18 @@ async def consult(order: list, enabled: dict, attempts: dict, combine: bool = Fa
 SUMMARY_CHARS = 300
 
 
+async def always_on_rules(db, bot) -> str:
+    """Every always-on skill the bot has the tools for, for every answer."""
+    import agent
+    import builtin_tools
+
+    names = {tool.name for tool in [*await agent.tools_for(db, bot), *builtin_tools.for_bot(bot)]}
+    rules = await agent.skills_for(db, bot, names, mode="always")
+    if not rules:
+        return ""
+    return "\n\nAlways follow these rules from the operator:\n" + "\n\n".join(skill.body for skill in rules)
+
+
 def trace_line(record) -> str:
     """One line of the test chat's trace: a skill loaded, or a call and how it went."""
     if record.status == "loaded":
@@ -409,6 +421,8 @@ async def chat_stream(
         if found and found.guidance:
             final_prompt += ("\n\nFor this request, follow these steps from a skill the operator wrote:\n"
                              + found.guidance)
+        if getattr(bot, "agentic_enabled", False):
+            final_prompt += await always_on_rules(db, bot)
 
         # Written down now, so a change waiting on the visitor has an id the
         # widget's Confirm can name. The answer is made with the id they point at.

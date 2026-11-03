@@ -331,6 +331,8 @@ class Skill(Base):
     body = Column(Text, nullable=False)
     tools = Column(JSON, nullable=True)
     origin = Column(String(20), nullable=False)
+    # progressive: loaded when a request matches; always: in every answer.
+    mode = Column(String(20), default="progressive")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

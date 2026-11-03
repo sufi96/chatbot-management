@@ -15,7 +15,9 @@ class Skill extends Model
     protected $keyType = 'string';
     public $incrementing = false;
 
-    protected $fillable = ['id', 'system_id', 'name', 'description', 'body', 'tools', 'origin'];
+    protected $fillable = ['id', 'system_id', 'name', 'description', 'body', 'tools', 'origin', 'mode'];
+
+    public const MODES = ['progressive' => 'When a request matches', 'always' => 'Always on'];
 
     protected $casts = ['tools' => 'array'];
 

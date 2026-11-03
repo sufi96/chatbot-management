@@ -105,8 +105,8 @@ def _arguments(raw) -> dict | None:
 
 
 async def run(bot, message: str, tools: list[Tool], endpoint, ask=None, call=None,
-              extra_system: str = "") -> AgentResult:
-    if not tools:
+              extra_system: str = "", skills=()) -> AgentResult:
+    if not tools and not skills:
         return AgentResult()
 
     ask = ask or LLMAdapter.complete_with_tools
@@ -116,11 +116,20 @@ async def run(bot, message: str, tools: list[Tool], endpoint, ask=None, call=Non
     schemas = [schema(tool) for tool in tools]
     limit = max(1, int(getattr(bot, "agentic_max_calls", None) or 3))
 
+    skills_by_name = {skill.name: skill for skill in skills}
+    if skills:
+        extra_system = "\n\n".join(part for part in (extra_system, skills_prompt(skills)) if part)
+        schemas.append(LOAD_SKILL)
+
     system = SYSTEM + ("\n\n" + extra_system if extra_system else "")
     messages = [{"role": "system", "content": system}, {"role": "user", "content": message}]
     result = AgentResult(model=model)
 
-    while len(result.calls) < limit:
+    # Loading a skill is not a call to anyone's system, so it does not count
+    # against the limit; the rounds cap is what stops a model that only loads.
+    rounds = 0
+    while len(result.calls) < limit and rounds < limit + 2:
+        rounds += 1
         reply = await ask(base_url, api_key, model, messages, schemas)
         if not reply or not reply.get("tool_calls"):
             break
@@ -134,7 +143,11 @@ async def run(bot, message: str, tools: list[Tool], endpoint, ask=None, call=Non
             tool = by_name.get(name)
             arguments = _arguments(function.get("arguments"))
 
-            if tool is None or arguments is None:
+            if name == LOAD_SKILL["function"]["name"] and skills:
+                skill = skills_by_name.get((arguments or {}).get("name", ""))
+                feedback = (spotlight.wrap(f"The {skill.name} skill:", skill.body) if skill
+                            else json.dumps({"error": "No skill by that name is available."}))
+            elif tool is None or arguments is None:
                 problem = f"No tool called {name}." if tool is None else "The arguments were not a JSON object."
                 result.calls.append(CallRecord(tool, name, arguments or {}, "failed", excerpt=problem))
                 feedback = json.dumps({"error": problem})
@@ -169,6 +182,41 @@ async def run(bot, message: str, tools: list[Tool], endpoint, ask=None, call=Non
 
     result.context_block = _block(result.calls)
     return result
+
+
+LOAD_SKILL = {"type": "function", "function": {
+    "name": "load_skill",
+    "description": "Load a skill's step-by-step instructions before handling a request it matches.",
+    "parameters": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
+}}
+
+
+def skills_prompt(skills) -> str:
+    if not skills:
+        return ""
+    lines = [f"- {skill.name}: {skill.description}" for skill in skills]
+    return "Skills you can load with load_skill when a request matches:\n" + "\n".join(lines)
+
+
+async def skills_for(session, bot, tool_names: set) -> list:
+    """The bot's skills in its own workspace whose tools it has, minus any that
+    read as an attempt to instruct the model. Skill text is data like any other."""
+    from database import BotSkill, Skill
+
+    rows = (await session.execute(
+        select(Skill).join(BotSkill, BotSkill.skill_id == Skill.id)
+        .where(BotSkill.bot_id == bot.id, Skill.system_id == bot.system_id)
+        .order_by(Skill.name))).scalars().all()
+
+    usable = []
+    for skill in rows:
+        if not set(skill.tools or []) <= set(tool_names):
+            continue
+        if shield.detect(f"{skill.description}\n{skill.body}").found:
+            print(f"[Skills] Skipped {skill.name}: reads as instructions")
+            continue
+        usable.append(skill)
+    return usable
 
 
 def _block(calls: list[CallRecord]) -> str:

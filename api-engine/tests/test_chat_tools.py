@@ -31,6 +31,10 @@ def fake_agent(monkeypatch, outcome, seen=None):
     monkeypatch.setattr(agent, "run", run)
 
 
+async def no_skills(session, bot, names):
+    return []
+
+
 def pending_ticket():
     record = agent.CallRecord(a_tool("createTicket", True), "createTicket", {"subject": "Broken login"},
                               "awaiting_confirm")
@@ -54,7 +58,8 @@ async def test_tools_attempt_answers_with_what_the_tools_returned():
         return [a_tool("getTicket", False)]
 
     bot = SimpleNamespace(id="b", provider=None, model_name="m", agentic_max_calls=3)
-    found = await attempts.tools(None, bot, "is ticket 7 open?", {}, run=run, load=load, log=log)
+    found = await attempts.tools(None, bot, "is ticket 7 open?", {}, run=run, load=load, log=log,
+                                 load_skills=no_skills)
 
     assert found.has_content and found.kind == "tools"
     assert "Ticket 7 is open" in found.context_block
@@ -73,7 +78,7 @@ async def test_tools_attempt_with_nothing_is_a_miss_but_still_logged():
         return [a_tool("getTicket", False)]
 
     bot = SimpleNamespace(id="b", provider=None, model_name="m", agentic_max_calls=3)
-    found = await attempts.tools(None, bot, "x", {}, run=run, load=load, log=log)
+    found = await attempts.tools(None, bot, "x", {}, run=run, load=load, log=log, load_skills=no_skills)
 
     assert found.has_content is False
     assert log == [failed]
@@ -258,3 +263,43 @@ async def test_a_tool_switched_off_since_is_not_run(factory, monkeypatch):
 
     assert response.json()["status"] == "failed"
     assert calls == []
+
+
+async def test_tools_attempt_hands_the_bots_skills_to_the_loop():
+    seen = {}
+
+    async def run(bot, message, tools, endpoint, **kwargs):
+        seen.update(kwargs)
+        return agent.AgentResult()
+
+    async def load(session, bot):
+        return [a_tool("getTicket", False)]
+
+    async def load_skills(session, bot, names):
+        seen["names"] = names
+        return ["a skill"]
+
+    bot = SimpleNamespace(id="b", provider=None, model_name="m", agentic_max_calls=3)
+    await attempts.tools(None, bot, "x", {}, run=run, load=load, load_skills=load_skills)
+
+    assert seen["skills"] == ["a skill"]
+    assert seen["names"] == {"getTicket"}
+
+
+async def test_skills_alone_reach_the_loop():
+    seen = []
+
+    async def run(bot, message, tools, endpoint, **kwargs):
+        seen.append(kwargs["skills"])
+        return agent.AgentResult()
+
+    async def load(session, bot):
+        return []
+
+    async def load_skills(session, bot, names):
+        return ["human-handover"]
+
+    bot = SimpleNamespace(id="b", provider=None, model_name="m", agentic_max_calls=3)
+    await attempts.tools(None, bot, "x", {}, run=run, load=load, load_skills=load_skills)
+
+    assert seen == [["human-handover"]]

@@ -423,6 +423,33 @@
                                 @endforeach
                             @endforeach
                         @endif
+
+                        <div class="fw-semibold mt-3 mb-1">Skills</div>
+                        @error('skills')
+                            <div class="text-danger small mb-2">{{ $message }}</div>
+                        @enderror
+                        @if($skills->isEmpty())
+                            <p class="text-muted small mb-0">
+                                No skills in this workspace yet. <a href="{{ route('skills.index') }}">Add or copy one</a>.
+                            </p>
+                        @else
+                            @php($tickedSkills = old('skills', $attachedSkills))
+                            @foreach($skills as $skill)
+                                @php($missing = array_values(array_diff($skill->tools ?? [], $toolNames)))
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="skills[]" value="{{ $skill->id }}"
+                                           id="skill_{{ $skill->id }}" @checked(in_array($skill->id, $tickedSkills, true))>
+                                    <label class="form-check-label small" for="skill_{{ $skill->id }}">
+                                        <span class="figure-mono">{{ $skill->name }}</span>
+                                        <span class="text-muted">· {{ \Illuminate\Support\Str::limit($skill->description, 80) }}</span>
+                                        @if($missing)
+                                            <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1"
+                                                  title="Offered once the bot has these operations">needs: {{ implode(', ', $missing) }}</span>
+                                        @endif
+                                    </label>
+                                </div>
+                            @endforeach
+                        @endif
                     </div>
                     </div>
                 </div>

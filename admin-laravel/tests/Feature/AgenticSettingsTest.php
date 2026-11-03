@@ -8,6 +8,7 @@ use App\Models\ChatMessage;
 use App\Models\ChatToolCall;
 use App\Models\Connector;
 use App\Models\ConnectorTool;
+use App\Models\Skill;
 use App\Models\System;
 use App\Models\User;
 use App\Services\Analytics;
@@ -181,5 +182,44 @@ class AgenticSettingsTest extends TestCase
     public function test_analytics_counts_answers_from_connected_systems(): void
     {
         $this->assertArrayHasKey('tools', Analytics::SOURCE_KINDS);
+    }
+
+    private function skill(string $id, string $system = 'sys_test', array $tools = []): Skill
+    {
+        return Skill::create(['id' => $id, 'system_id' => $system, 'name' => "skill-{$id}",
+            'description' => 'd', 'body' => 'b', 'tools' => $tools, 'origin' => 'typed']);
+    }
+
+    public function test_skills_are_saved(): void
+    {
+        $this->skill('s1');
+
+        $this->save(['agentic_enabled' => 1, 'skills' => ['s1']])->assertSessionHasNoErrors();
+
+        $this->assertSame(['s1'], BotProfile::find('bot_1')->skills->pluck('id')->all());
+    }
+
+    public function test_another_workspaces_skill_is_refused(): void
+    {
+        $this->skill('s_x', 'sys_other');
+
+        $this->save(['agentic_enabled' => 1, 'skills' => ['s_x']])->assertSessionHasErrors('skills');
+        $this->assertCount(0, BotProfile::find('bot_1')->skills);
+    }
+
+    public function test_a_built_in_must_be_copied_before_a_bot_uses_it(): void
+    {
+        $this->save(['agentic_enabled' => 1, 'skills' => ['skl_builtin_handover']])->assertSessionHasErrors('skills');
+    }
+
+    public function test_the_card_says_which_tools_a_skill_still_needs(): void
+    {
+        $this->skill('s1', tools: ['create_ticket']);
+
+        $this->actingAs($this->member('editor'))
+            ->get(route('bots.brain', 'bot_1'))
+            ->assertOk()
+            ->assertSee('skill-s1')
+            ->assertSee('needs: create_ticket');
     }
 }

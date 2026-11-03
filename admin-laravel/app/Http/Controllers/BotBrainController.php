@@ -9,6 +9,7 @@ use App\Models\Connector;
 use App\Models\ConnectorTool;
 use App\Models\DbConnection;
 use App\Models\KbCollection;
+use App\Models\Skill;
 use App\Models\WebSearchKey;
 use App\Services\EngineClient;
 use App\Support\SourceOrder;
@@ -52,6 +53,10 @@ class BotBrainController extends Controller
                 ->orderBy('name')->get()
                 ->filter(fn (Connector $c) => $c->tools->isNotEmpty())->values(),
             'attachedTools' => $bot->tools()->pluck('connector_tools.id')->all(),
+            'skills' => Skill::where('system_id', $bot->system_id)->orderBy('name')->get(),
+            'attachedSkills' => $bot->skills()->pluck('skills.id')->all(),
+            // What the bot has now, to say which tools a skill still needs.
+            'toolNames' => $bot->tools()->where('enabled', true)->pluck('name')->all(),
             'platformSearch' => self::platformSearch(),
             'platformLent' => AppSetting::get('web_search_lending') !== 'none',
             'speechEngine' => AppSetting::get('speech_engine'),
@@ -123,6 +128,8 @@ class BotBrainController extends Controller
             'agentic_max_calls' => ['sometimes', 'integer', 'min:1', 'max:5'],
             'tools' => ['nullable', 'array'],
             'tools.*' => ['string'],
+            'skills' => ['nullable', 'array'],
+            'skills.*' => ['string'],
         ], [
             'web_search_key_id.required_if' => 'Choose one of this workspace\'s keys, or add one.',
             'web_search_key_id.exists' => 'Choose one of this workspace\'s keys.',
@@ -153,9 +160,11 @@ class BotBrainController extends Controller
         // Only the form with the Agentic card may change it; an older client
         // leaves the switch and the tools as they were.
         $tools = null;
+        $skills = null;
         if ($request->has('agentic_present')) {
             $validated['agentic_enabled'] = $request->boolean('agentic_enabled');
             $tools = $this->agenticTools($bot, (array) $request->input('tools', []));
+            $skills = $this->agenticSkills($bot, (array) $request->input('skills', []));
         }
 
         // Normalised rather than refused. A hand made submission must not be
@@ -166,11 +175,12 @@ class BotBrainController extends Controller
         if (!empty($validated['web_search_country'])) {
             $validated['web_search_country'] = strtoupper($validated['web_search_country']);
         }
-        unset($validated['collections'], $validated['db_connections'], $validated['tools']);
+        unset($validated['collections'], $validated['db_connections'], $validated['tools'], $validated['skills']);
         $bot->update($validated);
 
         if ($tools !== null) {
             $bot->tools()->sync($tools);
+            $bot->skills()->sync($skills);
         }
 
         // Only collections from this bot's own workspace may be attached, whatever
@@ -225,6 +235,27 @@ class BotBrainController extends Controller
         }
 
         return $tools->pluck('id')->all();
+    }
+
+    /**
+     * Skill ids from the bot's own workspace. A built-in is copied into the
+     * workspace first, so its text is the workspace's to read and change.
+     * One whose tools the bot lacks may still be linked; the card says what
+     * it needs, and the engine offers it only once the bot has them.
+     */
+    private function agenticSkills(BotProfile $bot, array $ids): array
+    {
+        $ids = array_values(array_unique(array_map('strval', $ids)));
+        if (!$ids) {
+            return [];
+        }
+
+        $found = Skill::whereIn('id', $ids)->where('system_id', $bot->system_id)->pluck('id')->all();
+        if (count($found) !== count($ids)) {
+            throw ValidationException::withMessages(['skills' => 'Choose only skills from this workspace.']);
+        }
+
+        return $found;
     }
 
     public function clearCache(Request $request, string $id)

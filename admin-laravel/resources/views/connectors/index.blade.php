@@ -74,6 +74,7 @@
                                 <th>Operation</th>
                                 <th>Route</th>
                                 <th>Description</th>
+                                <th class="text-end" title="Changes something: the visitor confirms first">Writes</th>
                                 <th class="text-end">Bots may use it</th>
                             </tr>
                         </thead>
@@ -88,6 +89,11 @@
                                     </td>
                                     <td class="figure-mono small">{{ strtoupper($tool->method) }} {{ $tool->path }}</td>
                                     <td class="small text-muted">{{ \Illuminate\Support\Str::limit($tool->description, 120) }}</td>
+                                    <td class="text-end">
+                                        <input type="checkbox" class="form-check-input" data-tool-writes="{{ $tool->id }}"
+                                               title="Changes something: the visitor confirms first"
+                                               @checked($tool->writes) @disabled(!$canManage)>
+                                    </td>
                                     <td class="text-end">
                                         <input type="checkbox" class="form-check-input" data-tool-toggle="{{ $tool->id }}"
                                                @checked($tool->enabled) @disabled(!$canManage)>
@@ -290,6 +296,15 @@
             send('POST', url('import', importForm.dataset.connectorImport), body).then(function (data) {
                 say(pageStatus, data.message, data.success);
                 if (data.success) location.reload();
+            });
+        });
+    });
+
+    document.querySelectorAll('[data-tool-writes]').forEach(function (box) {
+        box.addEventListener('change', function () {
+            send('PUT', url('tool', box.dataset.toolWrites), {writes: box.checked}).then(function (data) {
+                say(pageStatus, data.success ? (box.checked ? 'The visitor confirms it first.' : 'Runs without asking.') : data.message, data.success);
+                if (!data.success) box.checked = !box.checked;
             });
         });
     });

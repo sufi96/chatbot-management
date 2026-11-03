@@ -189,6 +189,11 @@ class ConnectorController extends Controller
             foreach ($imported as $tool) {
                 $existing = $connector->tools()->where('name', $tool['name'])->first();
                 $tool['enabled'] = in_array($tool['name'], $enabled, true);
+                // Whether it changes something is the admin's call once made;
+                // the method is only the first guess.
+                if ($existing) {
+                    unset($tool['writes']);
+                }
                 $existing
                     ? $existing->update($tool)
                     : $connector->tools()->create($tool + ['id' => 'ctl_' . Str::random(12)]);

@@ -189,4 +189,22 @@ class ConnectorTest extends TestCase
         Http::assertSent(fn ($request) => $request['auth_secret'] === 's3cret-token-9876'
             && $request['base_url'] === 'https://api.example.test');
     }
+
+    public function test_an_admins_writes_choice_survives_a_reimport_and_can_be_set_on_the_page(): void
+    {
+        $connector = $this->connector();
+        $admin = $this->actingAs($this->member('system_admin'));
+        $admin->postJson(route('connectors.import', $connector->id), ['spec' => self::SPEC])->assertOk();
+
+        // A GET that changes something, marked by hand so the visitor confirms it.
+        $get = $connector->tools()->where('name', 'getApplication')->first();
+        $admin->putJson(route('connector-tools.update', $get->id), ['writes' => true])->assertOk();
+        $admin->postJson(route('connectors.import', $connector->id), ['spec' => self::SPEC])->assertOk();
+
+        $this->assertTrue($get->fresh()->writes);
+
+        $admin->withSession(['active_system_id' => 'sys_test'])
+            ->get(route('connectors.index'))
+            ->assertSee('data-tool-writes="' . $get->id . '"', false);
+    }
 }

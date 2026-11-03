@@ -104,6 +104,11 @@
                 <span>Knowledge base</span>
             </a>
 
+            <a href="{{ route('connectors.index') }}" class="sidebar-link {{ request()->routeIs('connectors.*') ? 'active' : '' }}">
+                <i class="bi bi-plug"></i>
+                <span>Connectors</span>
+            </a>
+
             <a href="{{ route('logs.index') }}" class="sidebar-link {{ request()->routeIs('logs.*') ? 'active' : '' }}">
                 <i class="bi bi-chat-left-text"></i>
                 <span>Conversations</span>

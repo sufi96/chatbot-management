@@ -162,6 +162,24 @@ class EngineClient
         }
     }
 
+    /** Whether a connector's API answers, asked of the engine that will call it. */
+    public static function testConnector(array $fields): array
+    {
+        try {
+            $response = self::request()->post(self::base() . '/api/v1/connectors/test', $fields);
+
+            if (!$response->successful()) {
+                return ['success' => false, 'message' => 'Engine returned HTTP ' . $response->status()];
+            }
+
+            $body = $response->json();
+
+            return ['success' => (bool) ($body['success'] ?? false), 'message' => (string) ($body['message'] ?? '')];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => 'Could not reach the engine: ' . $e->getMessage()];
+        }
+    }
+
     /** A short sample in one of the four voices, from the saved settings. */
     public static function testVoice(string $voice, string $text = '', string $voiceName = '', array $unsaved = []): array
     {

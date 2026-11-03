@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\SystemController;
 use App\Http\Controllers\BotProfileController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\ConnectorController;
 use App\Http\Controllers\WebSearchKeyController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\KnowledgeBaseController;
@@ -86,6 +87,15 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     Route::post('/web-search-keys/test', [WebSearchKeyController::class, 'test'])->name('web-search-keys.test');
     Route::put('/web-search-keys/{id}', [WebSearchKeyController::class, 'update'])->name('web-search-keys.update');
     Route::delete('/web-search-keys/{id}', [WebSearchKeyController::class, 'destroy'])->name('web-search-keys.destroy');
+
+    // Connectors: outside APIs and the operations bots may call.
+    Route::get('/connectors', [ConnectorController::class, 'index'])->name('connectors.index');
+    Route::post('/connectors', [ConnectorController::class, 'store'])->name('connectors.store');
+    Route::post('/connectors/test', [ConnectorController::class, 'test'])->name('connectors.test');
+    Route::put('/connectors/{id}', [ConnectorController::class, 'update'])->name('connectors.update');
+    Route::delete('/connectors/{id}', [ConnectorController::class, 'destroy'])->name('connectors.destroy');
+    Route::post('/connectors/{id}/import', [ConnectorController::class, 'import'])->name('connectors.import');
+    Route::put('/connector-tools/{id}', [ConnectorController::class, 'updateTool'])->name('connector-tools.update');
 
     // Database connections
     // Distinct path, so it cannot be mistaken for /databases/{id}

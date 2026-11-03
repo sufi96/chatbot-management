@@ -3,6 +3,7 @@ import json
 import time
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -22,6 +23,7 @@ import leak
 import roles
 import shield
 import sources
+from connectors import rest
 from kb.embedding import client_for as embedding_client_for
 from kb.retrieval import augment_system_prompt
 from llm_adapter import LLMAdapter
@@ -661,3 +663,72 @@ async def chat_stream(
             "X-Accel-Buffering": "no"  # Disables proxy buffering for Nginx/FrankenPHP
         }
     )
+
+
+CONFIRM_MINUTES = 10
+
+
+class ActionDecision(BaseModel):
+    bot_id: str
+    session_id: str
+    decision: str = Field(pattern="^(confirm|decline)$")
+
+
+@router.post("/actions/{action_id}")
+async def decide_action(action_id: str, req: ActionDecision, request: Request,
+                        db: AsyncSession = Depends(get_db)):
+    """The visitor's Confirm or Cancel on a change a tool was going to make.
+
+    Only the conversation that was asked may answer, once, within ten minutes.
+    The tool is looked up again rather than trusted from when it was asked: an
+    admin may have switched it off or unlinked it in between.
+    """
+    from database import BotConnectorTool, Connector, ConnectorTool
+
+    bot = (await db.execute(select(BotProfile).where(
+        BotProfile.id == req.bot_id, BotProfile.is_active.is_(True),
+        BotProfile.deleted_at.is_(None)))).scalars().first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot profile not found or inactive")
+    system = (await db.execute(select(System).where(System.id == bot.system_id))).scalars().first()
+    check_origin(bot, system, request.headers.get("origin", ""))
+
+    action = (await db.execute(
+        select(ChatToolCall).join(ChatConversation, ChatConversation.id == ChatToolCall.conversation_id)
+        .where(ChatToolCall.id == action_id, ChatConversation.bot_id == bot.id,
+               ChatConversation.session_id == req.session_id))).scalars().first()
+    if not action:
+        raise HTTPException(status_code=404, detail="No such action in this conversation.")
+    if action.status != "awaiting_confirm":
+        raise HTTPException(status_code=409, detail="This action has already been answered.")
+    if datetime.utcnow() - action.created_at > timedelta(minutes=CONFIRM_MINUTES):
+        action.status = "expired"
+        await db.commit()
+        raise HTTPException(status_code=409, detail="This action has expired. Ask again.")
+
+    if req.decision == "decline":
+        action.status, text = "declined", "Cancelled. Nothing was sent."
+    else:
+        found = (await db.execute(
+            select(ConnectorTool, Connector)
+            .join(Connector, Connector.id == ConnectorTool.connector_id)
+            .join(BotConnectorTool, BotConnectorTool.connector_tool_id == ConnectorTool.id)
+            .where(ConnectorTool.id == action.connector_tool_id, ConnectorTool.enabled.is_(True),
+                   BotConnectorTool.bot_id == bot.id, Connector.system_id == bot.system_id))).first()
+        if not found:
+            action.status, text = "failed", "That action is no longer available, so nothing was sent."
+        else:
+            tool_row, connector = found
+            outcome = await rest.call(connector, tool_row, action.arguments or {})
+            action.duration_ms = outcome.ms or None
+            action.result_excerpt = (outcome.text or outcome.error or "")[:500] or None
+            if outcome.ok:
+                action.status, text = "confirmed", "Done."
+            else:
+                action.status, text = "failed", f"That didn't go through: {outcome.error}"
+
+    db.add(ChatMessage(id=str(uuid.uuid4()), conversation_id=action.conversation_id,
+                       sender="assistant", content=text, source_kind="tools"))
+    await db.commit()
+
+    return {"status": action.status, "text": text}

@@ -8,7 +8,7 @@ import agent
 from database import ChatMessage, ChatToolCall
 from routers import chat
 from sources import attempts
-from tests.test_chat_route import answering, factory, post, update_bot  # noqa: F401  (fixture)
+from tests.test_chat_route import answering, factory, post, rows, update_bot  # noqa: F401  (fixture)
 
 CONNECTOR = SimpleNamespace(name="Tickets API")
 
@@ -133,3 +133,128 @@ def test_combined_tools_are_numbered_after_the_documents():
 
     assert [c["n"] for c in merged.citations] == [1, 2]
     assert "[2] Tickets API: getTicket" in merged.context_block
+
+
+# The visitor's Confirm or Cancel, by the action id the widget was given.
+
+from datetime import datetime, timedelta  # noqa: E402
+
+from httpx import ASGITransport, AsyncClient  # noqa: E402
+from fastapi import FastAPI  # noqa: E402
+
+from connectors import rest  # noqa: E402
+from database import (BotConnectorTool, ChatConversation, Connector, ConnectorTool,  # noqa: E402
+                      get_db)
+
+
+async def waiting_action(factory, created=None, session_id="s1", status="awaiting_confirm"):
+    async with factory() as s:
+        s.add(Connector(id="con_1", system_id="sys_1", name="Tickets API", base_url="https://t.test"))
+        s.add(ConnectorTool(id="ctl_1", connector_id="con_1", name="createTicket", method="post",
+                            path="/tickets", writes=True, enabled=True, parameters={}))
+        s.add(BotConnectorTool(bot_id="bot_1", connector_tool_id="ctl_1"))
+        s.add(ChatConversation(id="conv_1", bot_id="bot_1", session_id=session_id, origin=""))
+        s.add(ChatToolCall(id="act_1", conversation_id="conv_1", connector_tool_id="ctl_1",
+                           tool_name="createTicket", arguments={"body": {"subject": "x"}},
+                           status=status, created_at=created or datetime.utcnow()))
+        await s.commit()
+
+
+async def decide(factory, decision="confirm", session_id="s1", action_id="act_1"):
+    app = FastAPI()
+    app.include_router(chat.router)
+
+    async def session():
+        async with factory() as s:
+            yield s
+
+    app.dependency_overrides[get_db] = session
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        return await client.post(f"/api/v1/chat/actions/{action_id}", json={
+            "bot_id": "bot_1", "session_id": session_id, "decision": decision})
+
+
+def counting_call(monkeypatch, ok=True):
+    calls = []
+
+    async def call(connector, row, arguments, **kwargs):
+        calls.append(arguments)
+        return rest.CallResult(ok=ok, status=201 if ok else 500, error="" if ok else "The API answered 500.")
+
+    monkeypatch.setattr(rest, "call", call)
+    return calls
+
+
+async def status_of(factory, action_id="act_1"):
+    async with factory() as s:
+        return (await s.get(ChatToolCall, action_id)).status
+
+
+async def test_confirm_runs_the_action_once(factory, monkeypatch):
+    await waiting_action(factory)
+    calls = counting_call(monkeypatch)
+
+    first = await decide(factory)
+    second = await decide(factory)
+
+    assert first.status_code == 200 and first.json()["status"] == "confirmed"
+    assert first.json()["text"] == "Done."
+    assert calls == [{"body": {"subject": "x"}}]
+    assert second.status_code == 409
+    assert await status_of(factory) == "confirmed"
+    saved = (await rows(factory))["assistant"]
+    assert saved.content == "Done."
+
+
+async def test_another_sessions_action_is_not_found(factory, monkeypatch):
+    await waiting_action(factory)
+    calls = counting_call(monkeypatch)
+
+    response = await decide(factory, session_id="someone-else")
+
+    assert response.status_code == 404
+    assert calls == []
+
+
+async def test_an_old_action_expires(factory, monkeypatch):
+    await waiting_action(factory, created=datetime.utcnow() - timedelta(minutes=11))
+    calls = counting_call(monkeypatch)
+
+    response = await decide(factory)
+
+    assert response.status_code == 409
+    assert calls == []
+    assert await status_of(factory) == "expired"
+
+
+async def test_decline_never_calls(factory, monkeypatch):
+    await waiting_action(factory)
+    calls = counting_call(monkeypatch)
+
+    response = await decide(factory, decision="decline")
+
+    assert response.json() == {"status": "declined", "text": "Cancelled. Nothing was sent."}
+    assert calls == []
+
+
+async def test_a_failed_action_says_so(factory, monkeypatch):
+    await waiting_action(factory)
+    counting_call(monkeypatch, ok=False)
+
+    response = await decide(factory)
+
+    assert response.json()["status"] == "failed"
+    assert "500" in response.json()["text"]
+
+
+async def test_a_tool_switched_off_since_is_not_run(factory, monkeypatch):
+    await waiting_action(factory)
+    calls = counting_call(monkeypatch)
+    async with factory() as s:
+        (await s.get(ConnectorTool, "ctl_1")).enabled = False
+        await s.commit()
+
+    response = await decide(factory)
+
+    assert response.json()["status"] == "failed"
+    assert calls == []

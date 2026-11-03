@@ -963,6 +963,41 @@
 
         /* What an answer drew on. Titles only: a visitor never sees chunk
            contents or internal ids. */
+        .message-confirm {
+            margin-top: 6px;
+            padding: 8px 10px;
+            border: 1px solid rgba(0, 0, 0, 0.12);
+            border-radius: 10px;
+            font-size: 13px;
+        }
+
+        .message-confirm .confirm-buttons {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .message-confirm button {
+            border: 1px solid rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 4px 12px;
+            background: transparent;
+            color: inherit;
+            cursor: pointer;
+            font: inherit;
+        }
+
+        .message-confirm .confirm-yes {
+            background: var(--primary-color, #1f2937);
+            border-color: transparent;
+            color: #fff;
+        }
+
+        .message-confirm button:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
         .message-sources {
             display: flex;
             flex-wrap: wrap;
@@ -1743,8 +1778,67 @@
             svg: '<ellipse cx="12" cy="5" rx="9" ry="3"/>' +
                  '<path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>' +
                  '<path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>'
+        },
+        tools: {
+            label: "Connected system",
+            svg: '<path d="M9 2v6"/><path d="M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/>' +
+                 '<path d="M12 18v4"/>'
         }
     };
+
+    /**
+     * Confirm and Cancel for a change a connected system would make. Nothing
+     * is sent until the visitor presses Confirm; the engine then runs it and
+     * says how it went. Built with textContent, so a summary is never HTML.
+     */
+    function attachConfirm(bubble, action) {
+        var wrapper = bubble && bubble.parentNode;
+        if (!wrapper || !action || !action.action_id) return;
+
+        var card = document.createElement("div");
+        card.className = "message-confirm";
+
+        var summary = document.createElement("div");
+        summary.className = "confirm-summary";
+        summary.textContent = action.summary || action.tool || "";
+        card.appendChild(summary);
+
+        var buttons = document.createElement("div");
+        buttons.className = "confirm-buttons";
+        var yes = document.createElement("button");
+        yes.type = "button";
+        yes.className = "confirm-yes";
+        yes.textContent = "Confirm";
+        var no = document.createElement("button");
+        no.type = "button";
+        no.className = "confirm-no";
+        no.textContent = "Cancel";
+        buttons.appendChild(yes);
+        buttons.appendChild(no);
+        card.appendChild(buttons);
+        wrapper.appendChild(card);
+
+        function decide(decision) {
+            yes.disabled = true;
+            no.disabled = true;
+            fetch(apiHost + "/api/v1/chat/actions/" + encodeURIComponent(action.action_id), {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ bot_id: botId, session_id: sessionId, decision: decision })
+            }).then(function (response) {
+                return response.json().catch(function () { return {}; });
+            }).then(function (data) {
+                var text = data.text || data.detail || "That could not be completed.";
+                appendMessage("bot", text);
+                messageHistory.push({ role: "assistant", content: text });
+            }).catch(function () {
+                appendMessage("bot", "Could not reach the assistant. Nothing was sent.");
+            });
+        }
+
+        yes.addEventListener("click", function () { decide("confirm"); });
+        no.addEventListener("click", function () { decide("decline"); });
+    }
 
     /**
      * The mark for a source kind, or nothing for one this widget predates.
@@ -2580,6 +2674,7 @@
         var partialText = "";
         var firstChunk = true;
         var pendingSources = [];
+        var pendingConfirm = null;
         var pendingSourceKind = "";
         var thinkGroup = null;
         var thinkStartedAt = Date.now();
@@ -2660,12 +2755,15 @@
                                     messageHistory.push({ role: "assistant", content: partialText });
                                     attachSources(botBubble, pendingSources, pendingSourceKind);
                                 }
+                                if (pendingConfirm) { attachConfirm(botBubble, pendingConfirm); }
                                 return;
                             }
                             try {
                                 var parsed = JSON.parse(dataStr);
                                 if (parsed.type === "status") {
                                     showStatus(parsed.text);
+                                } else if (parsed.type === "confirm") {
+                                    pendingConfirm = parsed;
                                 } else if (parsed.type === "sources") {
                                     pendingSources = parsed.sources || [];
                                     pendingSourceKind = parsed.kind || "";

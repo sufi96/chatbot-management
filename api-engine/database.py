@@ -304,6 +304,21 @@ class WebSearchKey(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class McpKey(Base):
+    """A workspace's key for other AI tools to use C⁴ over MCP. Laravel owns the
+    table and keeps only the SHA-256 of the key."""
+    __tablename__ = "mcp_keys"
+
+    id = Column(String(36), primary_key=True)
+    system_id = Column(String(36), ForeignKey("systems.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(120), nullable=False)
+    token_hash = Column(String(64), nullable=False, unique=True)
+    hint = Column(String(8), nullable=True)
+    last_used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Connector(Base):
     """An outside API a workspace's bots may call. Laravel owns the table."""
     __tablename__ = "connectors"

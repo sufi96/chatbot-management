@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\BotProfile;
 use App\Models\Connector;
 use App\Models\ConnectorTool;
+use App\Models\McpKey;
 use App\Services\EngineClient;
 use App\Support\OpenApiImport;
 use Illuminate\Http\JsonResponse;
@@ -41,6 +42,8 @@ class ConnectorController extends Controller
             'activeSystem' => $activeSystem,
             'connectors' => $connectors,
             'canManage' => $request->user()->canManageSystem($activeSystem->id, 'system_admin'),
+            'mcpKeys' => McpKey::where('system_id', $activeSystem->id)->orderBy('name')->get(),
+            'mcpAddress' => rtrim(env('API_HOST_URL', 'http://localhost:8000'), '/') . '/mcp/',
         ]);
     }
 

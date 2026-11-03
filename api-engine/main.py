@@ -9,6 +9,11 @@ from config import settings
 import database
 from database import init_db
 from routers import bot, chat, connectors, kb, skills, voice
+import mcp_server
+
+# C⁴ as an MCP server for other AI tools, at /mcp/. Its sessions need its own
+# lifespan running inside the engine's.
+mcp_app = mcp_server.server.http_app(path="/")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -16,7 +21,8 @@ async def lifespan(app: FastAPI):
     print("[Engine] Initializing database...")
     await init_db()
     print("[Engine] FastAPI Streaming Engine is ready.")
-    yield
+    async with mcp_app.lifespan(app):
+        yield
     # Shutdown
     print("[Engine] Shutting down...")
 
@@ -42,6 +48,9 @@ app.include_router(kb.router)
 app.include_router(connectors.router)
 app.include_router(skills.router)
 app.include_router(voice.router)
+
+mcp_server.APP = app
+app.mount("/mcp", mcp_app)
 
 @app.get("/health")
 async def health_check():

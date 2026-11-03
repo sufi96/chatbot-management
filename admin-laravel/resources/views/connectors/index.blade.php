@@ -113,6 +113,43 @@
     </div>
 @endforeach
 
+<h6 class="mt-4 mb-2">Use C⁴ from other AI tools (MCP)</h6>
+<div class="card mb-3">
+    <div class="card-body">
+        <p class="small text-muted mb-2">
+            Other AI tools that speak MCP (Copilot, Claude, a staff agent) can list, search and ask the bots in
+            {{ $activeSystem->name }}. Point them at <span class="figure-mono">{{ $mcpAddress }}</span> with a key
+            below as a bearer token. Answers go through the same checks as a visitor's.
+        </p>
+        @if($mcpKeys->isNotEmpty())
+            <table class="table table-sm mb-2">
+                <tbody>
+                    @foreach($mcpKeys as $key)
+                        <tr>
+                            <td>{{ $key->name }} <span class="text-muted figure-mono small">…{{ $key->hint }}</span></td>
+                            <td class="small text-muted">{{ $key->last_used_at ? 'Used ' . $key->last_used_at->diffForHumans() : 'Not used yet' }}</td>
+                            <td class="text-end">
+                                @if($canManage)
+                                    <button class="btn btn-sm btn-outline-danger" data-mcp-key-delete="{{ $key->id }}"
+                                            data-name="{{ $key->name }}" title="Delete key"><i class="bi bi-trash3"></i></button>
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+        @if($canManage)
+            <form class="d-flex gap-2 flex-wrap" id="mcpKeyForm">
+                <input name="keyname" class="form-control form-control-sm" style="max-width: 260px;" required maxlength="120"
+                       placeholder="Who uses it, e.g. Staff Copilot">
+                <button class="btn btn-sm btn-outline-primary">Make a key</button>
+            </form>
+            <div id="mcpKeyShown" class="small mt-2 figure-mono" hidden></div>
+        @endif
+    </div>
+</div>
+
 @if($canManage)
     <div class="modal fade" id="connectorModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -303,6 +340,31 @@
                 say(pageStatus, data.message, data.success);
                 if (data.success) location.reload();
             });
+        });
+    });
+
+    var mcpForm = document.getElementById('mcpKeyForm');
+    if (mcpForm) {
+        mcpForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+            send('POST', @json(route('mcp-keys.store')), {system_id: systemId, name: mcpForm.keyname.value}).then(function (data) {
+                say(pageStatus, data.message, data.success);
+                if (!data.success) return;
+                var shown = document.getElementById('mcpKeyShown');
+                shown.hidden = false;
+                shown.textContent = data.token + '  (copy it now; it will not be shown again)';
+            });
+        });
+    }
+
+    document.querySelectorAll('[data-mcp-key-delete]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            if (!confirm('Delete ' + button.dataset.name + '? Tools using it stop working.')) return;
+            send('DELETE', @json(route('mcp-keys.destroy', '__ID__')).replace('__ID__', encodeURIComponent(button.dataset.mcpKeyDelete)))
+                .then(function (data) {
+                    say(pageStatus, data.message, data.success);
+                    if (data.success) location.reload();
+                });
         });
     });
 

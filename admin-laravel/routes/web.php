@@ -7,6 +7,7 @@ use App\Http\Controllers\SystemController;
 use App\Http\Controllers\BotProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ConnectorController;
+use App\Http\Controllers\McpKeyController;
 use App\Http\Controllers\SkillController;
 use App\Http\Controllers\WebSearchKeyController;
 use App\Http\Controllers\LogController;
@@ -97,6 +98,9 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     Route::delete('/connectors/{id}', [ConnectorController::class, 'destroy'])->name('connectors.destroy');
     Route::post('/connectors/{id}/import', [ConnectorController::class, 'import'])->name('connectors.import');
     Route::put('/connector-tools/{id}', [ConnectorController::class, 'updateTool'])->name('connector-tools.update');
+    // Keys for other AI tools to use this workspace's bots over MCP.
+    Route::post('/mcp-keys', [McpKeyController::class, 'store'])->name('mcp-keys.store');
+    Route::delete('/mcp-keys/{id}', [McpKeyController::class, 'destroy'])->name('mcp-keys.destroy');
 
     // Skills: packaged know-how agentic bots load when a request matches.
     Route::get('/skills', [SkillController::class, 'index'])->name('skills.index');

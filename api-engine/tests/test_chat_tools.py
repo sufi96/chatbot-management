@@ -409,3 +409,40 @@ async def test_asking_for_a_person_marks_the_conversation(factory, monkeypatch):
     assert conv.handover_reason == "Billing dispute"
     assert conv.handover_requested_at is not None
     assert call.connector_tool_id is None
+
+
+async def post_traced(factory, message, token):
+    from fastapi import FastAPI as _App
+    app = _App()
+    app.include_router(chat.router)
+
+    async def session():
+        async with factory() as s:
+            yield s
+
+    app.dependency_overrides[get_db] = session
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/api/v1/chat/stream", json={
+            "bot_id": "bot_1", "session_id": "s1", "message": message, "history": [], "trace_token": token})
+    return [json.loads(l[6:]) for l in response.text.splitlines() if l.startswith("data: ") and l != "data: [DONE]"]
+
+
+async def test_the_test_chat_sees_each_call_and_skill_only_with_a_valid_token(factory, monkeypatch):
+    import time
+    import trace_token
+    from config import settings as app_settings
+    monkeypatch.setattr(app_settings, "ADMIN_API_TOKEN", "portal-token")
+    await update_bot(factory, agentic_enabled=True, source_order="tools,documents,database,web",
+                     retrieval_enabled=False, db_query_enabled=False, web_search_enabled=False,
+                     combine_sources=False)
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("Ticket 7 is open."))
+    outcome = a_read()
+    outcome.loaded = [agent.CallRecord(None, "load_skill", {"name": "ticket-help"}, "loaded")]
+    fake_agent(monkeypatch, outcome)
+
+    good = await post_traced(factory, "is ticket 7 open?", trace_token.token("bot_1", "portal-token", int(time.time())))
+    forged = await post_traced(factory, "is ticket 7 open?", trace_token.token("bot_1", "guess", int(time.time())))
+
+    lines = [e["text"] for e in good if e.get("type") == "trace"]
+    assert lines == ["Loaded skill ticket-help", "getTicket(id=7) → ran"]
+    assert not [e for e in forged if e.get("type") == "trace"]

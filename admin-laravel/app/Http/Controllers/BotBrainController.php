@@ -65,6 +65,8 @@ class BotBrainController extends Controller
             // The real widget rides along on this page too, so a change to the
             // prompt or the sources can be tried without going anywhere.
             'apiHost' => env('API_HOST_URL', 'http://localhost:8000'),
+            // Lets this page's widget show each tool call and loaded skill.
+            'traceToken' => EngineClient::traceToken($bot->id),
         ]);
     }
 

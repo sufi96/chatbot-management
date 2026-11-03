@@ -163,7 +163,7 @@ async def tools(session, bot, message: str, settings: dict, run=None, load=None,
                        history=history)
 
     if log is not None:
-        log.extend(result.calls)
+        log.extend([*result.loaded, *result.calls])
 
     answered = [c for c in result.calls if c.status == "ran" and not c.flag]
 

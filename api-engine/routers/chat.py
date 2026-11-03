@@ -23,6 +23,7 @@ import leak
 import roles
 import shield
 import sources
+import trace_token
 from connectors import rest
 from kb.embedding import client_for as embedding_client_for
 from kb.retrieval import augment_system_prompt
@@ -89,6 +90,15 @@ async def consult(order: list, enabled: dict, attempts: dict, combine: bool = Fa
 SUMMARY_CHARS = 300
 
 
+def trace_line(record) -> str:
+    """One line of the test chat's trace: a skill loaded, or a call and how it went."""
+    if record.status == "loaded":
+        return f"Loaded skill {(record.arguments or {}).get('name', '')}"
+    args = ", ".join(f"{k}={v}" for k, v in (record.arguments or {}).items())
+    flag = f" (flagged: {record.flag})" if record.flag else ""
+    return f"{record.name}({args}) → {record.status.replace('_', ' ')}{flag}"[:300]
+
+
 def action_summary(record) -> str:
     """What a change waiting on the visitor will do, in one line for the Confirm card."""
     what = (record.tool.description if record.tool else "") or record.name
@@ -133,6 +143,8 @@ class ChatStreamRequest(BaseModel):
     # What the browser says came before. Read only when the install trusts it
     # or the caller holds the admin token; see history.py.
     history: Optional[List[Dict[str, str]]] = []
+    # Set only by the portal's own test chat; see trace_token.py.
+    trace_token: Optional[str] = None
 
 async def save_assistant_message(conv_id: str, **fields) -> None:
     """Write the bot's side of an exchange once its stream has ended.
@@ -563,6 +575,10 @@ async def chat_stream(
             payload = {"type": "sources", "kind": found.kind,
                        "sources": found.citations}
             yield f"data: {json.dumps(payload)}\n\n"
+        if tool_log and trace_token.valid(req.trace_token, bot.id, app_settings.ADMIN_API_TOKEN,
+                                          int(time.time())):
+            for record in tool_log:
+                yield f"data: {json.dumps({'type': 'trace', 'text': trace_line(record)})}\n\n"
         if confirm_event:
             yield f"data: {json.dumps(confirm_event)}\n\n"
         yield status("writing")

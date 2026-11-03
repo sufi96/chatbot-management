@@ -162,6 +162,23 @@ class EngineClient
         }
     }
 
+    /**
+     * A fifteen-minute token that lets the Behaviour page's own widget see the
+     * bot's tool calls. The engine checks it with the same secret; see
+     * api-engine/trace_token.py. Null when no secret is set.
+     */
+    public static function traceToken(string $botId): ?string
+    {
+        $secret = (string) env('ENGINE_ADMIN_TOKEN', '');
+        if ($secret === '') {
+            return null;
+        }
+
+        $expires = time() + 900;
+
+        return $expires . '.' . hash_hmac('sha256', "{$botId}|{$expires}", $secret);
+    }
+
     /** A SKILL.md drafted by a provider's model, never saved here. */
     public static function draftSkill(string $providerId, string $model, string $description): array
     {

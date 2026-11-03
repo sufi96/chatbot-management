@@ -18,6 +18,9 @@
     }
 
     var botId = scriptTag.getAttribute("data-bot-id");
+    // Only the portal's own test chat has one; it lets the engine send a line
+    // per tool call and loaded skill. See api-engine/trace_token.py.
+    var traceToken = scriptTag.getAttribute("data-trace-token") || null;
     if (!botId) {
         console.error("[ChatbotWidget] data-bot-id attribute is required.");
         return;
@@ -963,6 +966,13 @@
 
         /* What an answer drew on. Titles only: a visitor never sees chunk
            contents or internal ids. */
+        .message-trace {
+            margin-bottom: 4px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 11px;
+            opacity: 0.7;
+        }
+
         .message-confirm {
             margin-top: 6px;
             padding: 8px 10px;
@@ -1785,6 +1795,21 @@
                  '<path d="M12 18v4"/>'
         }
     };
+
+    /** One line of the test chat's trace, under the answer it belongs to. */
+    function showTrace(bubble, text) {
+        var wrapper = bubble && bubble.parentNode;
+        if (!wrapper || !text) return;
+        var box = wrapper.querySelector(".message-trace");
+        if (!box) {
+            box = document.createElement("div");
+            box.className = "message-trace";
+            wrapper.insertBefore(box, bubble);
+        }
+        var line = document.createElement("div");
+        line.textContent = text;
+        box.appendChild(line);
+    }
 
     /**
      * Confirm and Cancel for a change a connected system would make. Nothing
@@ -2711,7 +2736,8 @@
                 bot_id: botId,
                 session_id: sessionId,
                 message: text,
-                history: messageHistory.slice(-10)
+                history: messageHistory.slice(-10),
+                trace_token: traceToken
             })
         })
         .then(function (response) {
@@ -2762,6 +2788,8 @@
                                 var parsed = JSON.parse(dataStr);
                                 if (parsed.type === "status") {
                                     showStatus(parsed.text);
+                                } else if (parsed.type === "trace") {
+                                    showTrace(botBubble, parsed.text);
                                 } else if (parsed.type === "confirm") {
                                     pendingConfirm = parsed;
                                 } else if (parsed.type === "sources") {

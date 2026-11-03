@@ -1007,6 +1007,7 @@
     src="{{ $apiHost }}/widget.js"
     data-bot-id="{{ $bot->id }}"
     data-api-host="{{ $apiHost }}"
+    @if($traceToken) data-trace-token="{{ $traceToken }}" @endif
     defer>
 </script>
 @endsection

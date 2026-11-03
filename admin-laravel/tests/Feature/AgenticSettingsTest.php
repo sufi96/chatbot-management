@@ -266,4 +266,17 @@ class AgenticSettingsTest extends TestCase
             ->assertSee('Needs a person')
             ->assertSee('Billing dispute');
     }
+
+    public function test_the_test_chat_carries_a_trace_token_the_engine_can_check(): void
+    {
+        $_SERVER['ENGINE_ADMIN_TOKEN'] = $_ENV['ENGINE_ADMIN_TOKEN'] = 'portal-token';
+        putenv('ENGINE_ADMIN_TOKEN=portal-token');
+
+        $html = $this->actingAs($this->member('editor'))->get(route('bots.brain', 'bot_1'))->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('/data-trace-token="(\d+)\.([0-9a-f]{64})"/', $html);
+        preg_match('/data-trace-token="(\d+)\.([0-9a-f]{64})"/', $html, $m);
+        $this->assertSame(hash_hmac('sha256', "bot_1|{$m[1]}", 'portal-token'), $m[2]);
+        $this->assertEqualsWithDelta(time() + 900, (int) $m[1], 5);
+    }
 }

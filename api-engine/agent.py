@@ -63,6 +63,9 @@ class AgentResult:
     model: str = ""
     # The skills the model loaded, for the answer model to follow too.
     guidance: str = ""
+    # One "loaded" record per skill loaded, for the log and the test chat's
+    # trace. Kept apart from calls: loading is not a call to anyone's system.
+    loaded: list = field(default_factory=list)
 
 
 def _strip(schema):
@@ -162,6 +165,7 @@ async def run(bot, message: str, tools: list[Tool], endpoint, ask=None, call=Non
                     feedback = f"Instructions for the {skill.name} skill:\n{skill.body}"
                     if skill.body not in result.guidance:
                         result.guidance = "\n\n".join(p for p in (result.guidance, skill.body) if p)
+                        result.loaded.append(CallRecord(None, "load_skill", {"name": skill.name}, "loaded"))
                 else:
                     feedback = json.dumps({"error": "No skill by that name is available."})
             elif tool is None or arguments is None:

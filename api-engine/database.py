@@ -349,7 +349,7 @@ class BotConnectorTool(Base):
 class ChatToolCall(Base):
     """A tool call a bot made or is waiting to make. Laravel owns the table.
 
-    status: ran, failed, awaiting_confirm, confirmed, declined, expired.
+    status: ran, failed, awaiting_confirm, running, confirmed, declined, expired.
     """
     __tablename__ = "chat_tool_calls"
 

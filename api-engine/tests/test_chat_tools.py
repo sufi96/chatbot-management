@@ -155,6 +155,7 @@ from database import (BotConnectorTool, ChatConversation, Connector, ConnectorTo
 
 
 async def waiting_action(factory, created=None, session_id="s1", status="awaiting_confirm"):
+    await update_bot(factory, agentic_enabled=True)
     async with factory() as s:
         s.add(Connector(id="con_1", system_id="sys_1", name="Tickets API", base_url="https://t.test"))
         s.add(ConnectorTool(id="ctl_1", connector_id="con_1", name="createTicket", method="post",
@@ -357,3 +358,33 @@ async def test_a_database_query_with_no_rows_still_says_nothing_was_found(factor
     await post(factory, message="what is the status of order 991?")
 
     assert NO_CONTEXT_INSTRUCTION.strip() in prompts[0]["system_prompt"]
+
+
+async def test_a_second_confirm_while_the_first_runs_is_refused(factory, monkeypatch):
+    await waiting_action(factory)
+    calls, second = [], []
+
+    async def call(connector, row, arguments, **kwargs):
+        calls.append(arguments)
+        # A double click: the same Confirm arrives while this one is running.
+        second.append((await decide(factory)).status_code)
+        return rest.CallResult(ok=True, status=201)
+
+    monkeypatch.setattr(rest, "call", call)
+
+    first = await decide(factory)
+
+    assert first.json()["status"] == "confirmed"
+    assert second == [409]
+    assert len(calls) == 1
+
+
+async def test_a_bot_switched_off_agentic_runs_nothing(factory, monkeypatch):
+    await waiting_action(factory)
+    await update_bot(factory, agentic_enabled=False)
+    calls = counting_call(monkeypatch)
+
+    response = await decide(factory)
+
+    assert response.json()["status"] == "failed"
+    assert calls == []

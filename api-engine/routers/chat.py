@@ -8,7 +8,7 @@ from typing import List, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 from pydantic import BaseModel, Field
 
 from config import settings as app_settings
@@ -714,8 +714,18 @@ async def decide_action(action_id: str, req: ActionDecision, request: Request,
         await db.commit()
         raise HTTPException(status_code=409, detail="This action has expired. Ask again.")
 
+    # Claimed in one conditional write before anything runs, so a double
+    # click or a retry finds it taken and nothing is sent twice.
+    claimed = await db.execute(
+        update(ChatToolCall).where(ChatToolCall.id == action.id, ChatToolCall.status == "awaiting_confirm")
+        .values(status="declined" if req.decision == "decline" else "running"))
+    await db.commit()
+    if claimed.rowcount != 1:
+        raise HTTPException(status_code=409, detail="This action has already been answered.")
+    await db.refresh(action)
+
     if req.decision == "decline":
-        action.status, text = "declined", "Cancelled. Nothing was sent."
+        text = "Cancelled. Nothing was sent."
     else:
         found = (await db.execute(
             select(ConnectorTool, Connector)
@@ -723,7 +733,7 @@ async def decide_action(action_id: str, req: ActionDecision, request: Request,
             .join(BotConnectorTool, BotConnectorTool.connector_tool_id == ConnectorTool.id)
             .where(ConnectorTool.id == action.connector_tool_id, ConnectorTool.enabled.is_(True),
                    BotConnectorTool.bot_id == bot.id, Connector.system_id == bot.system_id))).first()
-        if not found:
+        if not found or not bot.agentic_enabled:
             action.status, text = "failed", "That action is no longer available, so nothing was sent."
         else:
             tool_row, connector = found

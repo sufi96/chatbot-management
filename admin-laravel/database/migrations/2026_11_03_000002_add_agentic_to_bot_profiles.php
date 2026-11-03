@@ -40,7 +40,7 @@ return new class extends Migration
             $table->foreign('connector_tool_id')->references('id')->on('connector_tools')->nullOnDelete();
             $table->string('tool_name', 64);
             $table->json('arguments')->nullable();
-            // ran, failed, awaiting_confirm, confirmed, declined, expired
+            // ran, failed, awaiting_confirm, running, confirmed, declined, expired
             $table->string('status', 20);
             $table->string('flag', 20)->nullable();
             $table->text('result_excerpt')->nullable();

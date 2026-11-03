@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiProvider;
+use App\Models\AnswerCache;
 use App\Models\BotProfile;
 use App\Services\EngineClient;
 use App\Models\Skill;
@@ -172,6 +173,7 @@ class SkillController extends Controller
         }
 
         $skill->update($parsed);
+        self::forgetAnswers($skill);
 
         return response()->json(['success' => true, 'message' => "{$skill->name} saved."]);
     }
@@ -185,6 +187,7 @@ class SkillController extends Controller
 
         $validated = $request->validate(['mode' => ['required', 'in:' . implode(',', array_keys(Skill::MODES))]]);
         $skill->update($validated);
+        self::forgetAnswers($skill);
 
         return response()->json(['success' => true, 'message' => $validated['mode'] === 'always'
             ? "{$skill->name} now shapes every answer." : "{$skill->name} loads when a request matches."]);
@@ -238,6 +241,17 @@ class SkillController extends Controller
             'Content-Type' => 'text/markdown; charset=utf-8',
             'Content-Disposition' => 'attachment; filename="SKILL.md"',
         ]);
+    }
+
+    /**
+     * A cached answer skips the prompt, so a changed skill would not reach it:
+     * every bot using the skill starts its cache afresh, as a Behaviour save does.
+     */
+    private static function forgetAnswers(Skill $skill): void
+    {
+        foreach ($skill->bots()->pluck('bot_profiles.id') as $botId) {
+            AnswerCache::forget($botId);
+        }
     }
 
     private function create(string $systemId, string $text, string $origin): JsonResponse

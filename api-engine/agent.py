@@ -243,10 +243,15 @@ async def skills_for(session, bot, tool_names: set, mode: str = "progressive") -
 
 def _block(calls: list[CallRecord]) -> str:
     """What the tools returned, numbered like citations, marked as data."""
-    parts = []
+    parts, extras = [], []
     for record in calls:
         if record.status != "ran" or record.flag:
             continue
+        if record.tool and record.tool.local:
+            # A built-in is no citation, so it takes no number.
+            extras.append(f"{record.name}: {record.text}")
+            continue
         parts.append(f"[{len(parts) + 1}] {record.tool.connector.name}: {record.name}\n{record.text}")
 
+    parts += extras
     return spotlight.wrap(LEAD, "\n\n".join(parts)) if parts else ""

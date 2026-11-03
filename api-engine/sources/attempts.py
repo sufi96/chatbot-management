@@ -165,7 +165,10 @@ async def tools(session, bot, message: str, settings: dict, run=None, load=None,
     if log is not None:
         log.extend([*result.loaded, *result.calls])
 
-    answered = [c for c in result.calls if c.status == "ran" and not c.flag]
+    # Built-ins (date, asking for a person) inform the answer but are no source
+    # a visitor should see named under it.
+    answered = [c for c in result.calls if c.status == "ran" and not c.flag
+                and not (c.tool and c.tool.local)]
 
     return SourceResult(
         kind="tools",

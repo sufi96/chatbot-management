@@ -274,4 +274,24 @@ class SkillTest extends TestCase
             ->get(route('skills.index'))
             ->assertSee('data-skill-mode="' . $skill->id . '"', false);
     }
+
+    public function test_changing_a_skill_empties_the_answer_cache_of_its_bots(): void
+    {
+        $skill = $this->skill();
+        BotProfile::create(['id' => 'bot_1', 'system_id' => 'sys_test', 'name' => 'Helper'])->skills()->attach($skill->id);
+        BotProfile::create(['id' => 'bot_2', 'system_id' => 'sys_test', 'name' => 'Other']);
+        foreach (['bot_1', 'bot_2'] as $bot) {
+            \Illuminate\Support\Facades\DB::table('answer_cache')->insert(['id' => "ac_{$bot}", 'bot_id' => $bot,
+                'question' => 'q', 'embedding_model' => 'm', 'embedding' => '[]', 'answer' => 'old', 'hits' => 0]);
+        }
+        $admin = $this->admin();
+
+        $admin->putJson(route('skills.mode', $skill->id), ['mode' => 'always'])->assertOk();
+        $this->assertSame(['bot_2'], \App\Models\AnswerCache::pluck('bot_id')->all());
+
+        \Illuminate\Support\Facades\DB::table('answer_cache')->insert(['id' => 'ac_again', 'bot_id' => 'bot_1',
+            'question' => 'q', 'embedding_model' => 'm', 'embedding' => '[]', 'answer' => 'old', 'hits' => 0]);
+        $admin->putJson(route('skills.update', $skill->id), ['content' => self::TEXT])->assertOk();
+        $this->assertSame(['bot_2'], \App\Models\AnswerCache::pluck('bot_id')->all());
+    }
 }

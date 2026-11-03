@@ -96,7 +96,9 @@ async def ask_bot(bot_id: str, question: str, session_id: str | None = None) -> 
     async with database.async_session_factory() as session:
         await _bot(session, await _workspace(session), bot_id)
 
-    session_id = session_id if (session_id or "").startswith("mcp-") else f"mcp-{uuid.uuid4()}"
+    # chat_conversations.session_id holds 100 characters.
+    session_id = (session_id if (session_id or "").startswith("mcp-") and len(session_id) <= 100
+                  else f"mcp-{uuid.uuid4()}")
     answer, sources, pending = [], [], None
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=APP), base_url="http://c4", timeout=120) as client:
         response = await client.post("/api/v1/chat/stream", json={
@@ -111,6 +113,9 @@ async def ask_bot(bot_id: str, question: str, session_id: str | None = None) -> 
             event = json.loads(line[6:])
         except ValueError:
             continue
+        if event.get("error"):
+            # The model failed; its message can name an internal address.
+            raise ToolError("The bot could not answer just now. Try again shortly.")
         if event.get("content"):
             answer.append(event["content"])
         elif event.get("type") == "sources":

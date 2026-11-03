@@ -125,3 +125,32 @@ async def test_search_knowledge_returns_passages_of_the_bots_collections(made, m
     assert not failed
     assert json.loads(text) == {"passages": "[1] Hours\nWe open at 9am.", "sources": ["Hours"]}
     assert seen["ids"] == ["kbc_1"]
+
+
+async def test_a_model_failure_is_an_error_not_a_blank_answer(made, monkeypatch):
+    as_key(monkeypatch)
+
+    async def stream_chat(**kwargs):
+        yield f"data: {json.dumps({'error': 'Cannot connect to http://10.0.0.9/v1.'})}\n\n"
+        yield "data: [DONE]\n\n"
+
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", stream_chat)
+
+    failed, text = await call("ask_bot", {"bot_id": "bot_1", "question": "when do you open?"})
+
+    assert failed and "could not answer" in text and "10.0.0.9" not in text
+
+
+async def test_an_overlong_session_id_starts_a_new_session(made, monkeypatch):
+    as_key(monkeypatch)
+
+    async def stream_chat(**kwargs):
+        yield f"data: {json.dumps({'content': 'Hi.'})}\n\n"
+        yield "data: [DONE]\n\n"
+
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", stream_chat)
+
+    failed, text = await call("ask_bot", {"bot_id": "bot_1", "question": "hi", "session_id": "mcp-" + "x" * 200})
+
+    assert not failed
+    assert len(json.loads(text)["session_id"]) <= 100

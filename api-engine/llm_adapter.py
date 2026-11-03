@@ -261,6 +261,56 @@ class LLMAdapter:
             return ""
 
     @classmethod
+    async def complete_with_tools(
+        cls,
+        base_url: str,
+        api_key: str,
+        model_name: str,
+        messages: list,
+        tools: list,
+        temperature: float = 0.0,
+        max_tokens: int = 512,
+        transport=None,
+    ) -> dict | None:
+        """One turn of a tool-calling conversation: the reply message, or None.
+
+        The caller holds the whole conversation, tool results included, so the
+        messages go as given. None means "no tools from this provider": it is
+        down, or it refused the tools key, which an older endpoint does.
+        """
+        headers = {"Content-Type": "application/json"}
+        if api_key and api_key.strip():
+            headers["Authorization"] = f"Bearer {api_key.strip()}"
+
+        payload = {
+            "model": model_name,
+            "messages": messages,
+            "tools": tools,
+            "tool_choice": "auto",
+            "stream": False,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            # Choosing a tool is not worth a page of reasoning, as in complete().
+            "chat_template_kwargs": {"enable_thinking": False},
+        }
+
+        endpoint = cls._normalize_endpoint(base_url)
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0, transport=transport) as client:
+                while True:
+                    response = await client.post(endpoint, headers=headers, json=payload)
+                    if (response.status_code == 400 and "chat_template_kwargs" in payload
+                            and "chat_template_kwargs" in response.text):
+                        payload.pop("chat_template_kwargs")
+                        continue
+                    response.raise_for_status()
+                    return response.json()["choices"][0]["message"]
+        except Exception as error:
+            print(f"[LLM] Tool call failed, no tools this turn: {error}")
+            return None
+
+    @classmethod
     async def fetch_models(cls, base_url: str, api_key: str = "") -> Dict[str, Any]:
         """Fetch available models from Ollama or OpenAI-compatible endpoints."""
         raw = base_url.strip().rstrip("/")

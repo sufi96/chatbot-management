@@ -296,6 +296,39 @@ class WebSearchKey(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class Connector(Base):
+    """An outside API a workspace's bots may call. Laravel owns the table."""
+    __tablename__ = "connectors"
+
+    id = Column(String(36), primary_key=True)
+    system_id = Column(String(36), ForeignKey("systems.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(120), nullable=False)
+    type = Column(String(20), default="rest")
+    base_url = Column(String(500), nullable=False)
+    auth_type = Column(String(20), default="none")
+    auth_header = Column(String(120), nullable=True)
+    auth_secret = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ConnectorTool(Base):
+    """One operation on a connector. Laravel owns the table."""
+    __tablename__ = "connector_tools"
+
+    id = Column(String(36), primary_key=True)
+    connector_id = Column(String(36), ForeignKey("connectors.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(64), nullable=False)
+    description = Column(Text, nullable=True)
+    method = Column(String(10), nullable=False)
+    path = Column(String(500), nullable=False)
+    parameters = Column(JSON, nullable=True)
+    writes = Column(Boolean, default=True)
+    enabled = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class AnswerCache(Base):
     """Answers worth giving again. Laravel owns the table and empties a bot's
     rows when its behaviour is saved; the engine writes and reads them.

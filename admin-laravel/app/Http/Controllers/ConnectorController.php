@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BotProfile;
 use App\Models\Connector;
 use App\Models\ConnectorTool;
 use App\Services\EngineClient;
@@ -83,6 +84,17 @@ class ConnectorController extends Controller
     {
         $connector = Connector::findOrFail($id);
         $this->authorizeAdmin($request, $connector->system_id);
+
+        // Bots on it would lose their tools without a word.
+        $inUse = BotProfile::whereHas('tools', fn ($q) => $q->where('connector_id', $connector->id))
+            ->orderBy('name')->pluck('name');
+        if ($inUse->isNotEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Still used by ' . $inUse->join(', ', ' and ')
+                    . '. Take its operations off ' . ($inUse->count() === 1 ? 'that bot' : 'those bots') . ' first.',
+            ], 409);
+        }
 
         $name = $connector->name;
         $connector->delete();

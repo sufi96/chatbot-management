@@ -273,6 +273,41 @@
                         wrapper.appendChild(query);
                     }
 
+                    if (!isUser && msg.tool_calls && msg.tool_calls.length) {
+                        // Each call to a connected system: which operation,
+                        // with what, and how it went. Folded, like the SQL.
+                        var calls = document.createElement('details');
+                        calls.style.maxWidth = '78%';
+                        calls.style.marginBottom = '0.35rem';
+                        calls.style.fontSize = '0.75rem';
+                        calls.style.border = '1px solid var(--border)';
+                        calls.style.borderRadius = 'var(--r-sm, 6px)';
+                        calls.style.background = 'var(--surface-2, var(--surface))';
+                        calls.style.padding = '0.35rem 0.6rem';
+
+                        var callsSummary = document.createElement('summary');
+                        callsSummary.className = 'text-muted';
+                        callsSummary.style.cursor = 'pointer';
+                        callsSummary.textContent = 'Connected systems, ' + msg.tool_calls.length
+                            + (msg.tool_calls.length === 1 ? ' call' : ' calls');
+                        calls.appendChild(callsSummary);
+
+                        msg.tool_calls.forEach(function (call) {
+                            var line = document.createElement('pre');
+                            line.className = 'figure-mono text-muted mt-2 mb-0';
+                            line.style.whiteSpace = 'pre-wrap';
+                            line.style.fontSize = '0.72rem';
+                            line.textContent = call.tool_name + ' · ' + call.status.replace('_', ' ')
+                                + (call.flag ? ' · flagged: ' + call.flag : '')
+                                + (call.duration_ms ? ' · ' + call.duration_ms + ' ms' : '')
+                                + '\n' + JSON.stringify(call.arguments || {})
+                                + (call.result_excerpt ? '\n→ ' + call.result_excerpt : '');
+                            calls.appendChild(line);
+                        });
+
+                        wrapper.appendChild(calls);
+                    }
+
                     // The time stays within reach on hover. Who spoke is the side
                     // the bubble sits on, and the models are in the header.
                     bubble.title = (isUser ? 'Visitor' : data.bot_name) + ', ' + transcriptTime(msg.created_at);

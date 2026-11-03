@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\PicksProviders;
 use App\Models\AnswerCache;
 use App\Models\BotProfile;
+use App\Models\Connector;
+use App\Models\ConnectorTool;
 use App\Models\DbConnection;
 use App\Models\KbCollection;
 use App\Models\WebSearchKey;
@@ -13,6 +15,7 @@ use App\Support\SourceOrder;
 use App\Models\AppSetting;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Schema;
 
 class BotBrainController extends Controller
@@ -43,6 +46,12 @@ class BotBrainController extends Controller
             'webSearchKeys' => WebSearchKey::where('system_id', $bot->system_id)->orderBy('name')->get()
                 ->map(fn (WebSearchKey $key) => $key->forPicker())->values(),
             'canManageKeys' => $request->user()->canManageSystem($bot->system_id, 'system_admin'),
+            // The switched-on operations this bot could be given, by connector.
+            'connectors' => Connector::where('system_id', $bot->system_id)
+                ->with(['tools' => fn ($q) => $q->where('enabled', true)->orderBy('name')])
+                ->orderBy('name')->get()
+                ->filter(fn (Connector $c) => $c->tools->isNotEmpty())->values(),
+            'attachedTools' => $bot->tools()->pluck('connector_tools.id')->all(),
             'platformSearch' => self::platformSearch(),
             'platformLent' => AppSetting::get('web_search_lending') !== 'none',
             'speechEngine' => AppSetting::get('speech_engine'),
@@ -111,6 +120,9 @@ class BotBrainController extends Controller
             // workspace would otherwise spend that workspace's account.
             'web_search_key_id' => ['nullable', 'required_if:web_search_mode,own', 'string',
                 Rule::exists('web_search_keys', 'id')->where('system_id', $bot->system_id)],
+            'agentic_max_calls' => ['sometimes', 'integer', 'min:1', 'max:5'],
+            'tools' => ['nullable', 'array'],
+            'tools.*' => ['string'],
         ], [
             'web_search_key_id.required_if' => 'Choose one of this workspace\'s keys, or add one.',
             'web_search_key_id.exists' => 'Choose one of this workspace\'s keys.',
@@ -138,6 +150,14 @@ class BotBrainController extends Controller
             $validated['voice_input'] = $request->boolean('voice_input');
         }
 
+        // Only the form with the Agentic card may change it; an older client
+        // leaves the switch and the tools as they were.
+        $tools = null;
+        if ($request->has('agentic_present')) {
+            $validated['agentic_enabled'] = $request->boolean('agentic_enabled');
+            $tools = $this->agenticTools($bot, (array) $request->input('tools', []));
+        }
+
         // Normalised rather than refused. A hand made submission must not be
         // able to leave a bot with a source it can never reach.
         $validated['source_order'] = SourceOrder::normalise($request->input('source_order'));
@@ -146,8 +166,12 @@ class BotBrainController extends Controller
         if (!empty($validated['web_search_country'])) {
             $validated['web_search_country'] = strtoupper($validated['web_search_country']);
         }
-        unset($validated['collections'], $validated['db_connections']);
+        unset($validated['collections'], $validated['db_connections'], $validated['tools']);
         $bot->update($validated);
+
+        if ($tools !== null) {
+            $bot->tools()->sync($tools);
+        }
 
         // Only collections from this bot's own workspace may be attached, whatever
         // the form posted.
@@ -170,6 +194,37 @@ class BotBrainController extends Controller
         self::forgetCache($bot->id);
 
         return redirect()->route('bots.brain', $bot->id)->with('success', 'Behaviour settings saved.');
+    }
+
+    /**
+     * The tool ids a bot may be given: switched on, on a connector in its own
+     * workspace, and no two with one name, since the model calls a tool by
+     * its name. Refused rather than filtered, so the editor learns why.
+     */
+    private function agenticTools(BotProfile $bot, array $ids): array
+    {
+        $ids = array_values(array_unique(array_map('strval', $ids)));
+        if (!$ids) {
+            return [];
+        }
+
+        $tools = ConnectorTool::whereIn('id', $ids)
+            ->where('enabled', true)
+            ->whereHas('connector', fn ($q) => $q->where('system_id', $bot->system_id))
+            ->get();
+
+        if ($tools->count() !== count($ids)) {
+            throw ValidationException::withMessages([
+                'tools' => 'Choose only switched-on operations from this workspace\'s connectors.']);
+        }
+
+        $clash = $tools->countBy('name')->filter(fn ($n) => $n > 1)->keys()->first();
+        if ($clash !== null) {
+            throw ValidationException::withMessages([
+                'tools' => "Two tools are both called {$clash}. Enable only one."]);
+        }
+
+        return $tools->pluck('id')->all();
     }
 
     public function clearCache(Request $request, string $id)

@@ -62,4 +62,10 @@ class ChatMessage extends Model
     {
         return $this->belongsTo(ChatConversation::class, 'conversation_id');
     }
+
+    /** The connector tools called for this answer, in order. */
+    public function toolCalls(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ChatToolCall::class, 'message_id')->orderBy('created_at');
+    }
 }

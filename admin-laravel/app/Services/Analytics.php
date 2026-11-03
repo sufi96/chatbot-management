@@ -27,6 +27,7 @@ class Analytics
         'documents' => 'Knowledge base',
         'database' => 'Live database',
         'web' => 'Web search',
+        'tools' => 'Connected systems',
         'combined' => 'Knowledge base and database',
         'none' => 'Searched, nothing found',
         'model' => 'Model only, nothing searched',
@@ -271,7 +272,8 @@ class Analytics
         $activeIds = array_keys($active);
         $bounced = $this->bounced($activeIds);
 
-        $searched = $sources['documents'] + $sources['database'] + $sources['web'] + $sources['combined'] + $sources['none'];
+        $searched = $sources['documents'] + $sources['database'] + $sources['web'] + $sources['tools']
+            + $sources['combined'] + $sources['none'];
 
         $kpis = [
             'conversations' => count($activeIds),

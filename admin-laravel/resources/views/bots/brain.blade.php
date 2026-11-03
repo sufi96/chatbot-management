@@ -363,6 +363,72 @@
 
                 <div class="card mb-3">
                     <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2 collapsed"
+                            data-bs-toggle="collapse" data-bs-target="#bcard-agentic"
+                            aria-expanded="false" aria-controls="bcard-agentic">
+                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-plug"></i> Agentic</span>
+                        <span class="d-flex align-items-center gap-2">
+                            <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
+                        </span>
+                    </button>
+                    <div class="collapse" id="bcard-agentic" data-card-collapse="agentic">
+                    <div class="p-3">
+                        <input type="hidden" name="agentic_present" value="1">
+                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
+                            <input class="form-check-input" type="checkbox" role="switch" name="agentic_enabled" value="1"
+                                   id="agentic_enabled" @checked(old('agentic_enabled', $bot->agentic_enabled))>
+                            <label class="form-check-label fw-semibold" for="agentic_enabled">Call connected systems</label>
+                        </div>
+                        <div class="form-text text-faint mb-3">
+                            The bot may call the operations ticked below when a question needs them, in the place
+                            "Connected systems" holds in the source order. An operation that changes something waits
+                            for the visitor to press Confirm.
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="agentic_max_calls">Calls per message, at most</label>
+                            <select class="form-select" name="agentic_max_calls" id="agentic_max_calls" style="max-width: 120px;">
+                                @foreach(range(1, 5) as $n)
+                                    <option value="{{ $n }}" @selected((int) old('agentic_max_calls', $bot->agentic_max_calls) === $n)>{{ $n }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        @error('tools')
+                            <div class="text-danger small mb-2">{{ $message }}</div>
+                        @enderror
+
+                        @if($connectors->isEmpty())
+                            <p class="text-muted small mb-0">
+                                No switched-on operations in this workspace yet.
+                                <a href="{{ route('connectors.index') }}">Add a connector</a> and switch on what bots may use.
+                            </p>
+                        @else
+                            @php($ticked = old('tools', $attachedTools))
+                            @foreach($connectors as $connector)
+                                <div class="fw-semibold small mt-2 mb-1">{{ $connector->name }}</div>
+                                @foreach($connector->tools as $tool)
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="tools[]" value="{{ $tool->id }}"
+                                               id="tool_{{ $tool->id }}" @checked(in_array($tool->id, $ticked, true))>
+                                        <label class="form-check-label small" for="tool_{{ $tool->id }}">
+                                            <span class="figure-mono">{{ $tool->name }}</span>
+                                            @if($tool->writes)
+                                                <span class="badge text-bg-warning ms-1">Writes</span>
+                                            @endif
+                                            @if($tool->description)
+                                                <span class="text-muted">· {{ \Illuminate\Support\Str::limit($tool->description, 80) }}</span>
+                                            @endif
+                                        </label>
+                                    </div>
+                                @endforeach
+                            @endforeach
+                        @endif
+                    </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2 collapsed"
                             data-bs-toggle="collapse" data-bs-target="#bcard-cache"
                             aria-expanded="false" aria-controls="bcard-cache">
                         <span class="d-flex align-items-center gap-1.5"><i class="bi bi-lightning-charge"></i> Answer cache</span>

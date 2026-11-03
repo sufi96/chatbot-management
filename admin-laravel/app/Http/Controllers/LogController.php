@@ -50,7 +50,7 @@ class LogController extends Controller
 
     public function transcript(Request $request, string $id)
     {
-        $conversation = ChatConversation::with(['bot' => fn ($q) => $q->withTrashed(), 'messages'])->findOrFail($id);
+        $conversation = ChatConversation::with(['bot' => fn ($q) => $q->withTrashed(), 'messages.toolCalls'])->findOrFail($id);
         $user = $request->user();
 
         // The list only offers sessions from the user's own workspaces; the

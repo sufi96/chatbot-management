@@ -160,7 +160,7 @@ async def run(bot, message: str, tools: list[Tool], endpoint, ask=None, call=Non
                 outcome = await call(tool.connector, tool.row, arguments)
                 if not outcome.ok:
                     result.calls.append(CallRecord(tool, name, arguments, "failed",
-                                                   excerpt=(outcome.error or outcome.text)[:EXCERPT], ms=outcome.ms))
+                                                   excerpt=(outcome.detail or outcome.error or outcome.text)[:EXCERPT], ms=outcome.ms))
                     feedback = json.dumps({"error": outcome.error})
                 elif shield.detect(outcome.text).found:
                     result.calls.append(CallRecord(tool, name, arguments, "ran", flag=shield.FLAG,

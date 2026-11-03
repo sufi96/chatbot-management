@@ -721,7 +721,7 @@ async def decide_action(action_id: str, req: ActionDecision, request: Request,
             tool_row, connector = found
             outcome = await rest.call(connector, tool_row, action.arguments or {})
             action.duration_ms = outcome.ms or None
-            action.result_excerpt = (outcome.text or outcome.error or "")[:500] or None
+            action.result_excerpt = (outcome.detail or outcome.text or outcome.error or "")[:500] or None
             if outcome.ok:
                 action.status, text = "confirmed", "Done."
             else:

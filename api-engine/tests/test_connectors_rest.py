@@ -132,3 +132,24 @@ async def test_test_route_needs_the_admin_token(monkeypatch):
                                      json={"base_url": "http://127.0.0.1:9", "auth_type": "none"})
 
     assert response.status_code == 401
+
+
+@pytest.mark.parametrize("value", [".", "", "...", " "])
+async def test_a_path_argument_that_would_change_the_route_is_refused(value):
+    seen, transport = recorder()
+
+    result = await rest.call(connector(), tool(), {"id": value}, transport=transport)
+
+    assert result.ok is False
+    assert seen == []
+
+
+async def test_errors_do_not_name_the_api_address():
+    def refuse(request):
+        raise httpx.ConnectError("refused")
+
+    result = await rest.call(connector(base_url="http://10.1.2.3:8080"), tool(), {"id": "1"},
+                             transport=httpx.MockTransport(refuse))
+
+    assert "10.1.2.3" not in result.error
+    assert "10.1.2.3" in result.detail

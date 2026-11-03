@@ -24,8 +24,11 @@ class CallResult:
     ok: bool
     status: int = 0
     text: str = ""
+    # Safe to show a visitor or a model: never the API's address.
     error: str = ""
     ms: int = 0
+    # The full reason, for the operator's transcript only.
+    detail: str = ""
 
 
 def _auth(auth_type, auth_header, auth_secret) -> tuple[dict, object]:
@@ -50,7 +53,8 @@ def _request_parts(tool, arguments: dict) -> tuple[str, dict, object]:
         where = (properties.get(name) or {}).get("x-in")
         if where == "path":
             text = str(value)
-            if ".." in text:
+            # Empty, or only dots, would turn /users/{id} into /users or /users/.
+            if ".." in text or text.strip(" .") == "":
                 raise ValueError(f"The value for {name} is not allowed in a path.")
             path = path.replace("{" + name + "}", quote(text, safe=""))
         elif where == "query":
@@ -79,15 +83,17 @@ async def call(connector, tool, arguments: dict, transport=None) -> CallResult:
                 tool.method.upper(), url, params=query or None, headers=headers, auth=auth,
                 **({"json": body} if body is not None else {}))
     except httpx.TimeoutException:
-        return CallResult(ok=False, error=f"{connector.base_url} did not answer within {int(TIMEOUT)} seconds.",
-                          ms=elapsed())
+        return CallResult(ok=False, error="The system did not answer in time.", ms=elapsed(),
+                          detail=f"{connector.base_url} did not answer within {int(TIMEOUT)} seconds.")
     except httpx.HTTPError as error:
-        return CallResult(ok=False, error=f"Could not reach {connector.base_url}: {error}", ms=elapsed())
+        return CallResult(ok=False, error="The system could not be reached.", ms=elapsed(),
+                          detail=f"Could not reach {connector.base_url}: {error}")
 
     text = response.text[:MAX_CHARS]
     if response.status_code >= 400:
         return CallResult(ok=False, status=response.status_code, text=text,
-                          error=f"The API answered {response.status_code}.", ms=elapsed())
+                          error=f"The system answered {response.status_code}.", ms=elapsed(),
+                          detail=f"{tool.method.upper()} {url} answered {response.status_code}: {text[:300]}")
 
     return CallResult(ok=True, status=response.status_code, text=text, ms=elapsed())
 

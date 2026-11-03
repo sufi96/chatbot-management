@@ -12,7 +12,11 @@
 
     @if($canManage)
         <div class="d-flex align-items-center gap-2 flex-wrap">
-            @includeWhen(isset($providers), 'skills._generate-button')
+            @if($providers->isNotEmpty())
+                <button class="btn btn-outline-secondary" id="skillGenerate" data-bs-toggle="modal" data-bs-target="#skillDraftModal">
+                    <i class="bi bi-stars"></i> Generate
+                </button>
+            @endif
             <label class="btn btn-outline-secondary mb-0">
                 <i class="bi bi-upload"></i> Upload
                 <input type="file" id="skillUpload" accept=".md,.zip" hidden>
@@ -134,6 +138,44 @@
             </div>
         </div>
     </div>
+    @if($providers->isNotEmpty())
+        <div class="modal fade" id="skillDraftModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h6 class="modal-title mb-0">Generate a skill</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form id="skillDraftForm">
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label" for="draft_provider">Provider</label>
+                                <select id="draft_provider" name="provider_id" class="form-select">
+                                    @foreach($providers as $provider)
+                                        <option value="{{ $provider->id }}">{{ $provider->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="draft_model">Model</label>
+                                <input id="draft_model" name="model" class="form-control" required placeholder="The model name on that provider">
+                            </div>
+                            <div class="mb-0">
+                                <label class="form-label" for="draft_description">What should the skill do?</label>
+                                <textarea id="draft_description" name="description" class="form-control" rows="4" required
+                                          placeholder="Check an application's status with get_application_status, after asking for the reference number."></textarea>
+                                <div class="form-text text-faint">Name the tools it should use. You edit the draft before it is saved.</div>
+                            </div>
+                            <div id="skillDraftStatus" class="small fw-medium mt-2"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="submit" class="btn btn-brand">Write a draft</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
 @endif
 
 @endsection
@@ -222,6 +264,24 @@
                     if (data.success) setTimeout(function () { location.reload(); }, 1500);
                 });
             event.target.value = '';
+        });
+    }
+
+    var draftForm = document.getElementById('skillDraftForm');
+    if (draftForm) {
+        draftForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+            var draftStatus = document.getElementById('skillDraftStatus');
+            say(draftStatus, 'Writing… this can take a minute.');
+            send('POST', @json(route('skills.draft')), {
+                system_id: systemId, provider_id: draftForm.provider_id.value,
+                model: draftForm.model.value, description: draftForm.description.value
+            }).then(function (data) {
+                if (!data.success) { say(draftStatus, data.message, false); return; }
+                say(draftStatus, '');
+                bootstrap.Modal.getOrCreateInstance(document.getElementById('skillDraftModal')).hide();
+                window.openSkillEditor(data.skill, 'generated');
+            });
         });
     }
 

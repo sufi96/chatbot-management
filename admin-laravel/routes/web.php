@@ -101,6 +101,7 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     // Skills: packaged know-how agentic bots load when a request matches.
     Route::get('/skills', [SkillController::class, 'index'])->name('skills.index');
     Route::post('/skills', [SkillController::class, 'store'])->name('skills.store');
+    Route::post('/skills/draft', [SkillController::class, 'draft'])->name('skills.draft');
     Route::post('/skills/upload', [SkillController::class, 'upload'])->name('skills.upload');
     Route::put('/skills/{id}', [SkillController::class, 'update'])->name('skills.update');
     Route::delete('/skills/{id}', [SkillController::class, 'destroy'])->name('skills.destroy');

@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiProvider;
 use App\Models\BotProfile;
+use App\Services\EngineClient;
 use App\Models\Skill;
 use App\Support\SkillFile;
 use Illuminate\Http\JsonResponse;
@@ -34,7 +36,40 @@ class SkillController extends Controller
             'skills' => Skill::where('system_id', $activeSystem->id)->withCount('bots')->orderBy('name')->get(),
             'builtIns' => Skill::whereNull('system_id')->orderBy('name')->get(),
             'canManage' => $request->user()->canManageSystem($activeSystem->id, 'system_admin'),
+            'providers' => $this->draftProviders($request, $activeSystem->id),
         ]);
+    }
+
+    /**
+     * A first draft from the workspace's own model, loaded into the editor
+     * unsaved: the admin reads and edits it before it becomes a skill.
+     */
+    public function draft(Request $request): JsonResponse
+    {
+        $systemId = (string) $request->input('system_id');
+        $this->authorizeAdmin($request, $systemId);
+
+        $validated = $request->validate([
+            'provider_id' => ['required', 'string'],
+            'model' => ['required', 'string', 'max:255'],
+            'description' => ['required', 'string', 'max:2000'],
+        ]);
+
+        abort_unless($this->draftProviders($request, $systemId)->contains('id', $validated['provider_id']), 403);
+
+        return response()->json(EngineClient::draftSkill(
+            $validated['provider_id'], $validated['model'], $validated['description']));
+    }
+
+    /** This workspace's language-model providers, and the platform's for a super admin. */
+    private function draftProviders(Request $request, string $systemId)
+    {
+        $superAdmin = $request->user()->isSuperAdmin();
+
+        return AiProvider::serving('chat')
+            ->where(fn ($q) => $q->where('system_id', $systemId)
+                ->when($superAdmin, fn ($q) => $q->orWhereNull('system_id')))
+            ->orderBy('name')->get(['id', 'name']);
     }
 
     /** A skill typed in the editor: the whole SKILL.md text. */

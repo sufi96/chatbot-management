@@ -162,6 +162,27 @@ class EngineClient
         }
     }
 
+    /** A SKILL.md drafted by a provider's model, never saved here. */
+    public static function draftSkill(string $providerId, string $model, string $description): array
+    {
+        try {
+            $response = Http::timeout(60)->withHeaders(['X-Admin-Token' => env('ENGINE_ADMIN_TOKEN', '')])
+                ->post(self::base() . '/api/v1/skills/draft',
+                    ['provider_id' => $providerId, 'model' => $model, 'description' => $description]);
+
+            if (!$response->successful()) {
+                return ['success' => false, 'message' => 'Engine returned HTTP ' . $response->status()];
+            }
+
+            $body = $response->json();
+
+            return ['success' => (bool) ($body['success'] ?? false), 'skill' => (string) ($body['skill'] ?? ''),
+                'message' => (string) ($body['message'] ?? '')];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => 'Could not reach the engine: ' . $e->getMessage()];
+        }
+    }
+
     /** Whether a connector's API answers, asked of the engine that will call it. */
     public static function testConnector(array $fields): array
     {

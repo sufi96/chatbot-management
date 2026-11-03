@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\AiProvider;
 use App\Models\BotProfile;
 use App\Models\Skill;
 use App\Models\System;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use ZipArchive;
 use Tests\TestCase;
 
@@ -199,5 +201,42 @@ class SkillTest extends TestCase
         $this->actingAs($this->member('viewer'))->get(route('skills.download', $skill->id))
             ->assertOk()
             ->assertSee('name: refund-check', false);
+    }
+
+    public function test_a_draft_comes_from_the_workspaces_own_model_and_is_not_saved(): void
+    {
+        AiProvider::create(['id' => 'aip_1', 'system_id' => 'sys_test', 'name' => 'Ours', 'base_url' => 'http://llm/v1']);
+        Http::fake(['*/api/v1/skills/draft' => Http::response(['success' => true, 'skill' => self::TEXT])]);
+
+        $this->admin()->postJson(route('skills.draft'), ['system_id' => 'sys_test', 'provider_id' => 'aip_1',
+            'model' => 'm', 'description' => 'Check refunds'])
+            ->assertOk()
+            ->assertJson(['success' => true, 'skill' => self::TEXT]);
+
+        Http::assertSent(fn ($request) => $request['provider_id'] === 'aip_1' && $request['description'] === 'Check refunds');
+        $this->assertSame(0, Skill::where('system_id', 'sys_test')->count());
+    }
+
+    public function test_a_draft_cannot_borrow_another_workspaces_provider(): void
+    {
+        AiProvider::create(['id' => 'aip_x', 'system_id' => 'sys_other', 'name' => 'Theirs', 'base_url' => 'http://llm/v1']);
+        Http::fake();
+
+        $this->admin()->postJson(route('skills.draft'), ['system_id' => 'sys_test', 'provider_id' => 'aip_x',
+            'model' => 'm', 'description' => 'Check refunds'])
+            ->assertForbidden();
+
+        Http::assertNothingSent();
+    }
+
+    public function test_the_page_offers_generate_when_the_workspace_has_a_model(): void
+    {
+        AiProvider::create(['id' => 'aip_1', 'system_id' => 'sys_test', 'name' => 'Ours', 'base_url' => 'http://llm/v1']);
+
+        $this->actingAs($this->member('system_admin'))
+            ->withSession(['active_system_id' => 'sys_test'])
+            ->get(route('skills.index'))
+            ->assertOk()
+            ->assertSee('id="skillGenerate"', false);
     }
 }

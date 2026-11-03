@@ -388,3 +388,24 @@ async def test_a_bot_switched_off_agentic_runs_nothing(factory, monkeypatch):
 
     assert response.json()["status"] == "failed"
     assert calls == []
+
+
+async def test_asking_for_a_person_marks_the_conversation(factory, monkeypatch):
+    import builtin_tools
+    await update_bot(factory, agentic_enabled=True, source_order="tools,documents,database,web",
+                     retrieval_enabled=False, db_query_enabled=False, web_search_enabled=False,
+                     combine_sources=False)
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("Someone will follow up."))
+    handover = builtin_tools.for_bot(SimpleNamespace(builtin_tools=["request_human"]))[0]
+    record = agent.CallRecord(handover, "request_human", {"reason": "Billing dispute"}, "ran",
+                              text="A member of staff has been asked to follow up.")
+    fake_agent(monkeypatch, agent.AgentResult(calls=[record], context_block="<context>x</context>"))
+
+    await post(factory, message="can I talk to a person about my bill?")
+
+    async with factory() as session:
+        conv = (await session.execute(select(ChatConversation))).scalars().one()
+        call = (await session.execute(select(ChatToolCall))).scalars().one()
+    assert conv.handover_reason == "Billing dispute"
+    assert conv.handover_requested_at is not None
+    assert call.connector_tool_id is None

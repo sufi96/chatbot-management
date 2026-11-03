@@ -36,6 +36,8 @@ class Tool:
     writes: bool
     connector: object
     row: object
+    # A built-in: run here by awaiting local(arguments), not through a connector.
+    local: object = None
 
 
 @dataclass
@@ -172,7 +174,7 @@ async def run(bot, message: str, tools: list[Tool], endpoint, ask=None, call=Non
                 result.calls.append(result.pending)
                 break
             else:
-                outcome = await call(tool.connector, tool.row, arguments)
+                outcome = await (tool.local(arguments) if tool.local else call(tool.connector, tool.row, arguments))
                 if not outcome.ok:
                     result.calls.append(CallRecord(tool, name, arguments, "failed",
                                                    excerpt=(outcome.detail or outcome.error or outcome.text)[:EXCERPT], ms=outcome.ms))

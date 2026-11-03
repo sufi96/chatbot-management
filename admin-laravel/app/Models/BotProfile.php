@@ -133,6 +133,7 @@ class BotProfile extends Model
         'web_search_key_id',
         'agentic_enabled',
         'agentic_max_calls',
+        'builtin_tools',
         'voice_output',
         'voice_autoplay',
         'voice_gender',
@@ -175,6 +176,7 @@ class BotProfile extends Model
             'grounding_check' => 'boolean',
             'agentic_enabled' => 'boolean',
             'agentic_max_calls' => 'integer',
+            'builtin_tools' => 'array',
             'voice_output' => 'boolean',
             'voice_autoplay' => 'boolean',
             'voice_input' => 'boolean',
@@ -232,6 +234,15 @@ class BotProfile extends Model
     {
         return $this->belongsTo(WebSearchKey::class, 'web_search_key_id');
     }
+
+    /** Tools C⁴ carries itself, by name, with what each does. */
+    public const BUILTIN_TOOLS = [
+        'current_datetime' => "Today's date and the time in Malaysia.",
+        'request_human' => 'Ask staff to follow up; the conversation is marked "Needs a person".',
+    ];
+
+    /** Names the engine uses for its own tools; no connector operation may take one. */
+    public const RESERVED_TOOL_NAMES = ['load_skill', 'current_datetime', 'request_human'];
 
     /** The skills this bot may load when it is agentic. */
     public function skills(): \Illuminate\Database\Eloquent\Relations\BelongsToMany

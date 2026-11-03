@@ -112,6 +112,11 @@ async def log_tool_calls(db, conv_id: str, message_id: str, records: list):
         if record.status == "awaiting_confirm":
             record.row_id = row_id
             pending = record
+        if record.name == "request_human" and record.status == "ran" and record.tool and record.tool.local:
+            conversation = await db.get(ChatConversation, conv_id)
+            if conversation is not None:
+                conversation.handover_requested_at = datetime.utcnow()
+                conversation.handover_reason = str((record.arguments or {}).get("reason") or "")[:500] or None
     await db.commit()
     return pending
 

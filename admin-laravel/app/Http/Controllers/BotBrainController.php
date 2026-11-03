@@ -130,6 +130,8 @@ class BotBrainController extends Controller
             'tools.*' => ['string'],
             'skills' => ['nullable', 'array'],
             'skills.*' => ['string'],
+            'builtin_tools' => ['nullable', 'array'],
+            'builtin_tools.*' => [Rule::in(array_keys(BotProfile::BUILTIN_TOOLS))],
         ], [
             'web_search_key_id.required_if' => 'Choose one of this workspace\'s keys, or add one.',
             'web_search_key_id.exists' => 'Choose one of this workspace\'s keys.',
@@ -165,6 +167,7 @@ class BotBrainController extends Controller
             $validated['agentic_enabled'] = $request->boolean('agentic_enabled');
             $tools = $this->agenticTools($bot, (array) $request->input('tools', []));
             $skills = $this->agenticSkills($bot, (array) $request->input('skills', []));
+            $validated['builtin_tools'] = array_values(array_unique($validated['builtin_tools'] ?? []));
         }
 
         // Normalised rather than refused. A hand made submission must not be
@@ -226,6 +229,12 @@ class BotBrainController extends Controller
         if ($tools->count() !== count($ids)) {
             throw ValidationException::withMessages([
                 'tools' => 'Choose only switched-on operations from this workspace\'s connectors.']);
+        }
+
+        $reserved = $tools->pluck('name')->first(fn ($name) => in_array($name, BotProfile::RESERVED_TOOL_NAMES, true));
+        if ($reserved !== null) {
+            throw ValidationException::withMessages([
+                'tools' => "{$reserved} is a name C⁴ uses itself. Rename the operation or leave it off."]);
         }
 
         $clash = $tools->countBy('name')->filter(fn ($n) => $n > 1)->keys()->first();

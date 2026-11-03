@@ -41,6 +41,10 @@ class AgenticSettingsTest extends TestCase
 
     private function member(string $role): User
     {
+        if ($existing = User::where('email', "{$role}@example.test")->first()) {
+            return $existing;
+        }
+
         $user = User::create([
             'name' => ucfirst($role), 'email' => "{$role}@example.test",
             'password' => 'password', 'global_role' => 'user',
@@ -221,5 +225,45 @@ class AgenticSettingsTest extends TestCase
             ->assertOk()
             ->assertSee('skill-s1')
             ->assertSee('needs: create_ticket');
+    }
+
+    public function test_built_in_tools_are_saved_and_unknown_ones_refused(): void
+    {
+        $this->save(['agentic_enabled' => 1, 'builtin_tools' => ['current_datetime', 'request_human']])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(['current_datetime', 'request_human'], BotProfile::find('bot_1')->builtin_tools);
+
+        $this->save(['agentic_enabled' => 1, 'builtin_tools' => ['format_disk']])
+            ->assertSessionHasErrors('builtin_tools.0');
+    }
+
+    public function test_a_connector_tool_cannot_take_a_name_c4_uses(): void
+    {
+        $this->tool('ctl_r', 'request_human');
+
+        $this->save(['agentic_enabled' => 1, 'tools' => ['ctl_r']])
+            ->assertSessionHasErrors(['tools' => 'request_human is a name C⁴ uses itself. Rename the operation or leave it off.']);
+    }
+
+    public function test_the_card_offers_the_built_ins(): void
+    {
+        $this->actingAs($this->member('editor'))
+            ->get(route('bots.brain', 'bot_1'))
+            ->assertSee('name="builtin_tools[]" value="current_datetime"', false)
+            ->assertSee('name="builtin_tools[]" value="request_human"', false);
+    }
+
+    public function test_a_conversation_waiting_for_a_person_says_so_in_the_list(): void
+    {
+        ChatConversation::create(['id' => 'conv_1', 'bot_id' => 'bot_1', 'session_id' => 's1']);
+        ChatConversation::where('id', 'conv_1')->update(['handover_requested_at' => now(), 'handover_reason' => 'Billing dispute']);
+        ChatMessage::create(['id' => 'm1', 'conversation_id' => 'conv_1', 'sender' => 'user', 'content' => 'hi']);
+        $admin = $this->member('system_admin');
+
+        $this->actingAs($admin)->withSession(['active_system_id' => 'sys_test'])
+            ->get(route('logs.index', ['bots' => 'bot_1']))
+            ->assertOk()
+            ->assertSee('Needs a person')
+            ->assertSee('Billing dispute');
     }
 }

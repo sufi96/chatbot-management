@@ -127,6 +127,9 @@
                                 @endif
                             </td>
                             <td>
+                                @if($conv->handover_requested_at)
+                                    <span class="badge text-bg-warning me-1" title="{{ $conv->handover_reason }}">Needs a person</span>
+                                @endif
                                 <span class="opening-clamp {{ $conv->opening_message === null ? 'text-muted' : '' }}"
                                       title="{{ \Illuminate\Support\Str::limit($conv->opening_message, 500) }}">
                                     {{ $conv->opening_message ?? 'No messages' }}

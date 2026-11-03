@@ -393,8 +393,20 @@
                             </select>
                         </div>
 
+                        <div class="fw-semibold small mb-1">Built into C⁴</div>
+                        @php($builtins = old('builtin_tools', $bot->builtin_tools ?? []))
+                        @foreach(\App\Models\BotProfile::BUILTIN_TOOLS as $name => $about)
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="builtin_tools[]" value="{{ $name }}"
+                                       id="builtin_{{ $name }}" @checked(in_array($name, $builtins, true))>
+                                <label class="form-check-label small" for="builtin_{{ $name }}">
+                                    <span class="figure-mono">{{ $name }}</span> <span class="text-muted">· {{ $about }}</span>
+                                </label>
+                            </div>
+                        @endforeach
+
                         @error('tools')
-                            <div class="text-danger small mb-2">{{ $message }}</div>
+                            <div class="text-danger small mb-2 mt-2">{{ $message }}</div>
                         @enderror
 
                         @if($connectors->isEmpty())

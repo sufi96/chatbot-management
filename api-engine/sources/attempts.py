@@ -152,7 +152,8 @@ async def tools(session, bot, message: str, settings: dict, run=None, load=None,
     run = run or agent.run
     load_skills = load_skills or agent.skills_for
 
-    available = await load(session, bot)
+    import builtin_tools
+    available = [*await load(session, bot), *builtin_tools.for_bot(bot)]
     skills = await load_skills(session, bot, {tool.name for tool in available})
     if not available and not skills:
         return SourceResult(kind="tools")

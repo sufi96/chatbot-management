@@ -137,6 +137,8 @@ class BotProfile(Base):
     # Off for every bot: on, its enabled connector tools become a source.
     agentic_enabled = Column(Boolean, default=False)
     agentic_max_calls = Column(Integer, default=3)
+    # Tools C⁴ carries itself, switched on per bot. See builtin_tools.py.
+    builtin_tools = Column(JSON, nullable=True)
     # Whether each question is read with the conversation before it. See intent.py.
     intent_enabled = Column(Boolean, default=True)
     # Whether what comes in and what goes out is checked. See guard.py.
@@ -184,6 +186,9 @@ class ChatConversation(Base):
     bot_id = Column(String(36), ForeignKey("bot_profiles.id", ondelete="CASCADE"), nullable=False)
     session_id = Column(String(100), nullable=False)
     origin = Column(String(500), default="")
+    # Set when the bot's request_human tool asked staff to follow up.
+    handover_requested_at = Column(DateTime, nullable=True)
+    handover_reason = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

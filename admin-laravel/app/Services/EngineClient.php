@@ -200,6 +200,26 @@ class EngineClient
         }
     }
 
+    /** An MCP server's tools, listed by the engine that will call them. */
+    public static function mcpTools(array $fields): array
+    {
+        try {
+            $response = self::request()->timeout(30)->post(self::base() . '/api/v1/connectors/mcp-tools',
+                $fields + ['type' => 'mcp']);
+
+            if (!$response->successful()) {
+                return ['success' => false, 'message' => 'Engine returned HTTP ' . $response->status()];
+            }
+
+            $body = $response->json();
+
+            return ['success' => (bool) ($body['success'] ?? false), 'tools' => (array) ($body['tools'] ?? []),
+                'message' => (string) ($body['message'] ?? '')];
+        } catch (\Throwable $e) {
+            return ['success' => false, 'message' => 'Could not reach the engine: ' . $e->getMessage()];
+        }
+    }
+
     /** Whether a connector's API answers, asked of the engine that will call it. */
     public static function testConnector(array $fields): array
     {

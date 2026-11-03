@@ -113,6 +113,7 @@ class ConnectorController extends Controller
         $validated = $request->validate([
             'connector_id' => ['nullable', 'string'],
             'system_id' => ['nullable', 'string'],
+            'type' => ['nullable', Rule::in(array_keys(Connector::TYPES))],
             'base_url' => ['nullable', 'url', 'max:500'],
             'auth_type' => ['nullable', Rule::in(Connector::AUTH_TYPES)],
             'auth_header' => ['nullable', 'string', 'max:120'],
@@ -120,6 +121,7 @@ class ConnectorController extends Controller
         ]);
 
         $fields = array_filter([
+            'type' => $validated['type'] ?? null,
             'base_url' => $validated['base_url'] ?? null,
             'auth_type' => $validated['auth_type'] ?? null,
             'auth_header' => $validated['auth_header'] ?? null,
@@ -130,6 +132,7 @@ class ConnectorController extends Controller
             $saved = Connector::findOrFail($validated['connector_id']);
             $this->authorizeAdmin($request, $saved->system_id);
             $fields += [
+                'type' => $saved->type,
                 'base_url' => $saved->base_url,
                 'auth_type' => $saved->auth_type,
                 'auth_header' => $saved->auth_header,
@@ -157,6 +160,15 @@ class ConnectorController extends Controller
         $connector = Connector::findOrFail($id);
         $this->authorizeAdmin($request, $connector->system_id);
 
+        if ($connector->type === 'mcp') {
+            $listed = EngineClient::mcpTools($connector->only(['base_url', 'auth_type', 'auth_header', 'auth_secret']));
+            if (!$listed['success']) {
+                return $this->refuse($listed['message']);
+            }
+
+            return $this->replaceTools($connector, self::fromMcp($listed['tools']));
+        }
+
         $validated = $request->validate([
             'spec' => ['nullable', 'string', 'max:2000000', 'required_without:spec_url'],
             'spec_url' => ['nullable', 'url', 'max:500'],
@@ -182,6 +194,39 @@ class ConnectorController extends Controller
             return $this->refuse($e->getMessage());
         }
 
+        return $this->replaceTools($connector, $imported);
+    }
+
+    /**
+     * An MCP server's tools as connector tools. The MCP name goes in path,
+     * since the engine calls the tool by it; name is made safe for a model's
+     * tool call, and kept unique.
+     */
+    private static function fromMcp(array $tools): array
+    {
+        $taken = [];
+
+        return array_map(function (array $tool) use (&$taken) {
+            $base = substr(trim(preg_replace('/[^A-Za-z0-9_-]+/', '_', (string) $tool['name']), '_'), 0, 60) ?: 'tool';
+            $name = $base;
+            for ($n = 2; isset($taken[$name]); $n++) {
+                $name = "{$base}_{$n}";
+            }
+            $taken[$name] = true;
+
+            return [
+                'name' => $name,
+                'description' => mb_substr((string) ($tool['description'] ?? ''), 0, 1000),
+                'method' => 'mcp',
+                'path' => mb_substr((string) $tool['name'], 0, 500),
+                'parameters' => is_array($tool['parameters'] ?? null) ? $tool['parameters'] : ['type' => 'object'],
+                'writes' => (bool) ($tool['writes'] ?? true),
+            ];
+        }, $tools);
+    }
+
+    private function replaceTools(Connector $connector, array $imported): JsonResponse
+    {
         DB::transaction(function () use ($connector, $imported) {
             $enabled = $connector->tools()->where('enabled', true)->pluck('name')->all();
             $connector->tools()->whereNotIn('name', array_column($imported, 'name'))->delete();

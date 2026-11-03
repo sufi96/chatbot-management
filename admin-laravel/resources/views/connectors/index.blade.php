@@ -53,7 +53,12 @@
             @endif
         </div>
         <div class="card-body">
-            @if($canManage)
+            @if($canManage && $connector->type === 'mcp')
+                <form class="d-flex gap-2 mb-3 flex-wrap" data-connector-import="{{ $connector->id }}">
+                    <button class="btn btn-sm btn-outline-primary">Import tools from the server</button>
+                    <span class="text-muted small align-self-center">Lists the MCP server's tools; a tool marked read-only runs without asking.</span>
+                </form>
+            @elseif($canManage)
                 <form class="d-flex gap-2 mb-3 flex-wrap" data-connector-import="{{ $connector->id }}">
                     <input type="url" name="spec_url" class="form-control form-control-sm" style="max-width: 360px;"
                            placeholder="OpenAPI spec URL (JSON)">
@@ -134,6 +139,7 @@
                         <div class="mb-3">
                             <label class="form-label" for="con_url">Base URL <span style="color: var(--danger);">*</span></label>
                             <input id="con_url" name="base_url" type="url" class="form-control" required placeholder="https://api.example.gov.my/v1">
+                            <div class="form-text text-faint">For an MCP server, its streamable HTTP address, often ending in /mcp.</div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label" for="con_auth">Sign-in</label>
@@ -290,8 +296,8 @@
         importForm.addEventListener('submit', function (event) {
             event.preventDefault();
             var body = {};
-            if (importForm.spec.value.trim()) body.spec = importForm.spec.value;
-            else body.spec_url = importForm.spec_url.value;
+            if (importForm.spec && importForm.spec.value.trim()) body.spec = importForm.spec.value;
+            else if (importForm.spec_url) body.spec_url = importForm.spec_url.value;
             say(pageStatus, 'Importing…');
             send('POST', url('import', importForm.dataset.connectorImport), body).then(function (data) {
                 say(pageStatus, data.message, data.success);

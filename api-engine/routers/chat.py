@@ -24,7 +24,7 @@ import roles
 import shield
 import sources
 import trace_token
-from connectors import rest
+import connectors
 from kb.embedding import client_for as embedding_client_for
 from kb.retrieval import augment_system_prompt
 from llm_adapter import LLMAdapter
@@ -772,7 +772,7 @@ async def decide_action(action_id: str, req: ActionDecision, request: Request,
             action.status, text = "failed", "That action is no longer available, so nothing was sent."
         else:
             tool_row, connector = found
-            outcome = await rest.call(connector, tool_row, action.arguments or {})
+            outcome = await connectors.call(connector, tool_row, action.arguments or {})
             action.duration_ms = outcome.ms or None
             action.result_excerpt = (outcome.detail or outcome.text or outcome.error or "")[:500] or None
             if outcome.ok:

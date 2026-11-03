@@ -207,4 +207,45 @@ class ConnectorTest extends TestCase
             ->get(route('connectors.index'))
             ->assertSee('data-tool-writes="' . $get->id . '"', false);
     }
+
+    public function test_an_mcp_server_is_a_connector_whose_tools_are_imported_from_it(): void
+    {
+        $connector = $this->connector('con_m', fields: ['type' => 'mcp', 'base_url' => 'http://mcp.test/mcp',
+            'auth_type' => 'none', 'auth_secret' => null]);
+        Http::fake(['*/api/v1/connectors/mcp-tools' => Http::response(['success' => true, 'tools' => [
+            ['name' => 'application_status', 'description' => 'Status', 'parameters' => ['type' => 'object'], 'writes' => false],
+            ['name' => 'tickets.create', 'description' => 'Open a ticket', 'parameters' => ['type' => 'object'], 'writes' => true],
+        ]])]);
+
+        $this->actingAs($this->member('system_admin'))
+            ->postJson(route('connectors.import', $connector->id))
+            ->assertOk();
+
+        $tools = $connector->tools()->orderBy('path')->get();
+        $this->assertSame(['application_status', 'tickets.create'], $tools->pluck('path')->all());
+        $this->assertSame(['application_status', 'tickets_create'], $tools->pluck('name')->all());
+        $this->assertSame(['mcp', 'mcp'], $tools->pluck('method')->all());
+        $this->assertSame([false, true], $tools->pluck('writes')->all());
+        Http::assertSent(fn ($request) => $request['base_url'] === 'http://mcp.test/mcp' && $request['type'] === 'mcp');
+    }
+
+    public function test_an_mcp_connector_is_tested_as_one(): void
+    {
+        $connector = $this->connector('con_m', fields: ['type' => 'mcp', 'base_url' => 'http://mcp.test/mcp']);
+        Http::fake(['*/api/v1/connectors/test' => Http::response(['success' => true, 'message' => 'Reached the MCP server (2 tools).'])]);
+
+        $this->actingAs($this->member('system_admin'))
+            ->postJson(route('connectors.test'), ['connector_id' => $connector->id])
+            ->assertJson(['success' => true]);
+
+        Http::assertSent(fn ($request) => $request['type'] === 'mcp');
+    }
+
+    public function test_the_form_offers_mcp(): void
+    {
+        $this->actingAs($this->member('system_admin'))
+            ->withSession(['active_system_id' => 'sys_test'])
+            ->get(route('connectors.index'))
+            ->assertSee('<option value="mcp">', false);
+    }
 }

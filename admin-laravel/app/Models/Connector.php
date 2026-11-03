@@ -22,7 +22,7 @@ class Connector extends Model
 
     protected $hidden = ['auth_secret'];
 
-    public const TYPES = ['rest' => 'REST / OpenAPI'];
+    public const TYPES = ['rest' => 'REST / OpenAPI', 'mcp' => 'MCP server'];
 
     public const AUTH_TYPES = ['none', 'bearer', 'header', 'basic'];
 

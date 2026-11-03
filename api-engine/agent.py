@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 import shield
 import spotlight
-from connectors import rest
+import connectors
 from llm_adapter import LLMAdapter
 
 SYSTEM = ("You can call tools to look things up for the visitor. Call a tool only when the "
@@ -119,7 +119,7 @@ async def run(bot, message: str, tools: list[Tool], endpoint, ask=None, call=Non
         return AgentResult()
 
     ask = ask or LLMAdapter.complete_with_tools
-    call = call or rest.call
+    call = call or connectors.call
     base_url, api_key, model = endpoint
     by_name = {tool.name: tool for tool in tools}
     schemas = [schema(tool) for tool in tools]

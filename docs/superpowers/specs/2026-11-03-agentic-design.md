@@ -1,6 +1,8 @@
 # Agentic C⁴: Connectors, Tools and Skills
 
-Status: **planning**, not built. Started 2026-11-03. Pick up from "Open questions".
+Status: **first build done** on branch `feat/agentic` (2026-11-03): connector layer (REST/OpenAPI),
+agentic core, skills. Waiting on MyGDX and SharePoint details. See "Progress" at the end, then
+"Open questions".
 
 ## Why
 
@@ -166,3 +168,88 @@ Order: 1 → 2 (early value, no agentic needed) → 3 + 4 + 5 together → 6 and
 **Start now (no outside dependency):** category 1 with the **REST/OpenAPI type only**,
 tested against a public or mock API. MyGDX and SharePoint then become new connector
 types on the same base once their details arrive.
+
+## Progress (ticked = built on `feat/agentic`, tested, reviewed)
+
+Plans: `docs/superpowers/plans/2026-11-03-connector-layer-rest.md`, `…-agentic-core.md`, `…-skills.md`.
+
+**1. Connector layer**
+- [x] `connectors` / `connector_tools` tables; secrets hidden (`$hidden`, last-four hint), never readable by the console DB source
+- [x] Connectors page (sidebar → Connectors): add / edit / delete / Test, system admins only
+- [x] REST/OpenAPI type: import operations from an OpenAPI 3 **JSON** spec (URL or paste), switch each on, mark "Writes"
+- [x] Engine REST caller: path args encoded, `.`/`..`/empty refused, 15 s timeout, 8,000-char cap, API address never shown to visitors
+- [ ] Auth: NTLM, client certificate (come with the SharePoint / MyGDX types)
+- [ ] MyGDX (X-Road/UXP via the Security Server) type: waiting on the checklist in Open question 2
+- [ ] MCP-server type (C⁴ as MCP client): see "FastMCP" below
+- [ ] SharePoint type
+- [ ] OpenAPI YAML import (needs `symfony/yaml`)
+- [ ] Secrets encrypted at rest (today plain text, like web search keys)
+
+**2. SharePoint knowledge source**
+- [ ] Not started: waiting on SharePoint details (section 5)
+
+**3. Agentic core**
+- [x] `tools` is a fourth source in the order (default `documents,database,tools,web`; existing bots get it last)
+- [x] Tool calling in `llm_adapter.complete_with_tools`; bounded loop in `api-engine/agent.py` (1–5 calls per message)
+- [x] The loop sees the last 6 visitor/assistant turns
+- [x] Agentic card on the Behaviour tab: switch, call limit, tools by connector
+- [x] Combined mode asks tools together with the knowledge base and database
+
+**4. Skills**
+- [x] Skills page (sidebar → Skills): type, upload `.md`/`.zip`, generate with the workspace's model, download
+- [x] Three built-ins, copied into a workspace to use: `human-handover`, `create-ticket`, `application-status`
+- [x] Bots load a skill when the model judges a request matches (`load_skill`); its steps guide the answer
+- [x] A skill is offered only when the bot has every tool it names; instruction-shaped skills are skipped
+
+**5. Action safety and visibility**
+- [x] Writes wait for the visitor's **Confirm** in the widget; expires after 10 minutes; claimed atomically (no double send)
+- [x] Switching Agentic off stops waiting actions; a tool switched off or unlinked since is not run
+- [x] Every tool call logged (`chat_tool_calls`) and shown in Conversations; "Connected systems" in analytics
+- [x] Tool results screened by the injection shield and marked as data
+- [ ] Deferred from review: Test with a saved secret against a new address; a tool named `load_skill`;
+      Confirm/Cancel counted as tool answers in analytics; calls of an empty answer missing from the
+      transcript; saving Behaviour drops links to switched-off tools; warn admins that any visitor can
+      trigger an enabled write
+
+**6. C⁴ as MCP server**
+- [ ] Not started: build when a named system wants to use C⁴'s knowledge (see "FastMCP" below)
+
+**7. Evals and the Sparks switch**
+- [ ] Tool-choice eval cases in `api-engine/evals`
+- [ ] Manual end-to-end run on a hosted model (Petstore steps in the build notes)
+- [ ] Switch provider to the Sparks model
+
+## Ideas from the agent prototype (2026-11-03)
+
+A colleague's prototype ("Agent Platform": on-prem, Ollama, pydantic-ai; screenshots in
+`docs/Screenshot Reference/`) showed what a hand-built agent setup looks like. What it has, and
+what C⁴ does with each:
+
+| Prototype | C⁴ | Pick? |
+|---|---|---|
+| Agent with model, temperature, persona prompt | A bot's Behaviour tab | [x] already there |
+| Tool checkboxes per agent | Agentic card, tools from any API via connectors | [x] already there |
+| Skill checkboxes per agent, "progressive" mode (load on trigger words) | Skills checklist; the model loads a skill when its description matches | [x] already there |
+| Chat tab to try an agent | The real widget on the Behaviour page | [x] already there |
+| Built-in tools written in code (`check_port`, `resolve_host`, `http_headers`) | Only connector tools | [ ] **pick, small**: a few built-in tools that need no connector, starting with today's date/time and a real "hand over to a human" action (flags the conversation for staff) |
+| The chat shows which agent answered | Tool calls are visible only afterwards, in Conversations | [ ] **pick, small**: show tool calls and loaded skills live in the Behaviour page's test chat (a status line per call, admin view only) |
+| Skill mode "always on" vs "progressive" | Progressive only | [ ] **pick, small**: per-skill "always on" for short rules every answer should follow; progressive stays the default |
+| `save_finding` / `read_findings` (notes kept across turns) | Conversation history | [ ] not now: a support conversation is short; revisit for internal staff assistants |
+| Lead (Orchestrator) delegating to Cipher and Scribe | Not built | [ ] **later**: when an internal workflow needs several steps with different roles (e.g. pull records from MyGDX, then draft a report), as "a bot whose tools are other bots". Needs the Sparks model; every hand-off is another model round |
+| Network/security tools against any host | — | [ ] no: not safe to offer anonymous public visitors |
+
+## FastMCP
+
+FastMCP is the Python framework for MCP servers and clients (its 1.0 became part of the official
+`mcp` SDK; the standalone `fastmcp` package is the maintained one). The engine is Python, so it is
+the natural library for both MCP directions, **when they are built**:
+
+- [ ] **MCP-server connector type (C⁴ as MCP client):** a `fastmcp.Client` lists an MCP server's
+      tools into `connector_tools` and calls them, beside `connectors/rest.py`. Needed only once a
+      system the bots must use offers MCP rather than REST.
+- [ ] **C⁴ as MCP server (category 6):** a FastMCP server inside the engine exposing
+      `search_knowledge_base` and `ask_bot` per workspace key, so other systems' assistants
+      (Copilot, Claude, internal agents) can use C⁴'s knowledge.
+
+Not needed for what is built today: REST connectors, MyGDX and SharePoint do not use MCP. Pin the
+exact `fastmcp` version from PyPI when adding it.

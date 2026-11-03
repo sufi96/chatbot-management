@@ -24,6 +24,8 @@ LEAD = "Results from the systems this bot is connected to:"
 
 EXCERPT = 500
 
+HISTORY_TURNS = 6
+
 
 @dataclass
 class Tool:
@@ -57,6 +59,8 @@ class AgentResult:
     context_block: str = ""
     pending: CallRecord | None = None
     model: str = ""
+    # The skills the model loaded, for the answer model to follow too.
+    guidance: str = ""
 
 
 def _strip(schema):
@@ -105,7 +109,7 @@ def _arguments(raw) -> dict | None:
 
 
 async def run(bot, message: str, tools: list[Tool], endpoint, ask=None, call=None,
-              extra_system: str = "", skills=()) -> AgentResult:
+              extra_system: str = "", skills=(), history=None) -> AgentResult:
     if not tools and not skills:
         return AgentResult()
 
@@ -122,7 +126,12 @@ async def run(bot, message: str, tools: list[Tool], endpoint, ask=None, call=Non
         schemas.append(LOAD_SKILL)
 
     system = SYSTEM + ("\n\n" + extra_system if extra_system else "")
-    messages = [{"role": "system", "content": system}, {"role": "user", "content": message}]
+    # The last few visitor and assistant turns, so "A-12345" after "what is
+    # your reference number?" means something. Nothing else is let in.
+    earlier = [{"role": t["role"], "content": t["content"]} for t in (history or [])
+               if t.get("role") in ("user", "assistant") and isinstance(t.get("content"), str)
+               and t["content"].strip()][-HISTORY_TURNS:]
+    messages = [{"role": "system", "content": system}, *earlier, {"role": "user", "content": message}]
     result = AgentResult(model=model)
 
     # Loading a skill is not a call to anyone's system, so it does not count
@@ -145,8 +154,14 @@ async def run(bot, message: str, tools: list[Tool], endpoint, ask=None, call=Non
 
             if name == LOAD_SKILL["function"]["name"] and skills:
                 skill = skills_by_name.get((arguments or {}).get("name", ""))
-                feedback = (spotlight.wrap(f"The {skill.name} skill:", skill.body) if skill
-                            else json.dumps({"error": "No skill by that name is available."}))
+                if skill:
+                    # Steps to follow, unlike material: screened when loaded
+                    # (skills_for), so not marked "do not obey".
+                    feedback = f"Instructions for the {skill.name} skill:\n{skill.body}"
+                    if skill.body not in result.guidance:
+                        result.guidance = "\n\n".join(p for p in (result.guidance, skill.body) if p)
+                else:
+                    feedback = json.dumps({"error": "No skill by that name is available."})
             elif tool is None or arguments is None:
                 problem = f"No tool called {name}." if tool is None else "The arguments were not a JSON object."
                 result.calls.append(CallRecord(tool, name, arguments or {}, "failed", excerpt=problem))

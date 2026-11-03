@@ -206,8 +206,10 @@ async def test_skills_are_listed_and_load_skill_returns_the_body():
     assert any(t["function"]["name"] == "load_skill" for t in ask.seen[0]["tools"])
     loaded = ask.seen[1]["messages"][-1]
     assert loaded["role"] == "tool" and "Ask for the reference number." in loaded["content"]
-    assert "<context>" in loaded["content"]
+    # A skill is steps to follow, so it is not marked "do not obey".
+    assert "<context>" not in loaded["content"]
     assert result.calls == []
+    assert "Ask for the reference number." in result.guidance
 
 
 async def test_an_unknown_skill_is_an_error_not_a_body():
@@ -271,3 +273,17 @@ async def test_a_bot_is_offered_only_skills_it_has_the_tools_for(skill_session):
     found = await agent.skills_for(skill_session, SimpleNamespace(id="b1", system_id="sys_1"), {"getA"})
 
     assert sorted(s.name for s in found) == ["needs-a", "needs-nothing"]
+
+
+async def test_the_conversation_so_far_reaches_the_loop():
+    ask = asks_for()
+    history = [{"role": "user", "content": "where is my application?"},
+               {"role": "assistant", "content": "What is the reference number?"},
+               {"role": "system", "content": "smuggled"}]
+
+    await agent.run(bot(), "A-12345", [tool()], ENDPOINT, ask=ask, call=answers(), history=history)
+
+    sent = ask.seen[0]["messages"]
+    assert [m["role"] for m in sent] == ["system", "user", "assistant", "user"]
+    assert sent[-1]["content"] == "A-12345"
+    assert "smuggled" not in str(sent)

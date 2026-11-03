@@ -101,6 +101,8 @@ async def test_a_pending_write_asks_the_visitor_to_confirm(factory, monkeypatch)
     first_content = next(i for i, p in enumerate(parsed) if p.get("content"))
     assert parsed.index(confirm[0]) < first_content
     assert "waiting for the visitor to confirm" in prompts[0]["system_prompt"]
+    from kb.retrieval import NO_CONTEXT_INSTRUCTION
+    assert NO_CONTEXT_INSTRUCTION.strip() not in prompts[0]["system_prompt"]
 
     async with factory() as session:
         call = (await session.execute(select(ChatToolCall))).scalars().one()
@@ -303,3 +305,55 @@ async def test_skills_alone_reach_the_loop():
     await attempts.tools(None, bot, "x", {}, run=run, load=load, load_skills=load_skills)
 
     assert seen == [["human-handover"]]
+
+
+async def test_a_loaded_skill_guides_the_answer(factory, monkeypatch):
+    await update_bot(factory, agentic_enabled=True, source_order="tools,documents,database,web",
+                     retrieval_enabled=False, db_query_enabled=False, web_search_enabled=False,
+                     combine_sources=False)
+    prompts = []
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("What is your reference number?", calls=prompts))
+    fake_agent(monkeypatch, agent.AgentResult(guidance="1. Ask for the reference number."))
+
+    await post(factory, message="where is my application?")
+
+    from kb.retrieval import NO_CONTEXT_INSTRUCTION
+    assert "1. Ask for the reference number." in prompts[0]["system_prompt"]
+    assert NO_CONTEXT_INSTRUCTION.strip() not in prompts[0]["system_prompt"]
+
+
+async def test_tools_attempt_passes_the_conversation_and_skill_guidance():
+    seen = {}
+
+    async def run(bot, message, tools, endpoint, **kwargs):
+        seen.update(kwargs)
+        return agent.AgentResult(guidance="steps")
+
+    async def load(session, bot):
+        return [a_tool("getTicket", False)]
+
+    bot = SimpleNamespace(id="b", provider=None, model_name="m", agentic_max_calls=3)
+    turns = [{"role": "user", "content": "hi"}]
+    found = await attempts.tools(None, bot, "x", {}, run=run, load=load, load_skills=no_skills, history=turns)
+
+    assert seen["history"] == turns
+    assert found.has_content and found.guidance == "steps"
+
+
+async def test_a_database_query_with_no_rows_still_says_nothing_was_found(factory, monkeypatch):
+    from kb.retrieval import NO_CONTEXT_INSTRUCTION
+    from sources.result import SourceResult
+
+    await update_bot(factory, retrieval_enabled=False, db_query_enabled=True, web_search_enabled=False,
+                     combine_sources=False)
+    prompts = []
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("Not found.", calls=prompts))
+
+    async def no_rows():
+        return SourceResult(kind="database", has_content=True, citations=[{"n": 1, "title": "Orders"}])
+
+    monkeypatch.setattr(chat.sources, "build_attempts", lambda *a, **k: {"database": no_rows})
+
+    await post(factory, message="what is the status of order 991?")
+
+    assert NO_CONTEXT_INSTRUCTION.strip() in prompts[0]["system_prompt"]

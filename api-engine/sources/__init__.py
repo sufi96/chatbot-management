@@ -58,9 +58,9 @@ def answer_kind(found: SourceResult | None, searched: bool, refused: bool) -> st
 
 
 def build_attempts(session, bot, message: str, settings: dict, collection_ids,
-                   query_vector=None, tool_log=None) -> dict:
+                   query_vector=None, tool_log=None, turns=None) -> dict:
     return {
-        "tools": partial(attempt_module.tools, session, bot, message, settings, log=tool_log),
+        "tools": partial(attempt_module.tools, session, bot, message, settings, log=tool_log, history=turns),
         "documents": partial(attempt_module.documents, session, bot, message,
                              settings, collection_ids, query_vector=query_vector),
         "database": partial(attempt_module.database, session, bot, message, settings),
@@ -119,6 +119,7 @@ def merge(results: list[SourceResult]) -> SourceResult:
         merged.row_count = merged.row_count or result.row_count
         merged.reranked_by = merged.reranked_by or result.reranked_by
         merged.expanded_by = merged.expanded_by or result.expanded_by
+        merged.guidance = merged.guidance or result.guidance
 
     merged.context_block = "\n\n".join(blocks)
     merged.citations = citations

@@ -137,7 +137,7 @@ async def web(bot, message: str, settings: dict, search=None, session=None,
 
 
 async def tools(session, bot, message: str, settings: dict, run=None, load=None, log=None,
-                load_skills=None) -> SourceResult:
+                load_skills=None, history=None) -> SourceResult:
     """The bot's connector tools, through the agent loop. See agent.py.
 
     Every call the loop made goes on the log, answered or not, because a tool
@@ -158,7 +158,8 @@ async def tools(session, bot, message: str, settings: dict, run=None, load=None,
         return SourceResult(kind="tools")
 
     base_url, api_key = provider_endpoint(bot)
-    result = await run(bot, message, available, (base_url, api_key, bot.model_name), skills=skills)
+    result = await run(bot, message, available, (base_url, api_key, bot.model_name), skills=skills,
+                       history=history)
 
     if log is not None:
         log.extend(result.calls)
@@ -170,4 +171,5 @@ async def tools(session, bot, message: str, settings: dict, run=None, load=None,
         context_block=result.context_block,
         citations=[{"n": i + 1, "title": f"{c.tool.connector.name}: {c.name}"}
                    for i, c in enumerate(answered)],
-        has_content=bool(result.context_block) or result.pending is not None)
+        guidance=result.guidance,
+        has_content=bool(result.context_block) or result.pending is not None or bool(result.guidance))

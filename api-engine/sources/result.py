@@ -25,3 +25,5 @@ class SourceResult:
     # non-empty: a query that ran and found nothing has an empty block and is
     # still an answer.
     has_content: bool = False
+    # Steps from a skill the tools source loaded, for the answer prompt.
+    guidance: str = ""

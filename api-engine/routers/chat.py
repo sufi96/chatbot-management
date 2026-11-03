@@ -371,7 +371,7 @@ async def chat_stream(
                 sources.normalise(bot.source_order),
                 enabled,
                 sources.build_attempts(db, bot, decision.query, source_settings, collection_ids,
-                                       tool_log=tool_log,
+                                       tool_log=tool_log, turns=turns,
                                        **({"query_vector": query_vector} if query_vector else {})),
                 combine)
             async for step in consulting:
@@ -383,7 +383,15 @@ async def chat_stream(
         context_block = found.context_block if found else ""
         fallback = sources.fallback_for(bot, message_is_a_question, enabled)
 
+        # A found result with no material is a change awaiting Confirm or a
+        # skill's steps: there is something to say, so not "nothing found".
+        if found and not context_block and (found.guidance or any(
+                call.status == "awaiting_confirm" for call in tool_log)):
+            fallback = "answer_anyway"
         final_prompt = augment_system_prompt(bot.system_prompt or "", context_block, fallback)
+        if found and found.guidance:
+            final_prompt += ("\n\nFor this request, follow these steps from a skill the operator wrote:\n"
+                             + found.guidance)
 
         # Written down now, so a change waiting on the visitor has an id the
         # widget's Confirm can name. The answer is made with the id they point at.

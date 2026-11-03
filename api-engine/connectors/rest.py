@@ -60,7 +60,16 @@ def _request_parts(tool, arguments: dict) -> tuple[str, dict, object]:
         elif where == "query":
             query[name] = value if isinstance(value, (str, int, float, bool)) else str(value)
 
-    return path, query, arguments.get("body")
+    body = arguments.get("body")
+    fields = ((properties.get("body") or {}).get("properties") or {})
+    if body is None and fields:
+        # A model with its thinking off often fills the body's fields beside the
+        # path argument instead of inside "body". Gathered back, but only the
+        # fields the body names: anything else the model made up stays unsent.
+        gathered = {name: value for name, value in arguments.items() if name in fields}
+        body = gathered or None
+
+    return path, query, body
 
 
 async def call(connector, tool, arguments: dict, transport=None) -> CallResult:

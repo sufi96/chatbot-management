@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AiProvider;
 use App\Models\AnswerCache;
 use App\Models\BotProfile;
+use App\Models\ConnectorTool;
 use App\Services\EngineClient;
 use App\Models\Skill;
 use App\Support\SkillFile;
@@ -58,8 +59,14 @@ class SkillController extends Controller
 
         abort_unless($this->draftProviders($request, $systemId)->contains('id', $validated['provider_id']), 403);
 
+        // The operations bots here can actually be given, so the draft names
+        // real ones instead of inventing them.
+        $operations = ConnectorTool::where('enabled', true)
+            ->whereHas('connector', fn ($q) => $q->where('system_id', $systemId))
+            ->orderBy('name')->pluck('name')->unique()->values()->all();
+
         return response()->json(EngineClient::draftSkill(
-            $validated['provider_id'], $validated['model'], $validated['description']));
+            $validated['provider_id'], $validated['model'], $validated['description'], $operations));
     }
 
     /** This workspace's language-model providers, and the platform's for a super admin. */

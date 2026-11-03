@@ -106,6 +106,8 @@ def trace_line(record) -> str:
     """One line of the test chat's trace: a skill loaded, or a call and how it went."""
     if record.status == "loaded":
         return f"Loaded skill {(record.arguments or {}).get('name', '')}"
+    if record.status == "asked":
+        return f"Asked the visitor: {(record.arguments or {}).get('question', '')}"[:300]
     args = ", ".join(f"{k}={v}" for k, v in (record.arguments or {}).items())
     flag = f" (flagged: {record.flag})" if record.flag else ""
     return f"{record.name}({args}) → {record.status.replace('_', ' ')}{flag}"[:300]
@@ -414,14 +416,32 @@ async def chat_stream(
 
         # A found result with no material is a change awaiting Confirm or a
         # skill's steps: there is something to say, so not "nothing found".
-        if found and not context_block and (found.guidance or any(
+        if found and not context_block and (found.guidance or found.ask or found.system_failed
+                                            or found.not_found or any(
                 call.status == "awaiting_confirm" for call in tool_log)):
             fallback = "answer_anyway"
         final_prompt = augment_system_prompt(bot.system_prompt or "", context_block, fallback)
         if found and found.guidance:
             final_prompt += ("\n\nFor this request, follow these steps from a skill the operator wrote:\n"
                              + found.guidance)
+        if found and found.ask:
+            final_prompt += ("\n\nNothing can be looked up or done for this request until the visitor "
+                             "gives more details. Ask them this, in your own words, and do not say "
+                             "anything has been done: " + found.ask)
+        if found and found.system_failed and not context_block:
+            final_prompt += ("\n\nThe connected system could not process this request. Tell the visitor "
+                             "the request is invalid and could not be processed, and suggest trying again "
+                             "later. Do not say the record does not exist, and do not guess any details.")
+        elif found and found.not_found and not context_block:
+            final_prompt += ("\n\nThe connected system has no record matching what the visitor gave. "
+                             "Say so plainly and ask them to check it. Give no status or details for it: "
+                             "never guess them.")
         if getattr(bot, "agentic_enabled", False):
+            # The tools loop sometimes makes no call at all, and the answer then
+            # said "We have recorded your complaint" with nothing sent anywhere.
+            final_prompt += ("\n\nNothing has been changed in any connected system in this reply. "
+                             "Never say something was recorded, submitted, updated or deleted; "
+                             "only the visitor's Confirm does that.")
             final_prompt += await always_on_rules(db, bot)
 
         # Written down now, so a change waiting on the visitor has an id the

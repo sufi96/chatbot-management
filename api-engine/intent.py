@@ -28,7 +28,7 @@ QUERY_CHARS = 500
 
 PROMPT = """You read the latest message sent to a customer service assistant, with the conversation before it, and decide two things.
 
-intent: "facts" when answering needs information about the business, its products, services, policies, orders or records. "chat" when it is a greeting, thanks, small talk, or a reaction that needs no information.
+intent: "facts" when answering needs information about the business, its products, services, policies, orders or records, or when the visitor wants something done: to report or lodge something, apply, book, change, cancel, speak to a person, or give details for a request already started. "chat" when it is a greeting, thanks, small talk, or a reaction that needs no information.
 
 query: the latest message rewritten as one question that makes sense with no conversation before it. Replace words such as "it", "that one" and "the second" with what they refer to. Keep the visitor's language. Keep product names, codes and numbers exactly as written. When the message already stands on its own, repeat it unchanged.
 
@@ -172,6 +172,12 @@ async def decide(bot, message: str, history: list[dict], settings: dict,
     if not understanding.ran:
         return Decision(is_question=True, query=message)
 
-    return Decision(is_question=understanding.intent == "facts",
+    # On an agentic bot a model's "chat" does not shut the sources: an 8B intent
+    # model read "I want to talk to a real officer" as chat however it was told,
+    # and the tools never ran. The loop itself decides whether to call anything;
+    # greetings never get this far, the word rules above settle them.
+    agentic = bool(getattr(bot, "agentic_enabled", False)) and bool(enabled.get("tools"))
+
+    return Decision(is_question=understanding.intent == "facts" or agentic,
                     query=understanding.query, intent=understanding.intent,
                     model=understanding.model)

@@ -153,3 +153,38 @@ async def test_errors_do_not_name_the_api_address():
 
     assert "10.1.2.3" not in result.error
     assert "10.1.2.3" in result.detail
+
+
+BODY_TOOL = {"type": "object", "properties": {
+    "id": {"type": "string", "x-in": "path"},
+    "body": {"type": "object", "properties": {"name": {"type": "string"}, "phone": {"type": "string"}}}}}
+
+
+async def test_body_fields_given_at_the_top_level_go_into_the_body():
+    """A model with its thinking off often fills the body's fields beside the
+    path argument instead of inside "body". Sent as given, the POST had no body."""
+    seen, transport = recorder()
+
+    await rest.call(connector(), tool(path="/things/{id}", method="post", parameters=BODY_TOOL),
+                    {"id": "7", "name": "Ali", "phone": "012"}, transport=transport)
+
+    assert str(seen[0].url) == "https://api.example.test/v1/things/7"
+    assert json.loads(seen[0].content) == {"name": "Ali", "phone": "012"}
+
+
+async def test_a_proper_body_is_left_as_it_is():
+    seen, transport = recorder()
+
+    await rest.call(connector(), tool(path="/things/{id}", method="post", parameters=BODY_TOOL),
+                    {"id": "7", "body": {"name": "Ali"}, "stray": "x"}, transport=transport)
+
+    assert json.loads(seen[0].content) == {"name": "Ali"}
+
+
+async def test_arguments_the_body_does_not_name_are_not_sent():
+    seen, transport = recorder()
+
+    await rest.call(connector(), tool(path="/things/{id}", method="post", parameters=BODY_TOOL),
+                    {"id": "7", "name": "Ali", "admin": True}, transport=transport)
+
+    assert json.loads(seen[0].content) == {"name": "Ali"}

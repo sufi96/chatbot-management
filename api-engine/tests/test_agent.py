@@ -301,3 +301,125 @@ async def test_always_on_skills_are_kept_apart_from_progressive_ones(skill_sessi
 
     assert "tone" not in [s.name for s in progressive]
     assert [s.name for s in always] == ["tone"]
+
+
+async def test_a_missing_detail_is_asked_for_rather_than_dropped():
+    """A model that needs the visitor's name before it can lodge anything says so
+    through ask_visitor. Without it, a reply with no tool call was a miss and the
+    question it wrote was thrown away."""
+    ask = asks_for("ask_visitor", args='{"question": "What is your name and phone number?"}')
+    call = answers()
+
+    result = await agent.run(bot(), "I want to report a streetlight", [tool("lodge", writes=True)],
+                             ENDPOINT, ask=ask, call=call)
+
+    assert result.question == "What is your name and phone number?"
+    assert result.calls == [] and result.pending is None and call.calls == []
+    assert len(ask.seen) == 1
+    assert [(r.name, r.status) for r in result.loaded] == [("ask_visitor", "asked")]
+
+
+async def test_ask_visitor_is_offered_beside_the_tools_and_named_in_the_rules():
+    ask = asks_for()
+
+    await agent.run(bot(), "x", [tool()], ENDPOINT, ask=ask, call=answers())
+
+    assert any(t["function"]["name"] == "ask_visitor" for t in ask.seen[0]["tools"])
+    assert "ask_visitor" in ask.seen[0]["messages"][0]["content"]
+
+
+async def test_an_empty_question_is_not_a_question():
+    ask = asks_for("ask_visitor", args='{"question": "  "}')
+
+    result = await agent.run(bot(), "x", [tool()], ENDPOINT, ask=ask, call=answers())
+
+    assert result.question == ""
+
+
+def fails_with(status, error):
+    async def call(connector, row, arguments, **kwargs):
+        return CallResult(ok=False, status=status, error=error, ms=5)
+    return call
+
+
+async def test_a_system_failure_is_marked_so_the_answer_does_not_say_not_found():
+    for status, error in ((401, "The system answered 401."), (500, "The system answered 500."),
+                          (0, "The system could not be reached.")):
+        result = await agent.run(bot(), "status of A1?", [tool()], ENDPOINT,
+                                 ask=asks_for("getApplication"), call=fails_with(status, error))
+        assert result.system_failed, status
+
+
+async def test_a_404_is_an_honest_not_found_not_a_system_failure():
+    result = await agent.run(bot(), "status of A9?", [tool()], ENDPOINT,
+                             ask=asks_for("getApplication"), call=fails_with(404, "The system answered 404."))
+
+    assert not result.system_failed
+
+
+async def test_a_404_is_marked_as_no_record():
+    result = await agent.run(bot(), "status of A9?", [tool()], ENDPOINT,
+                             ask=asks_for("getApplication"), call=fails_with(404, "The system answered 404."))
+
+    assert result.not_found and not result.system_failed
+
+
+async def test_calling_a_skills_operation_loads_that_skill():
+    """qwen3:8b went straight to get_complaint and never called load_skill, so the
+    operator's steps for that operation were never followed."""
+    status = a_skill("complaint-status", body="Say the status in Malay.", tools=["getApplication"])
+    other = a_skill("unrelated", body="Never this.", tools=["somethingElse"])
+
+    result = await agent.run(bot(), "status of A1?", [tool()], ENDPOINT,
+                             ask=asks_for("getApplication"), call=answers(), skills=[status, other])
+
+    assert "Say the status in Malay." in result.guidance
+    assert "Never this." not in result.guidance
+    assert [(r.name, r.arguments) for r in result.loaded] == [("load_skill", {"name": "complaint-status"})]
+
+
+async def test_a_pending_write_loads_its_skill_too():
+    lodge = a_skill("lodge", body="Repeat the details back.", tools=["lodge"])
+
+    result = await agent.run(bot(), "report it", [tool("lodge", writes=True)], ENDPOINT,
+                             ask=asks_for("lodge"), call=answers(), skills=[lodge])
+
+    assert result.pending is not None and "Repeat the details back." in result.guidance
+
+
+async def test_a_skill_loaded_by_the_model_is_not_loaded_twice():
+    status = a_skill("application-status", body="Steps.", tools=["getApplication"])
+    ask = asks_for("load_skill", "getApplication", args='{"name": "application-status", "id": "A1"}')
+
+    result = await agent.run(bot(), "x", [tool()], ENDPOINT, ask=ask, call=answers(), skills=[status])
+
+    assert result.guidance.count("Steps.") == 1
+    assert len(result.loaded) == 1
+
+
+async def test_the_model_is_told_to_load_a_matching_skill_first():
+    ask = asks_for()
+
+    await agent.run(bot(), "x", [tool()], ENDPOINT, ask=ask, call=answers(), skills=[a_skill()])
+
+    assert "first, before any other tool" in ask.seen[0]["messages"][0]["content"]
+
+
+async def test_a_skill_loads_only_for_its_main_operation_the_first_it_names():
+    """lodge-complaint names list_complaints as a helper; a plain search loaded it."""
+    lodge = a_skill("lodge", body="Ask for the name first.", tools=["lodge", "getApplication"])
+
+    result = await agent.run(bot(), "any complaints?", [tool(), tool("lodge", writes=True)], ENDPOINT,
+                             ask=asks_for("getApplication"), call=answers(), skills=[lodge])
+
+    assert result.guidance == ""
+
+
+async def test_a_failed_call_loads_no_skill():
+    """A status skill's examples were copied into a 404 answer as a made-up status."""
+    status = a_skill("complaint-status", body="Say Dalam Tindakan for in progress.", tools=["getApplication"])
+
+    result = await agent.run(bot(), "status of A9?", [tool()], ENDPOINT, ask=asks_for("getApplication"),
+                             call=fails_with(404, "The system answered 404."), skills=[status])
+
+    assert result.guidance == ""

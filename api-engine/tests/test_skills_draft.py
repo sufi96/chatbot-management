@@ -77,3 +77,33 @@ async def test_an_unknown_provider_is_a_sentence(client):
 
 async def test_the_admin_token_is_required(client):
     assert (await draft(client, token=None)).status_code == 401
+
+
+async def test_the_draft_may_only_name_the_workspaces_operations(client, monkeypatch):
+    seen = {}
+
+    async def complete(**kwargs):
+        seen.update(kwargs)
+        return "---\nname: x\ndescription: Use when x.\n---\n1. x"
+
+    monkeypatch.setattr(skills.LLMAdapter, "complete", complete)
+
+    await client.post("/api/v1/skills/draft", headers={"X-Admin-Token": "portal-token"},
+                      json={"provider_id": "aip_1", "model": "m", "description": "d",
+                            "operations": ["get_complaint", "create_complaint"]})
+
+    assert "get_complaint, create_complaint" in seen["system_prompt"]
+
+
+async def test_with_no_operations_the_draft_is_told_to_name_none(client, monkeypatch):
+    seen = {}
+
+    async def complete(**kwargs):
+        seen.update(kwargs)
+        return "---\nname: x\ndescription: Use when x.\n---\n1. x"
+
+    monkeypatch.setattr(skills.LLMAdapter, "complete", complete)
+
+    await draft(client)
+
+    assert "tools: []" in seen["system_prompt"]

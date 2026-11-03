@@ -120,6 +120,9 @@ def merge(results: list[SourceResult]) -> SourceResult:
         merged.reranked_by = merged.reranked_by or result.reranked_by
         merged.expanded_by = merged.expanded_by or result.expanded_by
         merged.guidance = merged.guidance or result.guidance
+        merged.ask = merged.ask or result.ask
+        merged.system_failed = merged.system_failed or result.system_failed
+        merged.not_found = merged.not_found or result.not_found
 
     merged.context_block = "\n\n".join(blocks)
     merged.citations = citations

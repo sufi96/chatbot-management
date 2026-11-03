@@ -27,3 +27,9 @@ class SourceResult:
     has_content: bool = False
     # Steps from a skill the tools source loaded, for the answer prompt.
     guidance: str = ""
+    # What the tools need from the visitor before they can run, for the answer to ask.
+    ask: str = ""
+    # A connected system failed to process the request (not a 404).
+    system_failed: bool = False
+    # A connected system has no record matching what the visitor gave (a 404).
+    not_found: bool = False

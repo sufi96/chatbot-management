@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\AiProvider;
 use App\Models\BotProfile;
+use App\Models\Connector;
+use App\Models\ConnectorTool;
 use App\Models\Skill;
 use App\Models\System;
 use App\Models\User;
@@ -219,6 +221,26 @@ class SkillTest extends TestCase
 
         Http::assertSent(fn ($request) => $request['provider_id'] === 'aip_1' && $request['description'] === 'Check refunds');
         $this->assertSame(0, Skill::where('system_id', 'sys_test')->count());
+    }
+
+    public function test_a_draft_is_told_the_workspaces_switched_on_operations(): void
+    {
+        // Without them the model invents names, and a skill needing a tool
+        // nobody has is never offered to any bot.
+        AiProvider::create(['id' => 'aip_1', 'system_id' => 'sys_test', 'name' => 'Ours', 'base_url' => 'http://llm/v1']);
+        Connector::create(['id' => 'con_1', 'system_id' => 'sys_test', 'name' => 'Aduan', 'base_url' => 'https://a.test']);
+        Connector::create(['id' => 'con_2', 'system_id' => 'sys_other', 'name' => 'Theirs', 'base_url' => 'https://b.test']);
+        foreach ([['ctl_1', 'con_1', 'get_complaint', true], ['ctl_2', 'con_1', 'delete_complaint', false],
+                  ['ctl_3', 'con_2', 'their_tool', true]] as [$id, $connector, $name, $enabled]) {
+            ConnectorTool::create(['id' => $id, 'connector_id' => $connector, 'name' => $name,
+                'method' => 'get', 'path' => '/x', 'writes' => false, 'enabled' => $enabled]);
+        }
+        Http::fake(['*/api/v1/skills/draft' => Http::response(['success' => true, 'skill' => self::TEXT])]);
+
+        $this->admin()->postJson(route('skills.draft'), ['system_id' => 'sys_test', 'provider_id' => 'aip_1',
+            'model' => 'm', 'description' => 'Escalate old complaints'])->assertOk();
+
+        Http::assertSent(fn ($request) => $request['operations'] === ['get_complaint']);
     }
 
     public function test_a_draft_cannot_borrow_another_workspaces_provider(): void

@@ -102,10 +102,11 @@ class LLMAdapter:
         # endpoint that does not template its prompt ignores the key.
         thinking_on = bool(thinking_level) and thinking_level != "off"
         payload["chat_template_kwargs"] = {"enable_thinking": thinking_on}
-        if thinking_on:
-            # A depth hint for providers that grade reasoning effort. Qwen on
-            # vLLM has no depth control, so there this only means "think".
-            payload["reasoning_effort"] = thinking_level
+        # A depth hint for providers that grade reasoning effort. Qwen on vLLM
+        # has no depth control, so there this only means "think". "none" is
+        # what Ollama honours: it ignores the template switch above and lets
+        # qwen3 think anyway.
+        payload["reasoning_effort"] = thinking_level if thinking_on else "none"
 
         # Catches thinking however it arrives: its own delta field when the
         # server runs a reasoning parser, inline <think> tags when it does not.
@@ -126,7 +127,7 @@ class LLMAdapter:
                             # key it does not know. Every optional key here is a
                             # nicety, so drop whichever one it named and ask again
                             # rather than failing the chat over it.
-                            refused = [key for key in ("chat_template_kwargs", "stream_options")
+                            refused = [key for key in ("chat_template_kwargs", "reasoning_effort", "stream_options")
                                        if key in payload and key in err_text]
                             if response.status_code == 400 and refused:
                                 for key in refused:
@@ -226,6 +227,8 @@ class LLMAdapter:
             # streaming path uses the same switch; an endpoint that does not
             # template its prompt ignores the key.
             "chat_template_kwargs": {"enable_thinking": False},
+            # The same switch as Ollama reads it; it ignores the one above.
+            "reasoning_effort": "none",
         }
 
         # Asked for only by a caller that parses JSON. An endpoint without the
@@ -244,7 +247,7 @@ class LLMAdapter:
                     # way the streaming path already allows for. The thinking
                     # switch is a nicety; drop it and ask again rather than lose
                     # the verdict, and the database with it.
-                    refused = [key for key in ("chat_template_kwargs", "response_format")
+                    refused = [key for key in ("chat_template_kwargs", "reasoning_effort", "response_format")
                                if key in payload and key in response.text]
                     if response.status_code == 400 and refused:
                         for key in refused:
@@ -291,7 +294,10 @@ class LLMAdapter:
             "temperature": temperature,
             "max_tokens": max_tokens,
             # Choosing a tool is not worth a page of reasoning, as in complete().
+            # Both dialects: Ollama ignores the template switch, and a qwen3
+            # left thinking spends max_tokens before it writes the tool call.
             "chat_template_kwargs": {"enable_thinking": False},
+            "reasoning_effort": "none",
         }
 
         endpoint = cls._normalize_endpoint(base_url)
@@ -300,9 +306,11 @@ class LLMAdapter:
             async with httpx.AsyncClient(timeout=30.0, transport=transport) as client:
                 while True:
                     response = await client.post(endpoint, headers=headers, json=payload)
-                    if (response.status_code == 400 and "chat_template_kwargs" in payload
-                            and "chat_template_kwargs" in response.text):
-                        payload.pop("chat_template_kwargs")
+                    refused = [key for key in ("chat_template_kwargs", "reasoning_effort")
+                               if key in payload and key in response.text]
+                    if response.status_code == 400 and refused:
+                        for key in refused:
+                            payload.pop(key)
                         continue
                     response.raise_for_status()
                     return response.json()["choices"][0]["message"]

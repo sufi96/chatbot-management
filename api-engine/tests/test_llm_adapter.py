@@ -57,7 +57,25 @@ async def test_thinking_off_turns_the_qwen_template_switch_off():
     await run_stream(handler, thinking_level="off")
 
     assert seen["body"]["chat_template_kwargs"] == {"enable_thinking": False}
-    assert "reasoning_effort" not in seen["body"]
+    # Ollama ignores the template switch; this is the one it honours.
+    assert seen["body"]["reasoning_effort"] == "none"
+
+
+@pytest.mark.asyncio
+async def test_an_endpoint_that_rejects_reasoning_effort_is_asked_again_without_it():
+    bodies = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.read()))
+        if "reasoning_effort" in bodies[-1]:
+            return httpx.Response(400, text="Unrecognized request argument supplied: reasoning_effort")
+        return httpx.Response(200, content=sse_body(delta(content="Hello")))
+
+    payloads = await run_stream(handler, thinking_level="off")
+
+    assert "reasoning_effort" not in bodies[-1]
+    assert {"content": "Hello"} in payloads
+    assert not any("error" in p for p in payloads)
 
 
 @pytest.mark.asyncio

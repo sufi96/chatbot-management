@@ -180,12 +180,14 @@ class EngineClient
     }
 
     /** A SKILL.md drafted by a provider's model, never saved here. */
-    public static function draftSkill(string $providerId, string $model, string $description): array
+    public static function draftSkill(string $providerId, string $model, string $description,
+                                      array $operations = []): array
     {
         try {
             $response = Http::timeout(60)->withHeaders(['X-Admin-Token' => env('ENGINE_ADMIN_TOKEN', '')])
                 ->post(self::base() . '/api/v1/skills/draft',
-                    ['provider_id' => $providerId, 'model' => $model, 'description' => $description]);
+                    ['provider_id' => $providerId, 'model' => $model, 'description' => $description,
+                     'operations' => array_values($operations)]);
 
             if (!$response->successful()) {
                 return ['success' => false, 'message' => 'Engine returned HTTP ' . $response->status()];

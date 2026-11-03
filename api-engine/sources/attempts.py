@@ -176,4 +176,8 @@ async def tools(session, bot, message: str, settings: dict, run=None, load=None,
         citations=[{"n": i + 1, "title": f"{c.tool.connector.name}: {c.name}"}
                    for i, c in enumerate(answered)],
         guidance=result.guidance,
-        has_content=bool(result.context_block) or result.pending is not None or bool(result.guidance))
+        ask=result.question,
+        system_failed=result.system_failed,
+        not_found=result.not_found,
+        has_content=(bool(result.context_block) or result.pending is not None or bool(result.guidance)
+                     or bool(result.question) or result.system_failed or result.not_found))

@@ -25,6 +25,17 @@ class DraftRequest(BaseModel):
     provider_id: str
     model: str
     description: str = Field(max_length=2000)
+    # The workspace's switched-on operations. Without them the model invents
+    # names, and a skill needing a tool nobody has is offered to no bot.
+    operations: list[str] = Field(default_factory=list, max_length=200)
+
+
+def instruction_for(operations: list[str]) -> str:
+    names = [name.strip() for name in operations if name and name.strip()][:200]
+    if not names:
+        return INSTRUCTION + " This workspace has no operations yet, so write tools: [] and call none."
+    return (INSTRUCTION + " The only operations that exist are: " + ", ".join(names)
+            + ". Name only these, exactly as written, and only the ones the steps really call.")
 
 
 @router.post("/draft", dependencies=[Depends(require_admin_token)])
@@ -35,7 +46,7 @@ async def draft_skill(req: DraftRequest, db: AsyncSession = Depends(get_db)) -> 
 
     text = await LLMAdapter.complete(
         base_url=provider.base_url, api_key=provider.api_key or "", model_name=req.model,
-        system_prompt=INSTRUCTION, user_message=f"The skill: {req.description}",
+        system_prompt=instruction_for(req.operations), user_message=f"The skill: {req.description}",
         temperature=0.2, max_tokens=1500, merge_system=bool(provider.merge_system_prompt))
 
     if not text:

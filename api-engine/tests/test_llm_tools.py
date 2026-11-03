@@ -60,3 +60,34 @@ async def test_an_unreachable_provider_gives_none():
         raise httpx.ConnectError("down")
 
     assert await ask(httpx.MockTransport(handler)) is None
+
+
+async def test_thinking_is_switched_off_in_both_dialects():
+    """Ollama ignores chat_template_kwargs; a qwen3 left thinking spends the
+    token budget and the tool call never gets written."""
+    seen = []
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"message": {"role": "assistant", "content": "hi"}}]})
+
+    await ask(httpx.MockTransport(handler))
+
+    assert seen[0]["chat_template_kwargs"] == {"enable_thinking": False}
+    assert seen[0]["reasoning_effort"] == "none"
+
+
+async def test_reasoning_effort_is_dropped_when_refused():
+    bodies = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        bodies.append(body)
+        if "reasoning_effort" in body:
+            return httpx.Response(400, text="Unrecognized request argument supplied: reasoning_effort")
+        return httpx.Response(200, json={"choices": [{"message": {"role": "assistant", "content": "hi"}}]})
+
+    reply = await ask(httpx.MockTransport(handler))
+
+    assert reply["content"] == "hi"
+    assert "reasoning_effort" not in bodies[-1]

@@ -127,6 +127,27 @@ async def test_thinking_is_switched_off_for_one_shot_calls():
 
     body = json.loads(seen["body"])
     assert body["chat_template_kwargs"] == {"enable_thinking": False}
+    # Ollama ignores the template switch and thinks anyway; it honours this.
+    assert body["reasoning_effort"] == "none"
+
+
+@pytest.mark.asyncio
+async def test_an_endpoint_that_refuses_reasoning_effort_is_asked_again():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.read().decode())
+        seen.append(body)
+        if "reasoning_effort" in body:
+            return httpx.Response(400, json={"error": {"message": "reasoning_effort is not supported"}})
+        return httpx.Response(200, json=ANSWER)
+
+    answer = await LLMAdapter.complete(
+        "http://localhost:11434/v1", "", "gpt-4o-mini", "route this", "hello",
+        transport=httpx.MockTransport(handler))
+
+    assert answer == "database"
+    assert "reasoning_effort" not in seen[-1]
 
 
 @pytest.mark.asyncio

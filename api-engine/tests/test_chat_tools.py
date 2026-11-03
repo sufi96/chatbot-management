@@ -480,3 +480,106 @@ async def test_always_on_skills_need_the_bot_to_be_agentic(factory, monkeypatch)
     await post(factory, message="hello")
 
     assert "Salam" not in prompts[0]["system_prompt"]
+
+
+async def test_a_question_for_the_visitor_is_an_answer_not_a_miss():
+    async def run(bot, message, tools, endpoint, **kwargs):
+        return agent.AgentResult(question="What is your name and phone number?")
+
+    async def load(session, bot):
+        return [a_tool("createTicket", True)]
+
+    bot = SimpleNamespace(id="b", provider=None, model_name="m", agentic_max_calls=3)
+    found = await attempts.tools(None, bot, "x", {}, run=run, load=load, load_skills=no_skills)
+
+    assert found.has_content and found.ask == "What is your name and phone number?"
+
+
+async def test_the_answer_asks_the_visitor_what_the_tools_need(factory, monkeypatch):
+    await update_bot(factory, agentic_enabled=True, source_order="tools,documents,database,web",
+                     retrieval_enabled=False, db_query_enabled=False, web_search_enabled=False,
+                     combine_sources=False)
+    prompts = []
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("May I have your name?", calls=prompts))
+    fake_agent(monkeypatch, agent.AgentResult(question="What is your name and phone number?"))
+
+    await post(factory, message="I want to report a broken streetlight.")
+
+    from kb.retrieval import NO_CONTEXT_INSTRUCTION
+    assert "What is your name and phone number?" in prompts[0]["system_prompt"]
+    assert NO_CONTEXT_INSTRUCTION.strip() not in prompts[0]["system_prompt"]
+
+
+def test_the_trace_names_the_question():
+    record = agent.CallRecord(None, "ask_visitor", {"question": "Your name?"}, "asked")
+    assert chat.trace_line(record) == "Asked the visitor: Your name?"
+
+
+async def test_a_system_failure_is_an_answer_saying_the_request_could_not_be_processed():
+    async def run(bot, message, tools, endpoint, **kwargs):
+        return agent.AgentResult(system_failed=True)
+
+    async def load(session, bot):
+        return [a_tool("getTicket", False)]
+
+    bot = SimpleNamespace(id="b", provider=None, model_name="m", agentic_max_calls=3)
+    found = await attempts.tools(None, bot, "x", {}, run=run, load=load, load_skills=no_skills)
+
+    assert found.has_content and found.system_failed
+
+
+async def test_the_answer_says_invalid_request_not_not_found(factory, monkeypatch):
+    await update_bot(factory, agentic_enabled=True, source_order="tools,documents,database,web",
+                     retrieval_enabled=False, db_query_enabled=False, web_search_enabled=False,
+                     combine_sources=False)
+    prompts = []
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("Sorry.", calls=prompts))
+    fake_agent(monkeypatch, agent.AgentResult(system_failed=True))
+
+    await post(factory, message="status of ticket 7?")
+
+    from kb.retrieval import NO_CONTEXT_INSTRUCTION
+    prompt = prompts[0]["system_prompt"]
+    assert "invalid" in prompt and "could not be processed" in prompt
+    assert "does not exist" in prompt
+    assert NO_CONTEXT_INSTRUCTION.strip() not in prompt
+
+
+async def test_no_record_is_said_plainly_never_guessed(factory, monkeypatch):
+    await update_bot(factory, agentic_enabled=True, source_order="tools,documents,database,web",
+                     retrieval_enabled=False, db_query_enabled=False, web_search_enabled=False,
+                     combine_sources=False)
+    prompts = []
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("No such ticket.", calls=prompts))
+    fake_agent(monkeypatch, agent.AgentResult(not_found=True))
+
+    await post(factory, message="status of ticket 99?")
+
+    prompt = prompts[0]["system_prompt"]
+    assert "no record" in prompt and "never guess" in prompt
+
+
+async def test_an_agentic_answer_never_claims_a_change_on_its_own(factory, monkeypatch):
+    """The tools loop sometimes makes no call, and the answer then said "We have
+    recorded your complaint" with nothing sent anywhere."""
+    await update_bot(factory, agentic_enabled=True, source_order="tools,documents,database,web",
+                     retrieval_enabled=False, db_query_enabled=False, web_search_enabled=False,
+                     combine_sources=False)
+    prompts = []
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("May I have your name?", calls=prompts))
+    fake_agent(monkeypatch, agent.AgentResult())
+
+    await post(factory, message="My name is Ali, the streetlight at Jalan Bangsar is broken.")
+
+    assert "Never say something was recorded" in prompts[0]["system_prompt"]
+
+
+async def test_a_bot_that_is_not_agentic_gets_no_such_rule(factory, monkeypatch):
+    await update_bot(factory, agentic_enabled=False, retrieval_enabled=False, db_query_enabled=False,
+                     web_search_enabled=False)
+    prompts = []
+    monkeypatch.setattr(chat.LLMAdapter, "stream_chat", answering("Hi", calls=prompts))
+
+    await post(factory, message="My name is Ali, the streetlight at Jalan Bangsar is broken.")
+
+    assert "Never say something was recorded" not in prompts[0]["system_prompt"]

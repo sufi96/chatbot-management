@@ -274,3 +274,42 @@ async def test_an_unusable_reading_searches_with_the_message_as_sent():
         understand_fn=understood("facts", "and the warranty?", model="", ran=False))
 
     assert decision == intent.Decision(is_question=True, query="and the warranty?")
+
+
+def test_a_request_to_have_something_done_is_not_small_talk():
+    """On an agentic bot "I want to report a broken streetlight" must reach the
+    tools. Read as chat, no source was asked and the bot could not act."""
+    assert "done" in intent.PROMPT and "report" in intent.PROMPT
+
+
+def test_asking_for_a_person_is_not_small_talk():
+    """Read as chat, "I want to talk to a real officer" never reached request_human."""
+    assert "person" in intent.PROMPT
+
+
+@pytest.mark.asyncio
+async def test_on_an_agentic_bot_a_chat_verdict_does_not_shut_out_the_tools():
+    """An 8B intent model read "I want to talk to a real officer" as chat however
+    the prompt was worded, so request_human never ran. On an agentic bot the
+    tools loop decides whether anything needs calling; greetings are still
+    settled by the word rules before any model is asked."""
+    bot = FakeBot()
+    bot.agentic_enabled = True
+
+    decision = await intent.decide(bot, "This bot isn't helping, I want a real officer", [],
+                                   SETTING_DEFAULTS, {**ALL_OFF, "tools": True},
+                                   understand_fn=understood("chat", "I want a real officer"))
+
+    assert decision.is_question is True
+    assert decision.intent == "chat"
+
+
+@pytest.mark.asyncio
+async def test_on_an_agentic_bot_a_greeting_still_skips_everything():
+    bot = FakeBot()
+    bot.agentic_enabled = True
+
+    decision = await intent.decide(bot, "thanks!", [], SETTING_DEFAULTS, {**ALL_OFF, "tools": True},
+                                   understand_fn=must_not_understand())
+
+    assert decision.is_question is False

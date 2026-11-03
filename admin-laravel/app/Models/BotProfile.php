@@ -242,7 +242,7 @@ class BotProfile extends Model
     ];
 
     /** Names the engine uses for its own tools; no connector operation may take one. */
-    public const RESERVED_TOOL_NAMES = ['load_skill', 'current_datetime', 'request_human'];
+    public const RESERVED_TOOL_NAMES = ['load_skill', 'ask_visitor', 'current_datetime', 'request_human'];
 
     /** The skills this bot may load when it is agentic. */
     public function skills(): \Illuminate\Database\Eloquent\Relations\BelongsToMany

@@ -34,6 +34,29 @@ class SkillFileTest extends TestCase
         $this->assertStringNotContainsString("\r", $skill['body']);
     }
 
+    public function test_a_models_draft_with_trailing_spaces_and_a_fence_is_read(): void
+    {
+        // What a drafting model actually wrote: Markdown hard breaks on every
+        // line, quoted tool names, and sometimes a code fence around it all.
+        $draft = "```markdown
+---  
+name: old-complaint  
+description: Use when a complaint is old.  
+"
+            . "tools: [\"get_complaint\"]  
+---  
+1. Ask for the reference.
+```
+";
+
+        $skill = SkillFile::parse($draft);
+
+        $this->assertSame('old-complaint', $skill['name']);
+        $this->assertSame('Use when a complaint is old.', $skill['description']);
+        $this->assertSame(['get_complaint'], $skill['tools']);
+        $this->assertSame('1. Ask for the reference.', $skill['body']);
+    }
+
     public function test_quoted_values_lose_their_quotes(): void
     {
         $this->assertSame('Says "hi": politely',

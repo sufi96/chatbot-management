@@ -24,7 +24,12 @@ final class SkillFile
     {
         $text = str_replace(["\r\n", "\r"], "\n", preg_replace('/^\x{FEFF}/u', '', $text));
 
-        if (!preg_match('/^---\n(.*?)\n---\n?(.*)$/s', $text, $parts)) {
+        // A model's draft comes wrapped in a code fence, however firmly it is
+        // told not to. Only a fence around the whole file is taken off.
+        $text = preg_replace('/^\s*```[A-Za-z]*\n(.*?)\n```\s*$/s', '$1', $text);
+
+        // "---  ": Markdown hard breaks, which drafting models put on every line.
+        if (!preg_match('/^\s*---[ \t]*\n(.*?)\n---[ \t]*(?:\n|$)(.*)$/s', $text, $parts)) {
             throw new InvalidArgumentException('A skill starts with front matter: a "---" line, name: and description:, then "---".');
         }
 

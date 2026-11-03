@@ -18,7 +18,9 @@ import connectors
 from llm_adapter import LLMAdapter
 
 SYSTEM = ("You can call tools to look things up for the visitor. Call a tool only when the "
-          "question needs it. Never invent arguments; if one is missing, call no tool.")
+          "question needs it. Never invent arguments: when a tool is needed but the visitor has not "
+          "given everything it needs, call ask_visitor with one short question asking for all of "
+          "it, and no other tool.")
 
 LEAD = "Results from the systems this bot is connected to:"
 
@@ -66,6 +68,16 @@ class AgentResult:
     # One "loaded" record per skill loaded, for the log and the test chat's
     # trace. Kept apart from calls: loading is not a call to anyone's system.
     loaded: list = field(default_factory=list)
+    # What the model needs from the visitor before a tool can run (ask_visitor).
+    # An answer in itself: without it, a reply with no tool call was a miss and
+    # the question it wrote was thrown away.
+    question: str = ""
+    # A call failed for the system's sake (sign-in, server error, unreachable),
+    # not because the record is missing. The answer must not read it as "not found".
+    system_failed: bool = False
+    # A call answered 404: the system has no such record. Said plainly, or the
+    # answer model fills the silence with a status it made up.
+    not_found: bool = False
 
 
 def _strip(schema):
@@ -123,6 +135,8 @@ async def run(bot, message: str, tools: list[Tool], endpoint, ask=None, call=Non
     base_url, api_key, model = endpoint
     by_name = {tool.name: tool for tool in tools}
     schemas = [schema(tool) for tool in tools]
+    if tools:
+        schemas.append(ASK_VISITOR)
     limit = max(1, int(getattr(bot, "agentic_max_calls", None) or 3))
 
     skills_by_name = {skill.name: skill for skill in skills}
@@ -157,15 +171,20 @@ async def run(bot, message: str, tools: list[Tool], endpoint, ask=None, call=Non
             tool = by_name.get(name)
             arguments = _arguments(function.get("arguments"))
 
-            if name == LOAD_SKILL["function"]["name"] and skills:
+            if name == ASK_VISITOR["function"]["name"] and tools:
+                question = str((arguments or {}).get("question") or "").strip()[:QUESTION_CHARS]
+                if question:
+                    result.question = question
+                    result.loaded.append(CallRecord(None, name, {"question": question}, "asked"))
+                    break
+                feedback = json.dumps({"error": "Give the question to ask."})
+            elif name == LOAD_SKILL["function"]["name"] and skills:
                 skill = skills_by_name.get((arguments or {}).get("name", ""))
                 if skill:
                     # Steps to follow, unlike material: screened when loaded
                     # (skills_for), so not marked "do not obey".
                     feedback = f"Instructions for the {skill.name} skill:\n{skill.body}"
-                    if skill.body not in result.guidance:
-                        result.guidance = "\n\n".join(p for p in (result.guidance, skill.body) if p)
-                        result.loaded.append(CallRecord(None, "load_skill", {"name": skill.name}, "loaded"))
+                    _load(result, skill)
                 else:
                     feedback = json.dumps({"error": "No skill by that name is available."})
             elif tool is None or arguments is None:
@@ -173,13 +192,20 @@ async def run(bot, message: str, tools: list[Tool], endpoint, ask=None, call=Non
                 result.calls.append(CallRecord(tool, name, arguments or {}, "failed", excerpt=problem))
                 feedback = json.dumps({"error": problem})
             elif tool.writes:
+                _load_for(result, skills, name)
                 # Never run here: the visitor confirms first, in the widget.
                 result.pending = CallRecord(tool, name, arguments, "awaiting_confirm")
                 result.calls.append(result.pending)
                 break
             else:
                 outcome = await (tool.local(arguments) if tool.local else call(tool.connector, tool.row, arguments))
+                if outcome.ok:
+                    _load_for(result, skills, name)
                 if not outcome.ok:
+                    if outcome.status == 404:
+                        result.not_found = True
+                    else:
+                        result.system_failed = True
                     result.calls.append(CallRecord(tool, name, arguments, "failed",
                                                    excerpt=(outcome.detail or outcome.error or outcome.text)[:EXCERPT], ms=outcome.ms))
                     feedback = json.dumps({"error": outcome.error})
@@ -198,11 +224,21 @@ async def run(bot, message: str, tools: list[Tool], endpoint, ask=None, call=Non
             if len(result.calls) >= limit:
                 break
 
-        if result.pending:
+        if result.pending or result.question:
             break
 
     result.context_block = _block(result.calls)
     return result
+
+
+QUESTION_CHARS = 300
+
+ASK_VISITOR = {"type": "function", "function": {
+    "name": "ask_visitor",
+    "description": "Ask the visitor for details a tool needs that they have not given yet, "
+                   "such as their name, phone number or a reference number.",
+    "parameters": {"type": "object", "properties": {"question": {"type": "string"}}, "required": ["question"]},
+}}
 
 
 LOAD_SKILL = {"type": "function", "function": {
@@ -212,11 +248,35 @@ LOAD_SKILL = {"type": "function", "function": {
 }}
 
 
+def _load(result: AgentResult, skill) -> None:
+    """A skill's steps into the answer, once, with a line for the trace."""
+    if skill.body not in result.guidance:
+        result.guidance = "\n\n".join(p for p in (result.guidance, skill.body) if p)
+        result.loaded.append(CallRecord(None, "load_skill", {"name": skill.name}, "loaded"))
+
+
+def _load_for(result: AgentResult, skills, tool_name: str) -> None:
+    """Every skill whose main operation this is, loaded because it was called.
+
+    A small model goes straight to the operation and never calls load_skill,
+    so the operator's steps for it were never followed. A skill's first tool
+    is its main operation; the others are helpers (lodge-complaint searches
+    for duplicates first), and a plain search must not pull in the lodging
+    steps. Called only for an operation that ran or awaits Confirm: on a
+    failure, a status skill's examples were copied into the answer as a
+    status nobody returned.
+    """
+    for skill in skills:
+        if (getattr(skill, "tools", None) or [])[:1] == [tool_name]:
+            _load(result, skill)
+
+
 def skills_prompt(skills) -> str:
     if not skills:
         return ""
     lines = [f"- {skill.name}: {skill.description}" for skill in skills]
-    return "Skills you can load with load_skill when a request matches:\n" + "\n".join(lines)
+    return ("Skills you can load with load_skill. When a request matches one, call load_skill with "
+            "its name first, before any other tool, and follow its steps:\n" + "\n".join(lines))
 
 
 async def skills_for(session, bot, tool_names: set, mode: str = "progressive") -> list:

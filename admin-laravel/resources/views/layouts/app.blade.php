@@ -109,6 +109,11 @@
                 <span>Connectors</span>
             </a>
 
+            <a href="{{ route('skills.index') }}" class="sidebar-link {{ request()->routeIs('skills.*') ? 'active' : '' }}">
+                <i class="bi bi-lightbulb"></i>
+                <span>Skills</span>
+            </a>
+
             <a href="{{ route('logs.index') }}" class="sidebar-link {{ request()->routeIs('logs.*') ? 'active' : '' }}">
                 <i class="bi bi-chat-left-text"></i>
                 <span>Conversations</span>

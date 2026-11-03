@@ -7,6 +7,7 @@ use App\Http\Controllers\SystemController;
 use App\Http\Controllers\BotProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ConnectorController;
+use App\Http\Controllers\SkillController;
 use App\Http\Controllers\WebSearchKeyController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\KnowledgeBaseController;
@@ -96,6 +97,15 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     Route::delete('/connectors/{id}', [ConnectorController::class, 'destroy'])->name('connectors.destroy');
     Route::post('/connectors/{id}/import', [ConnectorController::class, 'import'])->name('connectors.import');
     Route::put('/connector-tools/{id}', [ConnectorController::class, 'updateTool'])->name('connector-tools.update');
+
+    // Skills: packaged know-how agentic bots load when a request matches.
+    Route::get('/skills', [SkillController::class, 'index'])->name('skills.index');
+    Route::post('/skills', [SkillController::class, 'store'])->name('skills.store');
+    Route::post('/skills/upload', [SkillController::class, 'upload'])->name('skills.upload');
+    Route::put('/skills/{id}', [SkillController::class, 'update'])->name('skills.update');
+    Route::delete('/skills/{id}', [SkillController::class, 'destroy'])->name('skills.destroy');
+    Route::post('/skills/{id}/copy', [SkillController::class, 'copy'])->name('skills.copy');
+    Route::get('/skills/{id}/download', [SkillController::class, 'download'])->name('skills.download');
 
     // Database connections
     // Distinct path, so it cannot be mistaken for /databases/{id}

@@ -1,8 +1,8 @@
 # Agentic C⁴: Connectors, Tools and Skills
 
 Status: **first build done** on branch `feat/agentic` (2026-11-03): connector layer (REST/OpenAPI),
-agentic core, skills. Waiting on MyGDX and SharePoint details. See "Progress" at the end, then
-"Open questions".
+agentic core, skills. Waiting on MyGDX and SharePoint details. See "Progress", then "Open questions"; next
+planned area is "Files and images in and out" at the end.
 
 ## Why
 
@@ -255,3 +255,40 @@ the natural library for both MCP directions, **when they are built**:
 
 Built 2026-11-03 with `fastmcp==4.1.4` (pinned in `api-engine/requirements.txt`). Plan:
 `docs/superpowers/plans/2026-11-03-agentic-extras.md`.
+
+## Files and images in and out (added 2026-11-03, not started)
+
+Today a conversation is text only: the visitor types, the bot answers in text (Markdown,
+citations, voice). Agentic work often needs more: a visitor sends a form, a photo or a PDF;
+the bot hands back a receipt, a chart or a filled document.
+
+**In (visitor → bot)**
+- [ ] Attach button in the widget: allowed types per bot (PDF, Office, images), size cap,
+      count cap per message. Files are checked by content type, not by extension.
+- [ ] Engine stores the file for the conversation only (expiry, deleted with it), never in a
+      knowledge base unless an admin chooses to.
+- [ ] Documents: text extracted with markitdown (already used for indexing), screened by the
+      shield, handed to the answer as material for this conversation.
+- [ ] Images: sent to a vision-capable model. Needs a provider purpose / model role
+      "Vision" (`ModelPurpose`), so a bot without one says it cannot read images.
+- [ ] Tools can receive a file: a connector or MCP tool argument can carry an uploaded file
+      (e.g. "submit this form to MyGDX"), always behind the visitor's Confirm.
+- [ ] Transcript and analytics show attachments; retention and PDPA notes for admins.
+
+**Out (bot → visitor)**
+- [ ] Answer attachments: the widget draws an image inline and a file as a download chip.
+- [ ] From tools: a connector/MCP result that is a file or image (MCP has image and resource
+      content; REST may return a URL or a binary) becomes an attachment, not text.
+- [ ] Generated: charts from database answers, and documents (PDF/DOCX) from a template,
+      as built-in tools.
+- [ ] Image generation only if a provider for it is added later.
+
+**Open questions**
+1. Which file types do visitors actually need to send first (forms as PDF? photos of documents?).
+2. Where files live: the engine's disk, the portal's storage, or object storage on the Sparks.
+3. Does any file need virus scanning before a model or a connector sees it (likely yes for
+   anything passed on to MyGDX)?
+4. How long files are kept, and who may download them from the transcript.
+
+Suggested order: documents in → images in (needs the vision model) → files out from tools →
+generated charts and documents.

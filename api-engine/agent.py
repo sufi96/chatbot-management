@@ -47,6 +47,8 @@ class CallRecord:
     ms: int = 0
     # The whole result, for the answer; excerpt is what the log keeps.
     text: str = ""
+    # The chat_tool_calls row once written, for the Confirm card to name.
+    row_id: str = ""
 
 
 @dataclass

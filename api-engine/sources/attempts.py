@@ -134,3 +134,37 @@ async def web(bot, message: str, settings: dict, search=None, session=None,
         citations=[{"n": i + 1, "title": item.title, "url": item.url}
                    for i, item in enumerate(results)],
         has_content=True)
+
+
+async def tools(session, bot, message: str, settings: dict, run=None, load=None, log=None) -> SourceResult:
+    """The bot's connector tools, through the agent loop. See agent.py.
+
+    Every call the loop made goes on the log, answered or not, because a tool
+    call that failed still happened and the operator should see it. The result
+    is a hit when a tool returned something usable or a change awaits the
+    visitor's confirmation.
+    """
+    import agent
+    from database import provider_endpoint
+
+    load = load or agent.tools_for
+    run = run or agent.run
+
+    available = await load(session, bot)
+    if not available:
+        return SourceResult(kind="tools")
+
+    base_url, api_key = provider_endpoint(bot)
+    result = await run(bot, message, available, (base_url, api_key, bot.model_name))
+
+    if log is not None:
+        log.extend(result.calls)
+
+    answered = [c for c in result.calls if c.status == "ran" and not c.flag]
+
+    return SourceResult(
+        kind="tools",
+        context_block=result.context_block,
+        citations=[{"n": i + 1, "title": f"{c.tool.connector.name}: {c.name}"}
+                   for i, c in enumerate(answered)],
+        has_content=bool(result.context_block) or result.pending is not None)

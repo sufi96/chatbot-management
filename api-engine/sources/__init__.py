@@ -7,6 +7,7 @@ held in a person's head. See
 docs/superpowers/specs/2026-09-14-answer-source-order-design.md section 4.
 """
 import asyncio
+import re
 from functools import partial
 
 from sources import attempts as attempt_module
@@ -25,6 +26,7 @@ def enabled_for(bot) -> dict[str, bool]:
         "documents": bool(bot.retrieval_enabled),
         "database": bool(bot.db_query_enabled),
         "web": bool(bot.web_search_enabled),
+        "tools": bool(getattr(bot, "agentic_enabled", False)),
     }
 
 
@@ -56,8 +58,9 @@ def answer_kind(found: SourceResult | None, searched: bool, refused: bool) -> st
 
 
 def build_attempts(session, bot, message: str, settings: dict, collection_ids,
-                   query_vector=None) -> dict:
+                   query_vector=None, tool_log=None) -> dict:
     return {
+        "tools": partial(attempt_module.tools, session, bot, message, settings, log=tool_log),
         "documents": partial(attempt_module.documents, session, bot, message,
                              settings, collection_ids, query_vector=query_vector),
         "database": partial(attempt_module.database, session, bot, message, settings),
@@ -67,8 +70,8 @@ def build_attempts(session, bot, message: str, settings: dict, collection_ids,
 
 # The sources a bot set to combine asks together. The web stays a fallback:
 # it is the slowest and the least the operator's own, so it is asked only
-# when neither of these had anything.
-COMBINED = ("documents", "database")
+# when none of these had anything.
+COMBINED = ("documents", "database", "tools")
 
 
 async def _try(name, attempts: dict) -> SourceResult | None:
@@ -107,6 +110,9 @@ def merge(results: list[SourceResult]) -> SourceResult:
         block = result.context_block
         if result.kind == "database" and result.citations:
             block = f"[{first}] {result.citations[0]['title']}\n{block}"
+        if result.kind == "tools" and first > 1:
+            # The tools block numbers its own results from 1, line by line.
+            block = re.sub(r"^\[(\d+)\] ", lambda m: f"[{int(m.group(1)) + first - 1}] ", block, flags=re.M)
         blocks.append(block)
 
         merged.sql = merged.sql or result.sql

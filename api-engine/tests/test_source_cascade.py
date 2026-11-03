@@ -137,7 +137,7 @@ def test_which_switch_governs_which_source():
         web_search_enabled = True
 
     assert sources.enabled_for(Bot()) == {
-        "documents": True, "database": False, "web": True}
+        "documents": True, "database": False, "web": True, "tools": False}
 
 
 class FallbackBot:

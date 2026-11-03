@@ -477,7 +477,7 @@ async def test_each_source_is_announced_as_it_is_tried(factory, monkeypatch):
                             has_content=True)
 
     monkeypatch.setattr(chat.sources, "build_attempts",
-                        lambda *args: {"documents": empty, "web": answered})
+                        lambda *args, **kwargs: {"documents": empty, "web": answered})
 
     _, events = await post(factory, message="what is the warranty on the kettle")
 

@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from config import settings as app_settings
 from database import (get_db, get_settings, provider_endpoint, provider_merges_system, BotProfile, System,
-                      ChatConversation, ChatMessage, BotKbCollection)
+                      ChatConversation, ChatMessage, ChatToolCall, BotKbCollection)
 import answer_cache
 import grounding
 import guard
@@ -37,6 +37,7 @@ STATUS_TEXT = {
     "documents": "Consulting the knowledge base...",
     "database": "Retrieving records...",
     "web": "Researching the web...",
+    "tools": "Working with connected systems...",
     "writing": "Composing a response...",
 }
 
@@ -83,6 +84,36 @@ async def consult(order: list, enabled: dict, attempts: dict, combine: bool = Fa
         # A visitor who leaves mid-search takes the search with them.
         cascade.cancel()
 
+SUMMARY_CHARS = 300
+
+
+def action_summary(record) -> str:
+    """What a change waiting on the visitor will do, in one line for the Confirm card."""
+    what = (record.tool.description if record.tool else "") or record.name
+    args = ", ".join(f"{k}={v if isinstance(v, (str, int, float, bool)) else json.dumps(v)}"
+                     for k, v in (record.arguments or {}).items())
+    return f"{what}: {args}"[:SUMMARY_CHARS] if args else what[:SUMMARY_CHARS]
+
+
+async def log_tool_calls(db, conv_id: str, message_id: str, records: list):
+    """One row per tool call. Returns the record waiting on the visitor, if any,
+    with row_id set to its row's id."""
+    pending = None
+    for record in records:
+        row_id = str(uuid.uuid4())
+        db.add(ChatToolCall(
+            id=row_id, conversation_id=conv_id, message_id=message_id,
+            connector_tool_id=record.tool.id if record.tool else None,
+            tool_name=(record.name or "")[:64], arguments=record.arguments or {},
+            status=record.status, flag=record.flag,
+            result_excerpt=record.excerpt or None, duration_ms=record.ms or None))
+        if record.status == "awaiting_confirm":
+            record.row_id = row_id
+            pending = record
+    await db.commit()
+    return pending
+
+
 MESSAGE_CHARS = 4000
 
 
@@ -106,7 +137,10 @@ async def save_assistant_message(conv_id: str, **fields) -> None:
     try:
         from database import async_session_factory
         async with async_session_factory() as session:
-            session.add(ChatMessage(id=str(uuid.uuid4()), conversation_id=conv_id,
+            # An answer whose tool calls are logged arrives with its id made
+            # already, so those rows could point at it before it existed.
+            message_id = fields.pop("id", None) or str(uuid.uuid4())
+            session.add(ChatMessage(id=message_id, conversation_id=conv_id,
                                     sender="assistant", **fields))
             await session.commit()
     except Exception as error:
@@ -315,6 +349,8 @@ async def chat_stream(
         # something. Nothing here decides which source suits the question; that was
         # a router, and an order is what an operator can actually configure.
         found = None
+        # Every tool call the tools source made, answered or not. See agent.py.
+        tool_log = []
         if message_is_a_question and any(enabled.values()):
             rows = await db.execute(
                 select(BotKbCollection.collection_id).where(BotKbCollection.bot_id == bot.id))
@@ -333,6 +369,7 @@ async def chat_stream(
                 sources.normalise(bot.source_order),
                 enabled,
                 sources.build_attempts(db, bot, decision.query, source_settings, collection_ids,
+                                       tool_log=tool_log,
                                        **({"query_vector": query_vector} if query_vector else {})),
                 combine)
             async for step in consulting:
@@ -345,6 +382,20 @@ async def chat_stream(
         fallback = sources.fallback_for(bot, message_is_a_question, enabled)
 
         final_prompt = augment_system_prompt(bot.system_prompt or "", context_block, fallback)
+
+        # Written down now, so a change waiting on the visitor has an id the
+        # widget's Confirm can name. The answer is made with the id they point at.
+        answer_id = str(uuid.uuid4()) if tool_log else None
+        confirm_event = None
+        if tool_log:
+            pending = await log_tool_calls(db, conv_id, answer_id, tool_log)
+            if pending:
+                summary = action_summary(pending)
+                confirm_event = {"type": "confirm", "action_id": pending.row_id,
+                                 "tool": pending.name, "summary": summary}
+                final_prompt += (f"\n\nAn action is waiting for the visitor to confirm: {summary}. "
+                                 "Tell them what will happen and ask them to press Confirm. "
+                                 "Do not say it has been done.")
 
         # A reference nobody else knows, so a model reciting its instructions
         # is caught by the reference appearing. See leak.py.
@@ -367,6 +418,8 @@ async def chat_stream(
             used_models["rerank"] = found.reranked_by
         if found and found.expanded_by:
             used_models["expand"] = found.expanded_by
+        if tool_log:
+            used_models["tools"] = bot.model_name
         if verdict.model:
             used_models["guard"] = verdict.model
 
@@ -377,6 +430,8 @@ async def chat_stream(
             # and sites actually answer visitors.
             "citations": json.dumps(found.citations) if (found and found.citations) else None,
         }
+        if answer_id:
+            answer_fields["id"] = answer_id
 
         if blocked:
             # The refusal stands in for the answer, in the shape the widget
@@ -493,6 +548,8 @@ async def chat_stream(
             payload = {"type": "sources", "kind": found.kind,
                        "sources": found.citations}
             yield f"data: {json.dumps(payload)}\n\n"
+        if confirm_event:
+            yield f"data: {json.dumps(confirm_event)}\n\n"
         yield status("writing")
 
         # The answer is held back by as many characters as could still turn

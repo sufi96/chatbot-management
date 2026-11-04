@@ -134,6 +134,7 @@ class BotProfile extends Model
         'agentic_enabled',
         'agentic_max_calls',
         'builtin_tools',
+        'file_settings',
         'voice_output',
         'voice_autoplay',
         'voice_gender',
@@ -177,6 +178,7 @@ class BotProfile extends Model
             'agentic_enabled' => 'boolean',
             'agentic_max_calls' => 'integer',
             'builtin_tools' => 'array',
+            'file_settings' => 'array',
             'voice_output' => 'boolean',
             'voice_autoplay' => 'boolean',
             'voice_input' => 'boolean',
@@ -236,6 +238,32 @@ class BotProfile extends Model
     }
 
     /** Tools C⁴ carries itself, by name, with what each does. */
+    /**
+     * What a person may attach, and what the bot may hand back. The engine has
+     * the same lists in files/settings.py; keep them in step.
+     */
+    public const FILE_IN_TYPES = ['pdf', 'docx', 'xlsx', 'csv', 'pptx', 'txt', 'md', 'png', 'jpg', 'webp'];
+    public const FILE_OUT_FORMATS = ['txt', 'md', 'csv', 'docx', 'xlsx', 'pdf'];
+
+    /** Files settings as the Behaviour page shows them: off, with the engine's defaults. */
+    public const FILE_DEFAULTS = [
+        'in_enabled' => false,
+        'in_types' => self::FILE_IN_TYPES,
+        'max_mb' => 10,
+        'per_message' => 3,
+        'daily' => 20,
+        'out_enabled' => false,
+        'out_formats' => self::FILE_OUT_FORMATS,
+        'out_mode' => 'on_request',
+        'visuals' => false,
+        'retention_days' => 30,
+    ];
+
+    public function fileSettings(): array
+    {
+        return array_merge(self::FILE_DEFAULTS, is_array($this->file_settings) ? $this->file_settings : []);
+    }
+
     public const BUILTIN_TOOLS = [
         'current_datetime' => "Today's date and the time in Malaysia.",
         'request_human' => 'Ask staff to follow up; the conversation is marked "Needs a person".',

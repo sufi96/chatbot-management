@@ -139,6 +139,8 @@ class BotProfile(Base):
     agentic_max_calls = Column(Integer, default=3)
     # Tools C⁴ carries itself, switched on per bot. See builtin_tools.py.
     builtin_tools = Column(JSON, nullable=True)
+    # Files in, files out, visuals and retention. Read through files/settings.py.
+    file_settings = Column(JSON, nullable=True)
     # Whether each question is read with the conversation before it. See intent.py.
     intent_enabled = Column(Boolean, default=True)
     # Whether what comes in and what goes out is checked. See guard.py.
@@ -387,6 +389,34 @@ class ChatToolCall(Base):
     duration_ms = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ChatFile(Base):
+    """A file a visitor attached ("in") or the bot handed back ("out"). Laravel owns the table.
+
+    The bytes live in the engine's file storage under storage_key; see files/storage.py.
+    """
+    __tablename__ = "chat_files"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    conversation_id = Column(String(36), ForeignKey("chat_conversations.id", ondelete="CASCADE"), nullable=False)
+    message_id = Column(String(36), nullable=True)
+    bot_id = Column(String(36), nullable=False)
+    direction = Column(String(3), nullable=False)
+    name = Column(String(255), nullable=False)
+    mime = Column(String(120), nullable=False)
+    ext = Column(String(10), nullable=False)
+    size = Column(Integer, nullable=False)
+    storage_key = Column(String(255), nullable=False)
+    sha256 = Column(String(64), nullable=False)
+    scan_status = Column(String(20), nullable=False)
+    text = Column(Text, nullable=True)
+    read_error = Column(String(500), nullable=True)
+    flag = Column(String(20), nullable=True)
+    ip_hash = Column(String(64), nullable=True)
+    token = Column(String(64), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)
 
 
 class ConnectorTool(Base):

@@ -93,3 +93,27 @@ test("a visual still arriving shows as code until its fence closes", () => {
   const html = markdown('```chart\n{"type":"bar"');
   assert.ok(!html.includes("c4-visual") && html.includes("<pre>"));
 });
+
+// --- found in the live run ------------------------------------------------------
+
+test("a visual the model forgot to close still draws, and the text after it stays text", () => {
+  const html = markdown('```diagram\n{"nodes":[{"id":"a","label":"Lodge"},{"id":"b","label":"Review"}],"links":[{"from":"a","to":"b"}]}\n-- Unit Aduan Awam');
+  assert.ok(html.includes('<div class="c4-visual"><svg'), html);
+  assert.ok(html.includes("<p>-- Unit Aduan Awam</p>"), html);
+});
+
+test("an svg the model forgot to close draws up to its end tag", () => {
+  const html = markdown('```svg\n<svg viewBox="0 0 10 10"><circle r="3"/></svg>\nThat is a dot.');
+  assert.ok(html.includes('<div class="c4-visual"><svg') && html.includes("<p>That is a dot.</p>"), html);
+});
+
+test("drawings are sized for a chat bubble, so their text can be read", () => {
+  const width = (svg) => Number(/viewBox="0 0 (\d+)/.exec(svg)[1]);
+  const size = (svg) => Number(/font-size="(\d+)"/.exec(svg)[1]);
+  const chart = visuals.render("chart", JSON.stringify({ type: "bar", labels: ["a"], series: [{ name: "n", values: [1] }] }));
+  const line = visuals.render("timeline", JSON.stringify({ items: [{ when: "Day 14", label: "Late fee" }] }));
+  for (const svg of [chart, line]) {
+    assert.ok(width(svg) <= 320, "too wide: " + width(svg));
+    assert.ok(size(svg) >= 13, "text too small: " + size(svg));
+  }
+});

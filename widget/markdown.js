@@ -128,6 +128,17 @@
         return { html: out + (ordered ? "</ol>" : "</ul>"), next: i };
     }
 
+    /** Whether a visual block's body is complete: whole JSON, or an svg up to its end tag. */
+    function whole(kind, body) {
+        if (kind === "svg") return /<\/svg>\s*$/i.test(body);
+        try {
+            var parsed = JSON.parse(body);
+            return !!parsed && typeof parsed === "object";
+        } catch (e) {
+            return false;
+        }
+    }
+
     function render(text) {
         if (!text) return "";
 
@@ -142,15 +153,26 @@
 
             var fence = line.match(FENCE);
             if (fence) {
+                var visuals = typeof globalThis !== "undefined" ? globalThis.__ChatbotVisuals : null;
+                var visual = !!(visuals && fence[1] && visuals.KINDS[fence[1]]);
                 var code = [];
+                var closed = false;
                 i++;
-                while (i < lines.length && !FENCE.test(lines[i])) { code.push(lines[i]); i++; }
-                var closed = i < lines.length;
-                i++;  // the closing fence, or past the end of a stream still arriving
+                while (i < lines.length) {
+                    if (FENCE.test(lines[i])) { closed = true; i++; break; }
+                    code.push(lines[i]);
+                    i++;
+                    // Small models often forget the closing fence. A visual
+                    // ends where its data does, so what follows stays text.
+                    if (visual && whole(fence[1], code.join("\n"))) {
+                        closed = true;
+                        if (i < lines.length && FENCE.test(lines[i])) { i++; }
+                        break;
+                    }
+                }
                 // A visual block, once whole, is drawn (visuals.js); until
                 // then, and if it will not draw, it shows as code.
-                var visuals = typeof globalThis !== "undefined" ? globalThis.__ChatbotVisuals : null;
-                if (closed && visuals && fence[1] && visuals.KINDS[fence[1]]) {
+                if (closed && visual) {
                     var drawn = visuals.render(fence[1], code.join("\n"));
                     if (drawn) { out += '<div class="c4-visual">' + drawn + "</div>"; continue; }
                 }

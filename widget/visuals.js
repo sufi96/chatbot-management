@@ -33,7 +33,7 @@
 
     function open(w, h, label) {
         return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + w + " " + h + '" width="100%" role="img" aria-label="' +
-            esc(label || "drawing") + '" font-family="inherit" font-size="11" fill="currentColor">';
+            esc(label || "drawing") + '" font-family="inherit" font-size="13" fill="currentColor">';
     }
 
     // --- charts -------------------------------------------------------------
@@ -50,14 +50,15 @@
     function legend(series, y) {
         if (series.length < 2) return "";
         return series.map(function (s, k) {
-            var x = 50 + k * 90;
+            var x = 40 + k * 90;
             return '<rect x="' + x + '" y="' + y + '" width="9" height="9" fill="' + COLOURS[k % COLOURS.length] + '"/>' +
                 '<text x="' + (x + 13) + '" y="' + (y + 8) + '">' + esc(clip(s.name, 12)) + "</text>";
         }).join("");
     }
 
     function axes(spec, labels, series, type) {
-        var W = 400, H = 240, L = 44, T = spec.title ? 28 : 12, B = 46, R = 10;
+        // Sized for a chat bubble (about 250-320px wide), so text stays readable.
+        var W = 320, H = 240, L = 40, T = spec.title ? 28 : 12, B = 46, R = 8;
         var values = [];
         series.forEach(function (s) { s.values.forEach(function (v) { if (num(v) !== null) values.push(v); }); });
         if (!values.length) return null;
@@ -100,7 +101,7 @@
     }
 
     function pie(spec, labels, s) {
-        var W = 400, H = 240, cx = 120, cy = 128, rad = 90;
+        var W = 320, H = 240, cx = 80, cy = 128, rad = 70;
         var parts = labels.map(function (l, i) { return { label: l, value: Math.max(num(s.values[i]) || 0, 0) }; })
             .filter(function (p) { return p.value > 0; });
         var total = parts.reduce(function (a, p) { return a + p.value; }, 0);
@@ -114,8 +115,8 @@
                 : "M" + cx + "," + cy + " L" + r1(cx + rad * Math.cos(angle)) + "," + r1(cy + rad * Math.sin(angle)) +
                   " A" + rad + "," + rad + " 0 " + (sweep > Math.PI ? 1 : 0) + ",1 " + r1(cx + rad * Math.cos(end)) + "," + r1(cy + rad * Math.sin(end)) + " Z";
             out += '<path d="' + d + '" fill="' + colour + '"><title>' + esc(p.label + ": " + p.value) + "</title></path>" +
-                '<rect x="240" y="' + (40 + i * 18) + '" width="10" height="10" fill="' + colour + '"/>' +
-                '<text x="256" y="' + (49 + i * 18) + '">' + esc(clip(p.label, 16) + " (" + Math.round(p.value / total * 100) + "%)") + "</text>";
+                '<rect x="162" y="' + (40 + i * 20) + '" width="10" height="10" fill="' + colour + '"/>' +
+                '<text x="177" y="' + (50 + i * 20) + '">' + esc(clip(p.label, 12) + " " + Math.round(p.value / total * 100) + "%") + "</text>";
             angle = end;
         });
         return out + "</svg>";
@@ -145,7 +146,7 @@
         var layers = [];
         Object.keys(byId).forEach(function (k) { var n = byId[k]; (layers[n.layer] = layers[n.layer] || []).push(n); });
         layers = layers.filter(Boolean);
-        var BW = 130, BH = 34, GX = 24, GY = 44;
+        var BW = 120, BH = 34, GX = 16, GY = 44;
         var widest = Math.max.apply(null, layers.map(function (l) { return l.length; }));
         var W = Math.max(widest * (BW + GX) + GX, 200), H = layers.length * (BH + GY) + GY - 10;
         layers.forEach(function (layer, row) {
@@ -173,12 +174,12 @@
     function timeline(spec) {
         if (!spec || !Array.isArray(spec.items) || !spec.items.length) return null;
         var items = spec.items.filter(Boolean).slice(0, 40), H = items.length * 34 + 16;
-        var out = open(400, H, "timeline") + '<line x1="90" y1="8" x2="90" y2="' + (H - 8) + '" stroke="currentColor" stroke-opacity="0.3" stroke-width="2"/>';
+        var out = open(300, H, "timeline") + '<line x1="86" y1="8" x2="86" y2="' + (H - 8) + '" stroke="currentColor" stroke-opacity="0.3" stroke-width="2"/>';
         items.forEach(function (item, i) {
             var y = 22 + i * 34;
-            out += '<text x="80" y="' + (y + 4) + '" text-anchor="end" font-weight="600">' + esc(clip(item.when, 14)) + "</text>" +
-                '<circle cx="90" cy="' + y + '" r="5" fill="#2563eb"/>' +
-                '<text x="104" y="' + (y + 4) + '">' + esc(clip(item.label, 44)) + "</text>";
+            out += '<text x="76" y="' + (y + 5) + '" text-anchor="end" font-weight="600">' + esc(clip(item.when, 10)) + "</text>" +
+                '<circle cx="86" cy="' + y + '" r="5" fill="#2563eb"/>' +
+                '<text x="100" y="' + (y + 5) + '">' + esc(clip(item.label, 24)) + "</text>";
         });
         return out + "</svg>";
     }

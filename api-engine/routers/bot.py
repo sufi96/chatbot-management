@@ -70,6 +70,23 @@ async def get_bot_public_config(bot_id: str, db: AsyncSession = Depends(get_db))
         # No voice names, URLs or keys: the widget asks by slot, and the
         # engine answers. See speech.py.
         "voice": voice_config(bot, settings),
+        "files": files_config(bot),
+    }
+
+
+def files_config(bot) -> dict:
+    """What the widget may offer: an attach button, Download-as formats. Off unless set."""
+    from files import settings as file_settings
+
+    rules = file_settings.for_bot(bot)
+    accept = []
+    for kind in rules.in_types:
+        accept += [".jpg", ".jpeg"] if kind == "jpg" else [f".{kind}"]
+    return {
+        "in": ({"enabled": True, "accept": ",".join(accept), "max_mb": rules.max_mb,
+                "per_message": rules.per_message} if rules.in_enabled and rules.in_types else {"enabled": False}),
+        "out": ({"enabled": True, "formats": list(rules.out_formats)}
+                if rules.out_enabled and rules.out_formats else {"enabled": False}),
     }
 
 

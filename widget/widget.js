@@ -1435,6 +1435,61 @@
         .mic-btn.recording { color: #ffffff; background: #DC2626; animation: mic-pulse 1.2s ease-in-out infinite; }
         @keyframes mic-pulse { 50% { box-shadow: 0 0 0 5px rgba(220, 38, 38, 0.2); } }
 
+        /* Files: the attach button shows only on a bot that takes files. */
+        .attach-btn {
+            display: none;
+            background: none;
+            border: none;
+            color: #71717A;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            margin-bottom: 2px;
+        }
+        .attach-btn:hover { color: var(--primary-color, #1f2937); background: #F4F4F5; }
+        .widget-wrapper.files-in .attach-btn { display: flex; }
+        .attach-tray { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 0 6px; }
+        .attach-tray:empty { display: none; }
+        .file-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            max-width: 100%;
+            padding: 4px 8px;
+            border: 1px solid #E4E4E7;
+            border-radius: 8px;
+            background: #FAFAFA;
+            color: #27272A;
+            font-size: 12px;
+            line-height: 1.3;
+            text-decoration: none;
+        }
+        .file-chip .file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+        .file-chip .file-meta { color: #71717A; }
+        .file-chip.error { border-color: #FCA5A5; background: #FEF2F2; color: #B91C1C; }
+        .file-chip.uploading .file-meta::after { content: " …"; }
+        .file-chip button { background: none; border: none; color: #71717A; cursor: pointer; padding: 0 2px; font-size: 14px; line-height: 1; }
+        a.file-chip:hover { border-color: var(--primary-color, #1f2937); }
+        .message-files { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+        .download-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; font-size: 11px; color: #71717A; }
+        .download-row button {
+            border: 1px solid #E4E4E7;
+            background: #FFFFFF;
+            border-radius: 6px;
+            padding: 2px 7px;
+            font-size: 11px;
+            cursor: pointer;
+            color: #3F3F46;
+        }
+        .download-row button:hover { border-color: var(--primary-color, #1f2937); }
+        .download-row button:disabled { opacity: 0.5; cursor: default; }
+        .message-bubble.rendered .c4-visual { margin: 4px 0 8px; max-width: 100%; overflow-x: auto; }
+        .message-bubble.rendered .c4-visual svg { display: block; max-width: 100%; height: auto; }
+
         .voice-menu {
             position: absolute;
             top: 64px;
@@ -1558,7 +1613,12 @@
                     <span>Read answers aloud</span>
                     <input type="checkbox" role="switch" class="voice-switch" id="voice-tick">
                 </label>
+                <div class="attach-tray" id="attach-tray"></div>
                 <div class="input-row">
+                    <button class="attach-btn" id="attach-btn" type="button" title="Attach a file" aria-label="Attach a file">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                    </button>
+                    <input type="file" id="attach-input" multiple hidden>
                     <button class="mic-btn" id="mic-btn" type="button" title="Speak your question" aria-label="Speak your question">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"></rect><path d="M5 10v1a7 7 0 0 0 14 0v-1"></path><line x1="12" y1="18" x2="12" y2="22"></line></svg>
                     </button>
@@ -1635,6 +1695,9 @@
     var btnVoice = shadowRoot.getElementById("btn-voice");
     var voiceMenu = shadowRoot.getElementById("voice-menu");
     var micBtn = shadowRoot.getElementById("mic-btn");
+    var attachBtn = shadowRoot.getElementById("attach-btn");
+    var attachInput = shadowRoot.getElementById("attach-input");
+    var attachTray = shadowRoot.getElementById("attach-tray");
 
     function updateColors(hex) {
         if (!hex) return;
@@ -2437,6 +2500,8 @@
                 // An offline bot has no voice: it cannot answer anything.
                 botConfig.voice = data.offline ? null : (data.voice || null);
                 setupVoice();
+                botConfig.files = data.offline ? null : (data.files || null);
+                setupFiles();
 
                 // Switched off but set to show a message: the launcher opens a
                 // small offline notice instead of the chat, and the corner
@@ -2633,10 +2698,164 @@
     });
 
     // Input handling
+    // --- files --------------------------------------------------------------
+    // A bot with files in shows a paperclip. Each file uploads as soon as it
+    // is chosen and waits in the tray; its id goes with the next message.
+    // A bot with files out gets a Download-as row under each answer.
+    var trayFiles = [];
+
+    function filesIn() { return botConfig.files && botConfig.files["in"] && botConfig.files["in"].enabled ? botConfig.files["in"] : null; }
+    function filesOut() { return botConfig.files && botConfig.files.out && botConfig.files.out.enabled ? botConfig.files.out : null; }
+
+    function sizeText(bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + " KB";
+        return (bytes / 1024 / 1024).toFixed(1) + " MB";
+    }
+
+    function setupFiles() {
+        var rules = filesIn();
+        wrapper.classList.toggle("files-in", !!rules);
+        if (rules) { attachInput.setAttribute("accept", rules.accept || ""); }
+    }
+
+    function updateSend() {
+        var uploading = trayFiles.some(function (f) { return f.state === "uploading"; });
+        var ready = trayFiles.some(function (f) { return f.state === "ready"; });
+        sendBtn.disabled = isStreaming || uploading || (!chatInput.value.trim() && !ready);
+    }
+
+    function chip(name, meta, extraClass) {
+        var el = document.createElement("span");
+        el.className = "file-chip" + (extraClass ? " " + extraClass : "");
+        var n = document.createElement("span");
+        n.className = "file-name";
+        n.textContent = name;
+        var m = document.createElement("span");
+        m.className = "file-meta";
+        m.textContent = meta;
+        el.appendChild(n);
+        el.appendChild(m);
+        return el;
+    }
+
+    function downloadChip(file) {
+        var a = document.createElement("a");
+        a.className = "file-chip";
+        a.href = apiHost + file.url;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.setAttribute("download", file.name || "");
+        var inner = chip("⬇ " + (file.name || "file"), sizeText(file.size || 0));
+        while (inner.firstChild) a.appendChild(inner.firstChild);
+        return a;
+    }
+
+    function drawTray() {
+        attachTray.innerHTML = "";
+        trayFiles.forEach(function (f) {
+            var el = chip(f.name, f.state === "error" ? f.note : sizeText(f.size) + (f.state === "ready" && f.note ? " · " + f.note : ""),
+                          f.state === "error" ? "error" : (f.state === "uploading" ? "uploading" : ""));
+            var remove = document.createElement("button");
+            remove.type = "button";
+            remove.setAttribute("aria-label", "Remove " + f.name);
+            remove.textContent = "×";
+            remove.addEventListener("click", function () {
+                trayFiles = trayFiles.filter(function (x) { return x !== f; });
+                drawTray();
+            });
+            el.appendChild(remove);
+            attachTray.appendChild(el);
+        });
+        updateSend();
+    }
+
+    function uploadFile(file) {
+        var rules = filesIn();
+        var entry = { name: file.name, size: file.size, state: "uploading", note: "", id: null };
+        trayFiles.push(entry);
+        if (file.size > rules.max_mb * 1024 * 1024) {
+            entry.state = "error";
+            entry.note = "over " + rules.max_mb + " MB";
+            drawTray();
+            return;
+        }
+        drawTray();
+        var form = new FormData();
+        form.append("bot_id", botId);
+        form.append("session_id", sessionId);
+        form.append("file", file, file.name);
+        fetch(apiHost + "/api/v1/chat/files", { method: "POST", body: form })
+            .then(function (res) {
+                return res.json().catch(function () { return {}; }).then(function (body) { return { ok: res.ok, body: body }; });
+            })
+            .then(function (r) {
+                if (r.ok) {
+                    entry.state = "ready";
+                    entry.id = r.body.id;
+                    entry.note = r.body.readable === false ? "can't be read" : "";
+                } else {
+                    entry.state = "error";
+                    entry.note = (r.body && r.body.detail) || "not accepted";
+                }
+                drawTray();
+            })
+            .catch(function () {
+                entry.state = "error";
+                entry.note = "upload failed";
+                drawTray();
+            });
+    }
+
+    attachBtn.addEventListener("click", function () { if (filesIn()) attachInput.click(); });
+    attachInput.addEventListener("change", function () {
+        var rules = filesIn();
+        if (!rules) return;
+        var room = rules.per_message - trayFiles.filter(function (f) { return f.state !== "error"; }).length;
+        Array.prototype.slice.call(attachInput.files || [], 0, Math.max(room, 0)).forEach(uploadFile);
+        attachInput.value = "";
+    });
+
+    function attachFiles(bubble, files) {
+        if (!files || !files.length) return;
+        var row = document.createElement("div");
+        row.className = "message-files";
+        files.forEach(function (f) { row.appendChild(f.url ? downloadChip(f) : chip(f.name, sizeText(f.size || 0))); });
+        bubble.appendChild(row);
+    }
+
+    function attachDownloadRow(bubble, answer) {
+        var out = filesOut();
+        if (!out || !answer || !answer.id) return;
+        var row = document.createElement("div");
+        row.className = "download-row";
+        var label = document.createElement("span");
+        label.textContent = "Download as";
+        row.appendChild(label);
+        (answer.formats || out.formats || []).forEach(function (fmt) {
+            var b = document.createElement("button");
+            b.type = "button";
+            b.textContent = fmt.toUpperCase();
+            b.addEventListener("click", function () {
+                b.disabled = true;
+                fetch(apiHost + "/api/v1/chat/files/export", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ bot_id: botId, session_id: sessionId, message_id: answer.id, format: fmt })
+                })
+                    .then(function (res) { if (!res.ok) throw new Error(res.status); return res.json(); })
+                    .then(function (file) { attachFiles(bubble, [file]); })
+                    .catch(function () { b.disabled = false; b.textContent = fmt.toUpperCase() + " ✕"; });
+            });
+            row.appendChild(b);
+        });
+        bubble.appendChild(row);
+    }
+
     chatInput.addEventListener("input", function () {
         this.style.height = "auto";
         this.style.height = Math.min(this.scrollHeight, 96) + "px";
-        sendBtn.disabled = !this.value.trim() || isStreaming;
+        updateSend();
     });
 
     chatInput.addEventListener("keydown", function (e) {
@@ -2655,14 +2874,19 @@
     // Send Message and Stream Response
     function sendMessage() {
         var text = chatInput.value.trim();
-        if (!text || isStreaming) return;
+        var sending = trayFiles.filter(function (f) { return f.state === "ready"; });
+        if ((!text && !sending.length) || isStreaming) return;
+        if (trayFiles.some(function (f) { return f.state === "uploading"; })) return;
 
         chatInput.value = "";
         chatInput.style.height = "auto";
         sendBtn.disabled = true;
+        trayFiles = [];
+        drawTray();
 
-        appendMessage("user", text);
-        messageHistory.push({ role: "user", content: text });
+        var userBubble = appendMessage("user", text);
+        attachFiles(userBubble, sending);
+        messageHistory.push({ role: "user", content: text || "[attached a file]" });
 
         isStreaming = true;
 
@@ -2700,6 +2924,8 @@
         var firstChunk = true;
         var pendingSources = [];
         var pendingConfirm = null;
+        var pendingFiles = [];
+        var pendingAnswer = null;
         var pendingSourceKind = "";
         var thinkGroup = null;
         var thinkStartedAt = Date.now();
@@ -2737,7 +2963,8 @@
                 session_id: sessionId,
                 message: text,
                 history: messageHistory.slice(-10),
-                trace_token: traceToken
+                trace_token: traceToken,
+                attachments: sending.map(function (f) { return f.id; })
             })
         })
         .then(function (response) {
@@ -2782,6 +3009,8 @@
                                     attachSources(botBubble, pendingSources, pendingSourceKind);
                                 }
                                 if (pendingConfirm) { attachConfirm(botBubble, pendingConfirm); }
+                                attachFiles(botBubble, pendingFiles);
+                                attachDownloadRow(botBubble, pendingAnswer);
                                 return;
                             }
                             try {
@@ -2792,6 +3021,10 @@
                                     showTrace(botBubble, parsed.text);
                                 } else if (parsed.type === "confirm") {
                                     pendingConfirm = parsed;
+                                } else if (parsed.type === "file") {
+                                    pendingFiles.push(parsed);
+                                } else if (parsed.type === "answer") {
+                                    pendingAnswer = parsed;
                                 } else if (parsed.type === "sources") {
                                     pendingSources = parsed.sources || [];
                                     pendingSourceKind = parsed.kind || "";

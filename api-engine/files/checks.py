@@ -64,13 +64,19 @@ def _sniff(data: bytes, claimed: str) -> str:
         return "webp"
     if data.startswith(b"PK\x03\x04"):
         return _office(data)
-    if claimed in TEXT_KINDS and b"\x00" not in data:
-        try:
-            data.decode("utf-8")
-            return claimed
-        except UnicodeDecodeError:
-            pass
+    if claimed in TEXT_KINDS and b"\x00" not in data and _as_text(data) is not None:
+        return claimed
     raise Refused("This file's contents are not a type this chat accepts.")
+
+
+def _as_text(data: bytes) -> str | None:
+    """Text in UTF-8, or in the Windows encoding Excel and Notepad save in by default."""
+    for encoding in ("utf-8-sig", "cp1252"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return None
 
 
 def _office(data: bytes) -> str:
@@ -120,4 +126,7 @@ def inspect(data: bytes, filename: str, allowed: tuple) -> Checked:
         raise Refused("PDFs with scripts or embedded files are not accepted.")
     if real in ("png", "jpg", "webp"):
         data = _clean_image(data, real)
+    if real in TEXT_KINDS:
+        # Stored as UTF-8 whatever it arrived in, so every reader sees the same text.
+        data = _as_text(data).encode("utf-8")
     return Checked(ext=real, mime=MIMES[real], data=data)

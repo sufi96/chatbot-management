@@ -81,3 +81,9 @@ def test_plain_csv_passes_and_binary_named_csv_is_refused():
 
     with pytest.raises(checks.Refused):
         checks.inspect(b"name\x00qty", "list.csv", IN_TYPES)
+
+
+def test_a_csv_saved_by_excel_in_the_windows_encoding_passes():
+    data = "Nama,Kafé\nAli,Café Mesra\n".encode("cp1252")
+
+    assert checks.inspect(data, "senarai.csv", IN_TYPES).ext == "csv"

@@ -129,7 +129,7 @@ async def call(connector, tool, arguments: dict, transport=None) -> CallResult:
                           error=f"The system answered {response.status_code}.", ms=elapsed(),
                           detail=f"{tool.method.upper()} {url} answered {response.status_code}: {text[:300]}")
 
-    handed = returned_file(response, f"{tool.name}.bin")
+    handed = returned_file(response, f"{getattr(tool, 'name', None) or 'file'}.bin")
     if handed:
         return CallResult(ok=True, status=response.status_code, text=f"The system returned a file: {handed.name}",
                           ms=elapsed(), files=[handed])

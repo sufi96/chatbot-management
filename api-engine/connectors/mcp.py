@@ -11,7 +11,7 @@ import time
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
-from connectors.rest import MAX_CHARS, TIMEOUT, CallResult
+from connectors.rest import MAX_CHARS, TIMEOUT, CallResult, Returned
 
 
 def _headers(auth_type, auth_header, auth_secret) -> dict:
@@ -29,6 +29,29 @@ def _client(base_url, auth_type, auth_header, auth_secret, transport=None) -> Cl
     # transport: a FastMCP server held in memory, for tests.
     target = transport or StreamableHttpTransport(base_url, headers=_headers(auth_type, auth_header, auth_secret))
     return Client(target, timeout=TIMEOUT, init_timeout=TIMEOUT)
+
+
+EXTENSIONS = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "application/pdf": "pdf"}
+
+
+def _files(result, tool_name: str) -> list:
+    """Images and embedded file resources in a tool's result, as files."""
+    found = []
+    for item in result.content or []:
+        mime, data, name = getattr(item, "mimeType", None) or getattr(item, "mime_type", None), None, None
+        if getattr(item, "type", "") == "image" and getattr(item, "data", None):
+            data = item.data
+        resource = getattr(item, "resource", None)
+        if resource is not None and getattr(resource, "blob", None):
+            data, mime = resource.blob, getattr(resource, "mimeType", None) or getattr(resource, "mime_type", None)
+            name = str(getattr(resource, "uri", "")).rstrip("/").rsplit("/", 1)[-1] or None
+        if data and mime:
+            try:
+                raw = base64.b64decode(data)
+            except ValueError:
+                continue
+            found.append(Returned(name or f"{tool_name}.{EXTENSIONS.get(mime, 'bin')}", mime, raw))
+    return found
 
 
 def _text(result) -> str:
@@ -70,7 +93,10 @@ async def call(connector, row, arguments: dict, transport=None) -> CallResult:
     if result.is_error:
         return CallResult(ok=False, error="The system could not do that.", ms=elapsed(),
                           detail=f"MCP tool {row.path} failed: {text[:300]}")
-    return CallResult(ok=True, text=text, ms=elapsed())
+    handed = _files(result, row.path)
+    if handed and not text:
+        text = "The system returned " + ", ".join(f"a file: {f.name}" for f in handed)
+    return CallResult(ok=True, text=text, ms=elapsed(), files=handed)
 
 
 async def ping(base_url, auth_type, auth_header, auth_secret, transport=None) -> dict:

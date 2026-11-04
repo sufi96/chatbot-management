@@ -10,13 +10,36 @@ Never raises: every failure is a CallResult with a sentence in it, because a
 tool that fails is a tool that did not answer, not a broken chat.
 """
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from urllib.parse import quote
 
 import httpx
 
 TIMEOUT = 15.0
 MAX_CHARS = 8000
+
+
+@dataclass
+class Returned:
+    """A file a tool handed back: an image, a PDF, a spreadsheet."""
+    name: str
+    mime: str
+    data: bytes
+
+
+# A response of any other type is a file, not text to read.
+TEXT_TYPES = ("application/json", "text/", "application/xml", "application/problem+json", "+json", "+xml")
+MAX_FILE_BYTES = 20 * 1024 * 1024
+
+
+def returned_file(response, fallback_name: str) -> Returned | None:
+    kind = (response.headers.get("content-type") or "").split(";")[0].strip().lower()
+    if not kind or any(t in kind for t in TEXT_TYPES) or len(response.content) > MAX_FILE_BYTES:
+        return None
+    disposition = response.headers.get("content-disposition") or ""
+    name = disposition.split("filename=", 1)[1].strip().strip('"') if "filename=" in disposition else fallback_name
+    return Returned(name=name.replace("/", "_").replace("\\", "_")[:120] or fallback_name, mime=kind,
+                    data=response.content)
 
 
 @dataclass
@@ -29,6 +52,8 @@ class CallResult:
     ms: int = 0
     # The full reason, for the operator's transcript only.
     detail: str = ""
+    # Files the tool handed back, for a bot with files out to pass on.
+    files: list = field(default_factory=list)
 
 
 def _auth(auth_type, auth_header, auth_secret) -> tuple[dict, object]:
@@ -104,6 +129,10 @@ async def call(connector, tool, arguments: dict, transport=None) -> CallResult:
                           error=f"The system answered {response.status_code}.", ms=elapsed(),
                           detail=f"{tool.method.upper()} {url} answered {response.status_code}: {text[:300]}")
 
+    handed = returned_file(response, f"{tool.name}.bin")
+    if handed:
+        return CallResult(ok=True, status=response.status_code, text=f"The system returned a file: {handed.name}",
+                          ms=elapsed(), files=[handed])
     return CallResult(ok=True, status=response.status_code, text=text, ms=elapsed())
 
 

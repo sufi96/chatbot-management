@@ -55,6 +55,8 @@ class CallRecord:
     text: str = ""
     # The chat_tool_calls row once written, for the Confirm card to name.
     row_id: str = ""
+    # Files the tool handed back (connectors.rest.Returned), for a bot with files out.
+    files: list = field(default_factory=list)
 
 
 @dataclass
@@ -216,7 +218,7 @@ async def run(bot, message: str, tools: list[Tool], endpoint, ask=None, call=Non
                 else:
                     result.calls.append(CallRecord(tool, name, arguments, "ran",
                                                    excerpt=outcome.text[:EXCERPT], ms=outcome.ms,
-                                                   text=outcome.text))
+                                                   text=outcome.text, files=list(getattr(outcome, "files", None) or [])))
                     feedback = outcome.text
 
             messages.append({"role": "tool", "tool_call_id": tool_call.get("id") or name, "content": feedback})

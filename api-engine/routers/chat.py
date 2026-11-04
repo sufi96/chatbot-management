@@ -544,7 +544,22 @@ async def chat_stream(
             for, then the answer's id and formats for the Download-as button."""
             if not file_rules.out_enabled or leaked or not transcript.answer:
                 return
-            asked = next((c for c in tool_log if c.name == builtin_tools.MAKE_FILE and c.status == "ran"), None)
+            # Files the tools handed back, checked like any upload before a visitor gets them.
+            from routers import files as files_router
+            from files import checks
+            from files.settings import IMAGE_TYPES
+            for record in tool_log:
+                for handed in (getattr(record, "files", None) or []) if record.status == "ran" else []:
+                    try:
+                        checked = checks.inspect(handed.data, handed.name, (*file_rules.out_formats, *IMAGE_TYPES))
+                        from database import async_session_factory
+                        async with async_session_factory() as session:
+                            row = await files_router.store_file(session, bot, conv_id, "out", handed.name, checked,
+                                                                message_id=answer_id, scan_status="not_scanned")
+                        yield f"data: {json.dumps({'type': 'file', **files_router.meta(row, req.session_id)})}\n\n"
+                    except Exception as error:
+                        print(f"[Files] Did not pass on {handed.name} from {record.name}: {error}")
+            asked =next((c for c in tool_log if c.name == builtin_tools.MAKE_FILE and c.status == "ran"), None)
             fmt = str((asked.arguments or {}).get("format") or "").lower() if asked else ""
             if fmt in file_rules.out_formats:
                 from routers import files as files_router

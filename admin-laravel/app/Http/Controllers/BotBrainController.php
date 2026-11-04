@@ -134,6 +134,16 @@ class BotBrainController extends Controller
             'skills.*' => ['string'],
             'builtin_tools' => ['nullable', 'array'],
             'builtin_tools.*' => [Rule::in(array_keys(BotProfile::BUILTIN_TOOLS))],
+            // Files & visuals: ranges match the engine's clamps (files/settings.py).
+            'files_in_types' => ['nullable', 'array'],
+            'files_in_types.*' => [Rule::in(BotProfile::FILE_IN_TYPES)],
+            'files_max_mb' => ['sometimes', 'integer', 'min:1', 'max:50'],
+            'files_per_message' => ['sometimes', 'integer', 'min:1', 'max:10'],
+            'files_daily' => ['sometimes', 'integer', 'min:1', 'max:500'],
+            'files_out_formats' => ['nullable', 'array'],
+            'files_out_formats.*' => [Rule::in(BotProfile::FILE_OUT_FORMATS)],
+            'files_out_mode' => ['sometimes', 'in:on_request,own_initiative'],
+            'files_retention_days' => ['sometimes', 'integer', 'min:1', 'max:365'],
         ], [
             'web_search_key_id.required_if' => 'Choose one of this workspace\'s keys, or add one.',
             'web_search_key_id.exists' => 'Choose one of this workspace\'s keys.',
@@ -171,6 +181,27 @@ class BotBrainController extends Controller
             $skills = $this->agenticSkills($bot, (array) $request->input('skills', []));
             $validated['builtin_tools'] = array_values(array_unique($validated['builtin_tools'] ?? []));
         }
+
+        // Only the form with the Files & visuals card may change them; an older
+        // client leaves them as they were.
+        if ($request->has('files_present')) {
+            $current = $bot->fileSettings();
+            $validated['file_settings'] = [
+                'in_enabled' => $request->boolean('files_in_enabled'),
+                'in_types' => array_values(array_intersect(BotProfile::FILE_IN_TYPES, (array) $request->input('files_in_types', []))),
+                'max_mb' => (int) ($validated['files_max_mb'] ?? $current['max_mb']),
+                'per_message' => (int) ($validated['files_per_message'] ?? $current['per_message']),
+                'daily' => (int) ($validated['files_daily'] ?? $current['daily']),
+                'out_enabled' => $request->boolean('files_out_enabled'),
+                'out_formats' => array_values(array_intersect(BotProfile::FILE_OUT_FORMATS, (array) $request->input('files_out_formats', []))),
+                'out_mode' => $validated['files_out_mode'] ?? $current['out_mode'],
+                'visuals' => $request->boolean('visuals_enabled'),
+                'retention_days' => (int) ($validated['files_retention_days'] ?? $current['retention_days']),
+            ];
+        }
+        unset($validated['files_in_types'], $validated['files_max_mb'], $validated['files_per_message'],
+            $validated['files_daily'], $validated['files_out_formats'], $validated['files_out_mode'],
+            $validated['files_retention_days']);
 
         // Normalised rather than refused. A hand made submission must not be
         // able to leave a bot with a source it can never reach.

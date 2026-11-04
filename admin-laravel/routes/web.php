@@ -146,6 +146,7 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     // Conversation Logs & Transcripts
     Route::get('/logs', [LogController::class, 'index'])->name('logs.index');
     Route::get('/logs/{id}/transcript', [LogController::class, 'transcript'])->name('logs.transcript');
+    Route::get('/logs/files/{id}', [LogController::class, 'file'])->name('logs.file');
 
     // Global User Management (Super Admin)
     Route::middleware('super_admin')->group(function () {

@@ -469,6 +469,106 @@
                     </div>
                 </div>
 
+                @php($fs = $bot->fileSettings())
+                <div class="card mb-3">
+                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2 collapsed"
+                            data-bs-toggle="collapse" data-bs-target="#bcard-files"
+                            aria-expanded="false" aria-controls="bcard-files">
+                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-paperclip"></i> Files &amp; visuals</span>
+                        <span class="d-flex align-items-center gap-2">
+                            <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
+                        </span>
+                    </button>
+                    <div class="collapse" id="bcard-files" data-card-collapse="files">
+                    <div class="p-3">
+                        <input type="hidden" name="files_present" value="1">
+
+                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
+                            <input class="form-check-input" type="checkbox" role="switch" name="files_in_enabled" value="1"
+                                   id="files_in_enabled" @checked(old('files_in_enabled', $fs['in_enabled']))>
+                            <label class="form-check-label fw-semibold" for="files_in_enabled">People can attach files</label>
+                        </div>
+                        <div class="form-text text-faint mb-2">
+                            Documents are read as text; pictures are read by the Vision model in admin settings.
+                            Every file's real type is checked, and it is virus-scanned when ClamAV is set up.
+                        </div>
+                        @php($inTypes = old('files_in_types', $fs['in_types']))
+                        <div class="d-flex flex-wrap gap-3 mb-2">
+                            @foreach(\App\Models\BotProfile::FILE_IN_TYPES as $type)
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="files_in_types[]" value="{{ $type }}"
+                                           id="files_in_{{ $type }}" @checked(in_array($type, $inTypes, true))>
+                                    <label class="form-check-label small figure-mono" for="files_in_{{ $type }}">{{ $type }}</label>
+                                </div>
+                            @endforeach
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-sm-4">
+                                <label class="form-label small" for="files_max_mb">Largest file (MB)</label>
+                                <input type="number" class="form-control form-control-sm" name="files_max_mb" id="files_max_mb"
+                                       min="1" max="50" value="{{ old('files_max_mb', $fs['max_mb']) }}">
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label small" for="files_per_message">Files per message</label>
+                                <input type="number" class="form-control form-control-sm" name="files_per_message" id="files_per_message"
+                                       min="1" max="10" value="{{ old('files_per_message', $fs['per_message']) }}">
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label small" for="files_daily">Per visitor per day</label>
+                                <input type="number" class="form-control form-control-sm" name="files_daily" id="files_daily"
+                                       min="1" max="500" value="{{ old('files_daily', $fs['daily']) }}">
+                            </div>
+                        </div>
+                        @foreach(['files_in_types.*', 'files_max_mb', 'files_per_message', 'files_daily'] as $field)
+                            @error($field)<div class="text-danger small mb-2">{{ $message }}</div>@enderror
+                        @endforeach
+
+                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
+                            <input class="form-check-input" type="checkbox" role="switch" name="files_out_enabled" value="1"
+                                   id="files_out_enabled" @checked(old('files_out_enabled', $fs['out_enabled']))>
+                            <label class="form-check-label fw-semibold" for="files_out_enabled">The bot can hand back files</label>
+                        </div>
+                        <div class="form-text text-faint mb-2">
+                            Every answer gets a "Download as" row. With Agentic on, the bot can also make a file itself.
+                        </div>
+                        @php($outFormats = old('files_out_formats', $fs['out_formats']))
+                        <div class="d-flex flex-wrap gap-3 mb-2">
+                            @foreach(\App\Models\BotProfile::FILE_OUT_FORMATS as $format)
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="files_out_formats[]" value="{{ $format }}"
+                                           id="files_out_{{ $format }}" @checked(in_array($format, $outFormats, true))>
+                                    <label class="form-check-label small figure-mono" for="files_out_{{ $format }}">{{ $format }}</label>
+                                </div>
+                            @endforeach
+                        </div>
+                        <div class="mb-3" style="max-width: 360px;">
+                            <label class="form-label small" for="files_out_mode">The bot makes a file</label>
+                            <select class="form-select form-select-sm" name="files_out_mode" id="files_out_mode">
+                                <option value="on_request" @selected(old('files_out_mode', $fs['out_mode']) === 'on_request')>Only when asked</option>
+                                <option value="own_initiative" @selected(old('files_out_mode', $fs['out_mode']) === 'own_initiative')>When asked, or when a file would help</option>
+                            </select>
+                        </div>
+                        @error('files_out_formats.*')<div class="text-danger small mb-2">{{ $message }}</div>@enderror
+
+                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
+                            <input class="form-check-input" type="checkbox" role="switch" name="visuals_enabled" value="1"
+                                   id="visuals_enabled" @checked(old('visuals_enabled', $fs['visuals']))>
+                            <label class="form-check-label fw-semibold" for="visuals_enabled">Draw visuals</label>
+                        </div>
+                        <div class="form-text text-faint mb-3">
+                            Charts, flowcharts, timelines and simple drawings, drawn in the chat. No image model needed.
+                        </div>
+
+                        <div style="max-width: 200px;">
+                            <label class="form-label small" for="files_retention_days">Keep files for (days)</label>
+                            <input type="number" class="form-control form-control-sm" name="files_retention_days" id="files_retention_days"
+                                   min="1" max="365" value="{{ old('files_retention_days', $fs['retention_days']) }}">
+                            @error('files_retention_days')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
+                    </div>
+                </div>
+
                 <div class="card mb-3">
                     <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2 collapsed"
                             data-bs-toggle="collapse" data-bs-target="#bcard-cache"

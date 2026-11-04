@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\BotProfile;
 use App\Models\ChatConversation;
+use App\Models\ChatFile;
+use App\Services\EngineClient;
 use App\Support\BotSelection;
 use App\Support\ConversationList;
 use Illuminate\Http\Request;
@@ -50,7 +52,7 @@ class LogController extends Controller
 
     public function transcript(Request $request, string $id)
     {
-        $conversation = ChatConversation::with(['bot' => fn ($q) => $q->withTrashed(), 'messages.toolCalls'])->findOrFail($id);
+        $conversation = ChatConversation::with(['bot' => fn ($q) => $q->withTrashed(), 'messages.toolCalls', 'messages.files'])->findOrFail($id);
         $user = $request->user();
 
         // The list only offers sessions from the user's own workspaces; the
@@ -68,6 +70,28 @@ class LogController extends Controller
             'message_count' => $conversation->messages->count(),
             'models' => $this->modelsUsed($conversation),
             'messages' => $conversation->messages,
+        ]);
+    }
+
+    /**
+     * One file from a transcript, fetched from the engine, which keeps the
+     * bytes. The same rights as the transcript it belongs to.
+     */
+    public function file(Request $request, string $id)
+    {
+        $file = ChatFile::with(['conversation.bot' => fn ($q) => $q->withTrashed()])->findOrFail($id);
+        $bot = $file->conversation?->bot;
+        $user = $request->user();
+        abort_unless($bot && $user->canManageSystem($bot->system_id)
+            && (!$bot->trashed() || $user->isSuperAdmin()), 403);
+
+        $response = EngineClient::chatFile($file->id);
+        abort_if($response === null, 404, 'That file is no longer kept.');
+
+        return response($response, 200, [
+            'Content-Type' => $file->mime,
+            'Content-Disposition' => "attachment; filename*=UTF-8''" . rawurlencode($file->name),
+            'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 

@@ -63,6 +63,12 @@ class ChatMessage extends Model
         return $this->belongsTo(ChatConversation::class, 'conversation_id');
     }
 
+    /** Files the visitor attached to this message, or the bot handed back with it. */
+    public function files(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ChatFile::class, 'message_id')->orderBy('created_at');
+    }
+
     /** The connector tools called for this answer, in order. */
     public function toolCalls(): \Illuminate\Database\Eloquent\Relations\HasMany
     {

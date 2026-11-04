@@ -31,6 +31,19 @@ class EngineClient
             ->withHeaders(['X-Admin-Token' => env('ENGINE_ADMIN_TOKEN', '')]);
     }
 
+    /** A chat file's bytes from the engine's file storage, or null when it is gone. */
+    public static function chatFile(string $fileId): ?string
+    {
+        try {
+            $response = Http::timeout(60)->withHeaders(['X-Admin-Token' => env('ENGINE_ADMIN_TOKEN', '')])
+                ->get(self::base() . '/api/v1/chat/files/' . rawurlencode($fileId) . '/admin');
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        return $response->successful() ? $response->body() : null;
+    }
+
     public static function indexSource(string $sourceId): bool
     {
         try {

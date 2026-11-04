@@ -30,6 +30,7 @@
 @push('scripts')
 {{-- The same renderer the widget uses, so a transcript reads the way the
      visitor saw it rather than as raw Markdown. --}}
+<script src="{{ \App\Services\EngineClient::baseUrl() }}/widget-visuals.js"></script>
 <script src="{{ \App\Services\EngineClient::baseUrl() }}/widget-markdown.js"></script>
 <style>
     .transcript-md > *:first-child { margin-top: 0; }
@@ -313,6 +314,24 @@
                     bubble.title = (isUser ? 'Visitor' : data.bot_name) + ', ' + transcriptTime(msg.created_at);
 
                     wrapper.appendChild(bubble);
+
+                    if (msg.files && msg.files.length) {
+                        // Files attached to this message or handed back with it,
+                        // downloaded through the portal with the transcript's rights.
+                        var fileRow = document.createElement('div');
+                        fileRow.className = 'd-flex flex-wrap gap-1 mt-1';
+                        fileRow.style.maxWidth = '78%';
+                        msg.files.forEach(function (file) {
+                            var link = document.createElement('a');
+                            link.className = 'badge text-bg-light border text-decoration-none fw-normal';
+                            link.href = @json(route('logs.file', '__ID__')).replace('__ID__', encodeURIComponent(file.id));
+                            link.textContent = (file.direction === 'out' ? '⬇ ' : '📎 ') + file.name
+                                + ' · ' + Math.max(1, Math.round(file.size / 1024)) + ' KB'
+                                + (file.direction === 'in' && file.scan_status !== 'clean' ? ' · not scanned' : '');
+                            fileRow.appendChild(link);
+                        });
+                        wrapper.appendChild(fileRow);
+                    }
 
                     // The time of every bubble, and how long after the one
                     // before it, so pauses and slow answers can be read off.

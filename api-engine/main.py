@@ -1,3 +1,4 @@
+import asyncio
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -21,8 +22,14 @@ async def lifespan(app: FastAPI):
     print("[Engine] Initializing database...")
     await init_db()
     print("[Engine] FastAPI Streaming Engine is ready.")
-    async with mcp_app.lifespan(app):
-        yield
+    # Chat files past their bot's retention are deleted hourly.
+    from files import retention
+    sweeper = asyncio.create_task(retention.run_forever())
+    try:
+        async with mcp_app.lifespan(app):
+            yield
+    finally:
+        sweeper.cancel()
     # Shutdown
     print("[Engine] Shutting down...")
 

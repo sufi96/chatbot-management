@@ -15,6 +15,21 @@ class Settings(BaseSettings):
     UPLOAD_ROOT: str = os.path.abspath(os.path.join(
         os.path.dirname(__file__), "..", "admin-laravel", "storage", "app", "public"))
 
+    # Where chat files (attachments and files the bot hands back) are kept:
+    # "local" under FILE_STORAGE_ROOT, or "s3" for S3 or MinIO. See files/storage.py.
+    FILE_STORAGE: str = os.getenv("FILE_STORAGE", "local")
+    FILE_STORAGE_ROOT: str = os.getenv("FILE_STORAGE_ROOT", os.path.abspath(os.path.join(
+        os.path.dirname(__file__), "..", "storage", "chat-files")))
+    S3_BUCKET: str = os.getenv("S3_BUCKET", "")
+    S3_ENDPOINT: str = os.getenv("S3_ENDPOINT", "")
+    S3_KEY: str = os.getenv("S3_KEY", "")
+    S3_SECRET: str = os.getenv("S3_SECRET", "")
+    S3_REGION: str = os.getenv("S3_REGION", "")
+    # A ClamAV daemon to scan uploads with. Blank: uploads get the cheap checks
+    # only and are marked not_scanned. See files/scan.py.
+    CLAMAV_HOST: str = os.getenv("CLAMAV_HOST", "")
+    CLAMAV_PORT: int = int(os.getenv("CLAMAV_PORT", "3310"))
+
     USE_SQLITE_FALLBACK: bool = os.getenv("USE_SQLITE_FALLBACK", "true").lower() not in ("0", "false", "no")
     
     # Shared secret for the admin-plane routes. Read through Settings so the

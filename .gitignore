@@ -47,3 +47,6 @@ Thumbs.db
 
 # Malaysian TTS server: voices and reference clips made on the settings page
 tts-server/data/
+
+# Chat files (attachments and files bots hand back), local storage
+/storage/

@@ -75,6 +75,7 @@ widget_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "widg
 widget_path = os.path.join(widget_dir, "widget.js")
 markdown_path = os.path.join(widget_dir, "markdown.js")
 voice_path = os.path.join(widget_dir, "voice.js")
+visuals_path = os.path.join(widget_dir, "visuals.js")
 
 SCRIPT_HEADERS = {"Cache-Control": "no-cache, must-revalidate"}
 
@@ -86,7 +87,7 @@ async def get_widget_script():
     They are separate files so the helpers can be unit tested on their own,
     and joined here so embedding stays a single tag and a single request.
     """
-    parts = [markdown_path, voice_path, widget_path]
+    parts = [visuals_path, markdown_path, voice_path, widget_path]
     if not all(os.path.exists(path) for path in parts):
         return {"error": "widget.js not found"}
 
@@ -109,6 +110,14 @@ async def get_voice_script():
     if os.path.exists(voice_path):
         return FileResponse(voice_path, media_type="application/javascript", headers=SCRIPT_HEADERS)
     return {"error": "voice.js not found"}
+
+
+@app.get("/widget-visuals.js")
+async def get_visuals_script():
+    """The visuals alone, so the portal's transcripts draw them too."""
+    if os.path.exists(visuals_path):
+        return FileResponse(visuals_path, media_type="application/javascript", headers=SCRIPT_HEADERS)
+    return {"error": "visuals.js not found"}
 
 
 @app.get("/widget-markdown.js")

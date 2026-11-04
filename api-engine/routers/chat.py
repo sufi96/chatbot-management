@@ -150,6 +150,25 @@ async def log_tool_calls(db, conv_id: str, message_id: str, records: list):
 
 MESSAGE_CHARS = 4000
 
+# For a bot with visuals on: what the widget can draw. See widget/visuals.js.
+VISUALS_PROMPT = """
+
+When a picture would explain better than words, draw it with one fenced block (the chat draws it):
+```chart
+{"type": "bar", "title": "Sales", "labels": ["Jan", "Feb"], "series": [{"name": "RM", "values": [120, 90]}]}
+```
+(type may be bar, line or pie)
+```diagram
+{"nodes": [{"id": "a", "label": "Apply"}, {"id": "b", "label": "Review"}], "links": [{"from": "a", "to": "b", "label": "submit"}]}
+```
+```timeline
+{"items": [{"when": "Jan 2026", "label": "Planning"}, {"when": "Mar 2026", "label": "Launch"}]}
+```
+```svg
+<svg viewBox="0 0 200 100">...shapes and text only...</svg>
+```
+Use valid JSON in chart, diagram and timeline blocks. Use real numbers only; never invent data."""
+
 # What a message that is only attachments asks.
 ATTACHED_ONLY = "Please read the attached file."
 
@@ -489,6 +508,9 @@ async def chat_stream(
                 final_prompt += (f"\n\nAn action is waiting for the visitor to confirm: {summary}. "
                                  "Tell them what will happen and ask them to press Confirm. "
                                  "Do not say it has been done.")
+
+        if file_rules.visuals:
+            final_prompt += VISUALS_PROMPT
 
         # A reference nobody else knows, so a model reciting its instructions
         # is caught by the reference appearing. See leak.py.

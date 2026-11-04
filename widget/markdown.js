@@ -145,7 +145,15 @@
                 var code = [];
                 i++;
                 while (i < lines.length && !FENCE.test(lines[i])) { code.push(lines[i]); i++; }
+                var closed = i < lines.length;
                 i++;  // the closing fence, or past the end of a stream still arriving
+                // A visual block, once whole, is drawn (visuals.js); until
+                // then, and if it will not draw, it shows as code.
+                var visuals = typeof globalThis !== "undefined" ? globalThis.__ChatbotVisuals : null;
+                if (closed && visuals && fence[1] && visuals.KINDS[fence[1]]) {
+                    var drawn = visuals.render(fence[1], code.join("\n"));
+                    if (drawn) { out += '<div class="c4-visual">' + drawn + "</div>"; continue; }
+                }
                 var lang = fence[1] ? ' class="language-' + fence[1] + '"' : "";
                 out += "<pre><code" + lang + ">" + escapeHtml(code.join("\n")) + "</code></pre>";
                 continue;

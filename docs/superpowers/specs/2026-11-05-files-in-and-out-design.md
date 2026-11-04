@@ -1,6 +1,6 @@
 # Files In and Out of a Conversation
 
-Status: **design approved** (2026-11-05), not started. Replaces the rough sketch "Files and images in and out"
+Status: **built** (2026-11-05) on branch `feat/files`. Plan: `docs/superpowers/plans/2026-11-05-files-in-and-out.md`. Tested live on qwen3:8b with qwen2.5vl:7b as the vision model. Replaces the rough sketch "Files and images in and out"
 at the end of `2026-11-03-agentic-design.md`. The admin assistant (a built-in bot for running C⁴
 itself) is a separate project, designed after this one.
 

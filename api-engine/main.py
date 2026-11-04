@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, Response
 from config import settings
 import database
 from database import init_db
-from routers import bot, chat, connectors, kb, skills, voice
+from routers import bot, chat, connectors, files, kb, skills, voice
 import mcp_server
 
 # C⁴ as an MCP server for other AI tools, at /mcp/. Its sessions need its own
@@ -55,6 +55,7 @@ app.include_router(kb.router)
 app.include_router(connectors.router)
 app.include_router(skills.router)
 app.include_router(voice.router)
+app.include_router(files.router)
 
 mcp_server.APP = app
 app.mount("/mcp", mcp_app)

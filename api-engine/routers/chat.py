@@ -224,6 +224,19 @@ def check_origin(bot, system, origin_header: str) -> None:
             raise HTTPException(status_code=403, detail=f"Domain {origin_header} is not allowed to embed this bot.")
 
 
+async def conversation_for(db, bot, session_id: str, origin: str) -> ChatConversation:
+    """The visitor's conversation with this bot, made on first contact. A file
+    uploaded before the first message starts it too."""
+    conversation = (await db.execute(select(ChatConversation).where(
+        ChatConversation.bot_id == bot.id, ChatConversation.session_id == session_id))).scalars().first()
+    if not conversation:
+        conversation = ChatConversation(id=str(uuid.uuid4()), bot_id=bot.id, session_id=session_id,
+                                        origin=origin)
+        db.add(conversation)
+        await db.flush()
+    return conversation
+
+
 @router.post("/stream")
 async def chat_stream(
     req: ChatStreamRequest, 
@@ -254,23 +267,7 @@ async def chat_stream(
     origin_header = request.headers.get("origin", "")
     check_origin(bot, system, origin_header)
 
-    # Find or create conversation session
-    conv_stmt = select(ChatConversation).where(
-        ChatConversation.bot_id == bot.id,
-        ChatConversation.session_id == req.session_id
-    )
-    conv_res = await db.execute(conv_stmt)
-    conversation = conv_res.scalars().first()
-
-    if not conversation:
-        conversation = ChatConversation(
-            id=str(uuid.uuid4()),
-            bot_id=bot.id,
-            session_id=req.session_id,
-            origin=origin_header
-        )
-        db.add(conversation)
-        await db.flush()
+    conversation = await conversation_for(db, bot, req.session_id, origin_header)
 
     # Log user message
     user_msg = ChatMessage(

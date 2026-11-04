@@ -1,6 +1,6 @@
 # Files In and Out of a Conversation
 
-Status: **design, not started** (2026-11-05). Replaces the rough sketch "Files and images in and out"
+Status: **design approved** (2026-11-05), not started. Replaces the rough sketch "Files and images in and out"
 at the end of `2026-11-03-agentic-design.md`. The admin assistant (a built-in bot for running C⁴
 itself) is a separate project, designed after this one.
 
@@ -29,7 +29,7 @@ This is a **platform capability, off by default**. A bot whose use case has no n
 
 ## Non-goals (this project)
 
-- Image **generation**, including charts as images. Waits for the picture model planned on DGX Spark
+- Image **generation**, including visuals as image files. Waits for the picture model planned on DGX Spark
   node B.
 - Organisation templates (letterhead, logo) for generated documents. Plain layout now; template
   upload later.
@@ -113,14 +113,24 @@ Then it is read for the answer:
     bot's allowed formats. It converts the answer itself, with no model involved, so it works with
     any model, small local ones included.
 
-### Charts (shown, not drawn as images)
+### Visuals (drawn by the display, not by an image model)
 
-Until an image model exists, a chart is something the display draws, not a picture file:
-- The model answers with a **chart block**: plain data (chart kind, labels, series), never code.
-- The **widget and test chat draw it with JavaScript** (inline SVG) as a real chart the person can see.
+Charts were only the user's example. Anything visual that can be drawn with SVG is in scope:
+charts, flowcharts and process diagrams, org charts, timelines, simple maps of steps, labelled
+shapes. Only what truly needs an image model (photos, illustrations) waits for it.
+
+- The model answers with a **visual block**, in one of two forms:
+  - **A data block** for the common kinds (chart, flow/diagram of nodes and links, timeline): plain
+    data, which C⁴'s own code lays out and draws. Easiest for small models to get right.
+  - **An SVG block**, for anything else: SVG the model writes, passed through a strict allowlist
+    before drawing (shapes, paths, text, groups, gradients only; no scripts, no event attributes, no
+    `foreignObject`, no external links or images). Anything outside the list is removed; an SVG
+    that is broken or empty after cleaning is not drawn.
+- The **widget and test chat draw it** inline, as something the person can see.
 - Where nothing can draw it (a transcript export, a plain-text channel), it falls back to a **text
-  chart** made of keyboard characters, plus the numbers as a table.
-- Chart images (PNG) come later with the image model, and can then also be offered as a file.
+  drawing** made of keyboard characters, plus the numbers as a table where there are numbers.
+- Visuals as image files (PNG) come later with the image model, and can then also be offered as a
+  file. An SVG visual may be offered as a `.svg` download sooner, through the same files-out path.
 
 ### Storage
 
@@ -134,11 +144,11 @@ one S3 client covers both) later. Which one is a setting.
 - **`make_file(format, title, content)` is a built-in tool** in `builtin_tools.py`, so the agent loop,
   log and trace treat it like any tool. It is offered only to bots with Agentic on; every bot with
   files out on gets the Download button regardless.
-- Charts are switched on per bot like files out (a "charts" tick), since a bot that never shows data
-  has no use for them. The chart block's data is validated before drawing, and its labels are
-  escaped like any model text (`widget/markdown.js` rules).
-- The widget draws charts with its own small SVG code rather than a charting library, to keep the
-  embed light; the portal may use a library.
+- Visuals are switched on per bot (a "visuals" tick), since many bots have no use for them. A data
+  block is validated before drawing, and every label is escaped like any model text
+  (`widget/markdown.js` rules); an SVG block goes through the allowlist above.
+- The widget draws data blocks with its own small SVG code rather than a charting or diagram
+  library, to keep the embed light; the portal may use a library.
 - When the bot may offer files unprompted, its tool description says so; when only on request,
   the description says to call it only when the person asks for a file.
 - A file not scanned shows a small *not scanned* mark in the transcript, and a later scan pass may
@@ -160,7 +170,7 @@ one S3 client covers both) later. Which one is a setting.
 2. Files in: documents (upload, checks, optional ClamAV, extract, shield, answer, transcript).
 3. Files in: images (through the vision role).
 4. Files out: the Download button, then `make_file` and the download chip.
-5. Charts: the chart block, the widget's SVG drawing, the text fallback.
+5. Visuals: data blocks (chart, diagram, timeline), cleaned SVG blocks, the text fallback.
 6. Files out from connector and MCP results.
 
 ## Left to the builder

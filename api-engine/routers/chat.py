@@ -12,7 +12,7 @@ from sqlalchemy import select, update
 from pydantic import BaseModel, Field
 
 from config import settings as app_settings
-from database import (get_db, get_settings, provider_endpoint, provider_merges_system, BotProfile, System,
+from database import (get_db, get_settings, provider_endpoint, provider_merges_system, BotProfile, ChatFile, System,
                       ChatConversation, ChatMessage, ChatToolCall, BotKbCollection)
 import answer_cache
 import grounding
@@ -29,6 +29,8 @@ from kb.embedding import client_for as embedding_client_for
 from kb.retrieval import augment_system_prompt
 from llm_adapter import LLMAdapter
 from reasoning import TranscriptCollector
+from files import material as file_material
+from files import settings as file_settings
 
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
@@ -147,13 +149,19 @@ async def log_tool_calls(db, conv_id: str, message_id: str, records: list):
 
 MESSAGE_CHARS = 4000
 
+# What a message that is only attachments asks.
+ATTACHED_ONLY = "Please read the attached file."
+
 
 class ChatStreamRequest(BaseModel):
     bot_id: str
     session_id: str
     # Long enough for any real question; a cap stops one request filling the
     # model's context, and the guard's, with a pasted document.
-    message: str = Field(max_length=MESSAGE_CHARS)
+    message: str = Field("", max_length=MESSAGE_CHARS)
+    # Ids from POST /api/v1/chat/files, for a bot with files in. Only this
+    # session's own uploads are ever read; anything else is ignored.
+    attachments: List[str] = Field(default_factory=list, max_length=10)
     # What the browser says came before. Read only when the install trusts it
     # or the caller holds the admin token; see history.py.
     history: Optional[List[Dict[str, str]]] = []
@@ -269,6 +277,14 @@ async def chat_stream(
 
     conversation = await conversation_for(db, bot, req.session_id, origin_header)
 
+    file_rules = file_settings.for_bot(bot)
+    attaching = file_rules.in_enabled and bool(req.attachments)
+    if attaching and len(req.attachments) > file_rules.per_message:
+        raise HTTPException(status_code=400,
+                            detail=f"Send up to {file_rules.per_message} files with one message.")
+    if attaching and not req.message.strip():
+        req.message = ATTACHED_ONLY
+
     # Log user message
     user_msg = ChatMessage(
         id=str(uuid.uuid4()),
@@ -277,6 +293,11 @@ async def chat_stream(
         content=req.message
     )
     db.add(user_msg)
+    if attaching:
+        # Only this conversation's own uploads, not yet sent with a message.
+        await db.execute(update(ChatFile).where(
+            ChatFile.id.in_(req.attachments), ChatFile.conversation_id == conversation.id,
+            ChatFile.direction == "in", ChatFile.message_id.is_(None)).values(message_id=user_msg.id))
     await db.commit()
 
     conv_id = conversation.id
@@ -410,6 +431,17 @@ async def chat_stream(
 
         context_block = found.context_block if found else ""
         fallback = sources.fallback_for(bot, message_is_a_question, enabled)
+
+        # The visitor's own files come first: they are what this conversation is about.
+        if file_rules.in_enabled and not blocked:
+            attached = (await db.execute(select(ChatFile).where(
+                ChatFile.conversation_id == conv_id, ChatFile.direction == "in",
+                ChatFile.message_id.is_not(None)).order_by(ChatFile.created_at.desc()))).scalars().all()
+            file_block = file_material.block(attached, decision.query or req.message,
+                                             int(engine_settings["context_char_budget"]))
+            if file_block:
+                context_block = "\n\n".join(p for p in (file_block, context_block) if p)
+                fallback = "answer_anyway"
 
         # A found result with no material is a change awaiting Confirm or a
         # skill's steps: there is something to say, so not "nothing found".

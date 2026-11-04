@@ -110,3 +110,10 @@ async def test_the_portal_routes_need_the_admin_token(monkeypatch):
 
     assert refused.status_code == 401
     assert down.json()["success"] is False
+
+
+async def test_a_fastmcp_server_passes_the_test_button():
+    # FastMCP servers do not answer the protocol's ping, so reaching one must not depend on it.
+    pinged = await mcp.ping("http://mcp.test/mcp", "none", None, None, transport=server)
+
+    assert pinged["success"] is True and "3 tools" in pinged["message"]

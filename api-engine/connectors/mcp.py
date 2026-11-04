@@ -74,9 +74,10 @@ async def call(connector, row, arguments: dict, transport=None) -> CallResult:
 
 
 async def ping(base_url, auth_type, auth_header, auth_secret, transport=None) -> dict:
+    # No protocol ping: FastMCP servers don't answer it ("Method not found").
+    # Connecting and listing the tools is the proof that matters anyway.
     try:
         async with _client(base_url, auth_type, auth_header, auth_secret, transport) as client:
-            await client.ping()
             tools = await client.list_tools()
     except Exception as error:
         return {"success": False, "message": f"Could not reach the MCP server: {error}"}

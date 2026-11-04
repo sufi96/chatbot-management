@@ -15,6 +15,7 @@ from config import settings as app_settings
 from database import (get_db, get_settings, provider_endpoint, provider_merges_system, BotProfile, ChatFile, System,
                       ChatConversation, ChatMessage, ChatToolCall, BotKbCollection)
 import answer_cache
+import builtin_tools
 import grounding
 import guard
 import history
@@ -475,7 +476,9 @@ async def chat_stream(
 
         # Written down now, so a change waiting on the visitor has an id the
         # widget's Confirm can name. The answer is made with the id they point at.
-        answer_id = str(uuid.uuid4()) if tool_log else None
+        # Every answer has its id from the start: tool calls point at it, and
+        # the widget's Download-as button names it.
+        answer_id = str(uuid.uuid4())
         confirm_event = None
         if tool_log:
             pending = await log_tool_calls(db, conv_id, answer_id, tool_log)
@@ -520,8 +523,7 @@ async def chat_stream(
             # and sites actually answer visitors.
             "citations": json.dumps(found.citations) if (found and found.citations) else None,
         }
-        if answer_id:
-            answer_fields["id"] = answer_id
+        answer_fields["id"] = answer_id
 
         if blocked:
             # The refusal stands in for the answer, in the shape the widget
@@ -536,6 +538,26 @@ async def chat_stream(
                 first_token_ms=waited, response_ms=waited, **answer_fields)
             yield "data: [DONE]\n\n"
             return
+
+        async def files_out():
+            """After a saved answer, on a bot with files out: the file make_file asked
+            for, then the answer's id and formats for the Download-as button."""
+            if not file_rules.out_enabled or leaked or not transcript.answer:
+                return
+            asked = next((c for c in tool_log if c.name == builtin_tools.MAKE_FILE and c.status == "ran"), None)
+            fmt = str((asked.arguments or {}).get("format") or "").lower() if asked else ""
+            if fmt in file_rules.out_formats:
+                from routers import files as files_router
+                try:
+                    from database import async_session_factory
+                    async with async_session_factory() as session:
+                        row = await files_router.answer_as_file(
+                            session, bot, conv_id, answer_id, transcript.answer, fmt,
+                            str((asked.arguments or {}).get("title") or "") or None)
+                    yield f"data: {json.dumps({'type': 'file', **files_router.meta(row, req.session_id)})}\n\n"
+                except Exception as error:
+                    print(f"[Files] Could not make the file make_file asked for: {error}")
+            yield f"data: {json.dumps({'type': 'answer', 'id': answer_id, 'formats': list(file_rules.out_formats)})}\n\n"
 
         transcript = TranscriptCollector()
         saved = False
@@ -737,6 +759,8 @@ async def chat_stream(
                         yield f"data: {json.dumps({key: piece})}\n\n"
 
             await finish()
+            async for event in files_out():
+                yield event
             yield "data: [DONE]\n\n"
 
         finally:

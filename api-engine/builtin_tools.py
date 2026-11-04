@@ -44,8 +44,45 @@ _TOOLS = {
 }
 
 
+MAKE_FILE = "make_file"
+
+MAKE_FILE_WHEN = {
+    "on_request": "Only when the visitor asks for a file, such as \"send me this as Excel\".",
+    "own_initiative": ("When the visitor asks for a file, or when a file would serve them better than a "
+                       "chat reply, such as a long table or a document they will keep."),
+}
+
+
+async def _make_file(arguments: dict) -> CallResult:
+    # Nothing is made here: the chat route turns the reply itself into the file
+    # once it is written, so the model writes the content where it writes best.
+    fmt = str(arguments.get("format") or "").lower()
+    title = str(arguments.get("title") or "answer")[:120]
+    return CallResult(ok=True, text=f"A {fmt} file titled \"{title}\" will be attached to your reply. "
+                                    "Write the file's full content as your reply, in Markdown "
+                                    "(use a table for rows and columns).")
+
+
+def make_file_tool(bot):
+    """make_file for a bot with files out and Agentic on, else None."""
+    from files import settings as file_settings
+
+    rules = file_settings.for_bot(bot)
+    if not (rules.out_enabled and rules.out_formats and getattr(bot, "agentic_enabled", False)):
+        return None
+    return agent.Tool(
+        id=None, name=MAKE_FILE, writes=False, connector=C4, row=None, local=_make_file,
+        description="Hand your reply to the visitor as a downloadable file. " + MAKE_FILE_WHEN[rules.out_mode],
+        parameters={"type": "object", "properties": {
+            "format": {"type": "string", "enum": list(rules.out_formats)},
+            "title": {"type": "string", "description": "A short title for the file."}},
+            "required": ["format", "title"]})
+
+
 def for_bot(bot) -> list:
     chosen = getattr(bot, "builtin_tools", None) or []
-    return [agent.Tool(id=None, name=name, description=_TOOLS[name][0], parameters=_TOOLS[name][1],
-                       writes=False, connector=C4, row=None, local=_TOOLS[name][2])
-            for name in NAMES if name in chosen]
+    tools = [agent.Tool(id=None, name=name, description=_TOOLS[name][0], parameters=_TOOLS[name][1],
+                        writes=False, connector=C4, row=None, local=_TOOLS[name][2])
+             for name in NAMES if name in chosen]
+    maker = make_file_tool(bot)
+    return tools + [maker] if maker else tools

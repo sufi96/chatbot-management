@@ -10,7 +10,8 @@ import secrets
 import uuid
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
+from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +21,7 @@ from files import checks, reading, storage
 from files import scan as scanning
 from files import settings as file_settings
 from files.settings import IMAGE_TYPES
+from routers.kb import require_admin_token
 
 router = APIRouter(prefix="/api/v1/chat/files", tags=["files"])
 
@@ -114,3 +116,95 @@ async def upload(request: Request, bot_id: str = Form(...), session_id: str = Fo
     return {"id": row.id, "name": row.name, "size": row.size,
             "kind": "image" if row.ext in IMAGE_TYPES else "document",
             "scanned": row.scan_status == "clean", "readable": got.text is not None, "note": got.note}
+
+
+def download_url(row: ChatFile, session_id: str) -> str:
+    from urllib.parse import quote
+    return f"/api/v1/chat/files/{row.id}/download?session_id={quote(session_id)}&token={row.token}"
+
+
+def meta(row: ChatFile, session_id: str) -> dict:
+    return {"id": row.id, "name": row.name, "size": row.size, "url": download_url(row, session_id)}
+
+
+def _title(markdown: str, fallback: str) -> str:
+    from files.convert import blocks, plain
+    for block in blocks(markdown):
+        if block[0] == "heading":
+            return plain(block[2])
+    words = plain(markdown).split()
+    return " ".join(words[:8]) or fallback
+
+
+async def answer_as_file(db, bot, conversation_id: str, message_id: str, markdown: str, fmt: str,
+                         title: str | None = None) -> ChatFile:
+    """One of the bot's answers, converted and stored as a file of the answer."""
+    from files import convert
+
+    made = convert.to_file(markdown, fmt, title or _title(markdown, bot.name or "answer"))
+    checked = checks.Checked(ext=fmt, mime=made.mime, data=made.data)
+    return await store_file(db, bot, conversation_id, "out", made.filename, checked,
+                            message_id=message_id, scan_status="clean")
+
+
+class ExportRequest(BaseModel):
+    bot_id: str
+    session_id: str = Field(max_length=200)
+    message_id: str
+    format: str
+
+
+@router.post("/export")
+async def export(req: ExportRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    """The Download-as button: one of the bot's answers in this chat, as a file."""
+    from database import ChatMessage
+
+    bot = await bot_for(db, req.bot_id, request)
+    fs = file_settings.for_bot(bot)
+    if not fs.out_enabled:
+        raise HTTPException(status_code=409, detail="This chat does not hand out files.")
+    if req.format not in fs.out_formats:
+        raise HTTPException(status_code=400, detail="That format is not offered here.")
+    message = (await db.execute(
+        select(ChatMessage).join(ChatConversation, ChatConversation.id == ChatMessage.conversation_id)
+        .where(ChatMessage.id == req.message_id, ChatMessage.sender == "assistant",
+               ChatConversation.bot_id == bot.id, ChatConversation.session_id == req.session_id))).scalars().first()
+    if not message:
+        raise HTTPException(status_code=404, detail="No such answer in this chat.")
+    row = await answer_as_file(db, bot, message.conversation_id, message.id, message.content or "", req.format)
+    return meta(row, req.session_id)
+
+
+def _send(row: ChatFile, data: bytes) -> Response:
+    from urllib.parse import quote
+    return Response(content=data, media_type=row.mime, headers={
+        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(row.name)}",
+        "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
+
+
+async def _bytes(row: ChatFile) -> bytes:
+    if row.expires_at and row.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=410, detail="This file has expired.")
+    try:
+        return await storage.current().get(row.storage_key)
+    except FileNotFoundError:
+        raise HTTPException(status_code=410, detail="This file is no longer kept.")
+
+
+@router.get("/{file_id}/download")
+async def download(file_id: str, session_id: str, token: str, db: AsyncSession = Depends(get_db)):
+    """A visitor's own file, by a link only their session holds."""
+    found = (await db.execute(select(ChatFile).join(ChatConversation, ChatConversation.id == ChatFile.conversation_id)
+                              .where(ChatFile.id == file_id, ChatConversation.session_id == session_id))).scalars().first()
+    if not found or not secrets.compare_digest(found.token, token):
+        raise HTTPException(status_code=404, detail="No such file.")
+    return _send(found, await _bytes(found))
+
+
+@router.get("/{file_id}/admin", dependencies=[Depends(require_admin_token)])
+async def admin_download(file_id: str, db: AsyncSession = Depends(get_db)):
+    """Any file, for the portal's transcript, which checks the user's rights first."""
+    found = await db.get(ChatFile, file_id)
+    if not found:
+        raise HTTPException(status_code=404, detail="No such file.")
+    return _send(found, await _bytes(found))

@@ -20,8 +20,7 @@ class ListSkills extends Tool
 
     public function run(User $user, array $args): string
     {
-        $ids = !empty($args['workspace']) ? [Lookup::workspace($user, $args['workspace'])->id]
-            : Lookup::workspaces($user)->pluck('id')->all();
+        $ids = Lookup::workspaceIds($user, $args['workspace'] ?? null);
         $skills = Skill::where(fn ($q) => $q->whereIn('system_id', $ids)->orWhereNull('system_id'))->orderBy('name')->get();
         if ($skills->isEmpty()) {
             return 'No skills.';

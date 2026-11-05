@@ -134,6 +134,8 @@ class ConsoleAssistantTest extends TestCase
         $this->assertTrue((bool) $bot->agentic_enabled);
         $this->assertStringStartsWith('tools', $bot->source_order);
         $this->assertStringContainsString('Confirm', $bot->system_prompt);
+        // Found live: the older prompt's "point to where things are" sent people to pages instead of answering.
+        $this->assertStringContainsString('answer from them', $bot->system_prompt);
     }
 
     public function test_it_stays_out_of_workspace_pages(): void

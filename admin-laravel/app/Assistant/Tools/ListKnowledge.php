@@ -20,8 +20,7 @@ class ListKnowledge extends Tool
 
     public function run(User $user, array $args): string
     {
-        $ids = !empty($args['workspace']) ? [Lookup::workspace($user, $args['workspace'])->id]
-            : Lookup::workspaces($user)->pluck('id')->all();
+        $ids = Lookup::workspaceIds($user, $args['workspace'] ?? null);
         $collections = KbCollection::with('sources')->whereIn('system_id', $ids)->orderBy('name')->get();
         if ($collections->isEmpty()) {
             return 'No knowledge collections.';

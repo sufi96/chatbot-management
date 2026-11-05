@@ -79,7 +79,7 @@ async def test_a_refused_read_tells_the_model_why_rather_than_failing():
 
     outcome = await console.tools[0].local({"bot": "Sales"})
 
-    assert outcome.ok and outcome.text == "Not done: No bot \"Sales\" that you can reach."
+    assert outcome.ok and outcome.text == "Not done. The console said: No bot \"Sales\" that you can reach."
 
 
 async def test_no_token_or_a_bad_one_means_no_tools():

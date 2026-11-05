@@ -82,6 +82,6 @@ abstract class Tool
 
     protected static function workspaceParam(): array
     {
-        return ['type' => 'string', 'description' => 'A workspace, by id or by name. Leave out for all of mine.'];
+        return ['type' => 'string', 'description' => 'Only this workspace, by id or by name. Leave out to cover every workspace.'];
     }
 }

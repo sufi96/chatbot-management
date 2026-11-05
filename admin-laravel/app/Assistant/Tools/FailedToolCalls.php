@@ -26,18 +26,26 @@ class FailedToolCalls extends Tool
         $bots = !empty($args['bot']) ? collect([Lookup::bot($user, $args['bot'])]) : Lookup::bots($user);
         $names = $bots->pluck('name', 'id');
 
-        $calls = ChatToolCall::query()
+        $query = ChatToolCall::query()
             ->join('chat_conversations', 'chat_conversations.id', '=', 'chat_tool_calls.conversation_id')
             ->whereIn('chat_conversations.bot_id', $names->keys())
             ->where('chat_tool_calls.status', 'failed')
-            ->where('chat_tool_calls.created_at', '>=', now()->subDays(self::days($args)))
-            ->orderByDesc('chat_tool_calls.created_at')->limit(20)
+            ->where('chat_tool_calls.created_at', '>=', now()->subDays($days = self::days($args)));
+        $total = (clone $query)->count();
+        $calls = $query->orderByDesc('chat_tool_calls.created_at')->limit(20)
             ->get(['chat_tool_calls.*', 'chat_conversations.bot_id']);
         if ($calls->isEmpty()) {
-            return 'No failed tool calls in that time.';
+            return "No failed tool calls in the last {$days} days.";
         }
 
-        return $calls->map(fn ($c) => "- " . ($names[$c->bot_id] ?? $c->bot_id) . ": {$c->tool_name}, "
+        // The true total first: given only the list, a model counts it wrong.
+        $byTool = (clone $query)->selectRaw('chat_tool_calls.tool_name, count(*) as n')
+            ->groupBy('chat_tool_calls.tool_name')->pluck('n', 'tool_name');
+        $head = "{$total} failed tool call" . ($total === 1 ? '' : 's') . " in the last {$days} days ("
+            . $byTool->map(fn ($n, $t) => "{$t}: {$n}")->implode(', ') . ')'
+            . ($total > $calls->count() ? ". The newest {$calls->count()}:" : ':');
+
+        return $head . "\n" . $calls->map(fn ($c) => "- " . ($names[$c->bot_id] ?? $c->bot_id) . ": {$c->tool_name}, "
             . $c->created_at?->diffForHumans() . ', conversation ' . $c->conversation_id
             . ($c->result_excerpt ? ': ' . mb_strimwidth($c->result_excerpt, 0, 200, '…') : ''))->implode("\n");
     }

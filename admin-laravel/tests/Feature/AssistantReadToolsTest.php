@@ -57,6 +57,15 @@ class AssistantReadToolsTest extends TestCase
         $this->assertStringNotContainsString('Sales Desk', $text);
     }
 
+    public function test_all_or_mine_as_a_workspace_means_every_workspace_i_can_reach(): void
+    {
+        // Found live: qwen3 fills the optional argument with a word rather than leaving it out.
+        foreach (['all', 'mine', 'All workspaces', '*'] as $word) {
+            $this->assertStringContainsString('HR Helper', $this->ran($this->person('system_admin', 'sys_a'), 'list_bots', ['workspace' => $word]), $word);
+            \App\Models\User::where('email', 'system_admin.sys_a@example.test')->delete();
+        }
+    }
+
     public function test_another_workspaces_bot_cannot_be_reached_by_id_or_name(): void
     {
         $admin = $this->person('system_admin');
@@ -112,7 +121,10 @@ class AssistantReadToolsTest extends TestCase
             'status' => 'failed', 'result_excerpt' => 'HTTP 500']);
         $admin = $this->person('system_admin');
 
-        $this->assertStringContainsString('lookup_order', $this->ran($admin, 'failed_tool_calls'));
+        $failed = $this->ran($admin, 'failed_tool_calls');
+        $this->assertStringContainsString('lookup_order', $failed);
+        // Found live: the model invented a total from a list cut at 20.
+        $this->assertStringStartsWith('1 failed tool call in the last 7 days (lookup_order: 1)', $failed);
         $usage = $this->ran($admin, 'usage_summary', ['days' => 7]);
         $this->assertStringContainsString('HR Helper: 1 conversation', $usage);
         $this->assertStringContainsString('documents 1', $usage);

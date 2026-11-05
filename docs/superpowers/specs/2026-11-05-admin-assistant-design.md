@@ -1,6 +1,6 @@
 # The Admin Assistant
 
-Status: **designed** (2026-11-05) on branch `feat/admin-assistant`. What it covers today, and what
+Status: **built** (2026-11-05) on branch `feat/admin-assistant`. Plan: `docs/superpowers/plans/2026-11-05-admin-assistant.md`. Tested live on qwen3:8b as a super admin and as a workspace admin, including a change through Confirm. What it covers today, and what
 not yet, is kept in `docs/admin-assistant.md`. A test keeps that page honest.
 
 ## Why
@@ -142,6 +142,8 @@ Reads (no Confirm):
 | `list_skills` | skills and their mode |
 | `list_databases` | database connections and readable tables (never credentials) |
 | `list_members` | a workspace's people and roles (system_admin) |
+| `list_users` | every console user (super admin only) |
+| `recent_assistant_actions` | changes made through the assistant: everyone's for a super admin, your own otherwise |
 
 Changes (Confirm, then the portal re-checks):
 
@@ -162,3 +164,14 @@ than one bot gets back the list to choose from.
 - Wording of tool descriptions and results: short and plain, readable by a small model.
 - Exact output shape: plain text lines, not JSON. The answer model rewrites them anyway.
 - Usage numbers come from the existing tables directly. No new analytics.
+
+## Found in the live run
+
+Fixed:
+- Small models fill an optional `workspace` with a word ("all", "mine"). `Lookup::meansAll` reads such words as no filter.
+- The console bot's original prompt says "point to where things are in the console", so it sent people to pages even when a tool had the answer. The new prompt paragraph says to answer from the tool results.
+- `failed_tool_calls` listed the newest 20, and the model made up a total. It now opens with the true count, per tool.
+- A refused read reaches the model as "Not done. The console said: …", not as a failed call, so the person hears the reason.
+
+Known, not fixed:
+- On a refusal, qwen3:8b sometimes repeats the `<context>` block before its answer. The reason still reaches the person. This is small-model behaviour; recheck on the DGX models.

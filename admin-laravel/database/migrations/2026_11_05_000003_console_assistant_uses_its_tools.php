@@ -14,7 +14,7 @@ return new class extends Migration
 {
     private const ID = 'bot_console_assistant';
 
-    private const PARAGRAPH = 'You have tools for this console. Use them to look things up (bots, conversations, failed tool calls, usage, knowledge, connectors, skills, databases, people) instead of guessing, and to make the changes the person asks for. A change only happens after the person presses Confirm, and their own role decides what they may do. Never ask for or repeat a password or key.';
+    private const PARAGRAPH = 'You have tools for this console. Use them to look things up (bots, conversations, failed tool calls, usage, knowledge, connectors, skills, databases, people) instead of guessing, and to make the changes the person asks for. When a tool returned results, answer from them: give the actual names, numbers and details, not directions to a page. When a tool says "Not done", tell the person why in plain words. A change only happens after the person presses Confirm, and their own role decides what they may do. Never ask for or repeat a password or key.';
 
     public function up(): void
     {

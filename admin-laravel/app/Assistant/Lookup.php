@@ -37,12 +37,29 @@ class Lookup
         return self::one($found, "workspace \"{$ref}\"", fn ($s) => "{$s->name} ({$s->id})");
     }
 
+    /**
+     * Whether an optional workspace argument means no filter. Small models
+     * fill it with a word ("all", "mine") rather than leaving it out.
+     */
+    public static function meansAll(?string $ref): bool
+    {
+        $ref = strtolower(trim((string) $ref));
+
+        return $ref === '' || $ref === '*' || preg_match('/^(all|any|every|mine|my|semua)\b/', $ref) === 1;
+    }
+
+    /** The ids of one named workspace, or of every one the person may reach. */
+    public static function workspaceIds(User $user, ?string $workspace, string $minRole = 'viewer'): array
+    {
+        return self::meansAll($workspace) ? self::workspaces($user, $minRole)->pluck('id')->all()
+            : [self::workspace($user, $workspace, $minRole)->id];
+    }
+
     /** Bots the person may see: their workspaces' bots, and the console assistant for a super admin. */
     public static function bots(User $user, ?string $workspace = null, string $minRole = 'viewer'): Collection
     {
-        $scoped = $workspace !== null && trim($workspace) !== '';
-        $ids = $scoped ? [self::workspace($user, $workspace, $minRole)->id]
-            : self::workspaces($user, $minRole)->pluck('id')->all();
+        $scoped = !self::meansAll($workspace);
+        $ids = self::workspaceIds($user, $workspace, $minRole);
 
         return BotProfile::query()
             ->where(function ($q) use ($ids, $user, $scoped) {

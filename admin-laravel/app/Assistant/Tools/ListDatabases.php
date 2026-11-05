@@ -20,8 +20,7 @@ class ListDatabases extends Tool
 
     public function run(User $user, array $args): string
     {
-        $ids = !empty($args['workspace']) ? [Lookup::workspace($user, $args['workspace'])->id]
-            : Lookup::workspaces($user)->pluck('id')->all();
+        $ids = Lookup::workspaceIds($user, $args['workspace'] ?? null);
         $connections = DbConnection::with('tables')->whereIn('system_id', $ids)->orderBy('name')->get();
         if ($connections->isEmpty()) {
             return 'No database connections.';

@@ -66,7 +66,7 @@ def _tool(token: str, spec: dict, transport=None) -> agent.Tool:
         if not outcome.ok and not outcome.detail:
             # The portal said no, with a reason the person should hear ("No bot
             # Sales that you can reach"), not "the request failed".
-            return CallResult(ok=True, text=f"Not done: {outcome.error}", ms=outcome.ms)
+            return CallResult(ok=True, text=f"Not done. The console said: {outcome.error}", ms=outcome.ms)
         return outcome
 
     return agent.Tool(id=None, name=name, description=str(spec.get("description") or ""),

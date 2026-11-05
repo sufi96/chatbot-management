@@ -592,7 +592,7 @@
                  A new bot has nothing to compare against, so its bar always shows. --}}
             @include('bots._save-bar', [
                 'formId' => 'botForm',
-                'saveLabel' => $isEdit ? 'Save Profile changes' : 'Create bot profile',
+                'saveLabel' => $isEdit ? 'Save appearance changes' : 'Create bot profile',
                 'track' => $isEdit,
                 'hint' => 'You can change all of this later.',
             ])

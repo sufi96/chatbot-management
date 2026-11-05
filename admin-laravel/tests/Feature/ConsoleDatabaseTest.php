@@ -99,7 +99,7 @@ class ConsoleDatabaseTest extends TestCase
             'password' => 'password', 'global_role' => 'user']);
         $member->systems()->attach('sys_1', ['role' => 'system_admin']);
 
-        $this->actingAs($this->admin())->get(route('bots.brain', BotProfile::CONSOLE_ID))
+        $this->actingAs($this->admin())->get(route('bots.settings', [BotProfile::CONSOLE_ID, 'brain']))
             ->assertOk()->assertSee('Console database');
         $this->actingAs($this->admin())->get(route('databases.schema', ConsoleDatabase::ID))->assertOk();
 

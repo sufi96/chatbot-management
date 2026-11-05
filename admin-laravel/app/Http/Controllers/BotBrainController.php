@@ -23,13 +23,22 @@ class BotBrainController extends Controller
 {
     use PicksProviders;
 
-    public function edit(Request $request, string $id)
+    /** The address Behaviour had before the tabs: its own tab now. */
+    public function behaviour(string $id)
+    {
+        return redirect()->route('bots.settings', [$id, 'behaviour']);
+    }
+
+    public function edit(Request $request, string $id, string $section)
     {
         $bot = BotProfile::with(['collections', 'dbConnections'])->findOrFail($id);
         abort_unless($request->user()->canManageSystem($bot->system_id, 'editor'), 403);
 
         return view('bots.brain', [
             'bot' => $bot,
+            // Which tab's cards this page shows; see SECTION_FIELDS.
+            'section' => $section,
+            'tabName' => self::TAB_NAMES[$section],
             'collections' => KbCollection::withCount('sources')
                 ->where('system_id', $bot->system_id)
                 ->orderBy('name')
@@ -75,7 +84,9 @@ class BotBrainController extends Controller
         $bot = BotProfile::findOrFail($id);
         abort_unless($request->user()->canManageSystem($bot->system_id, 'editor'), 403);
 
-        $validated = $request->validate([
+        $section = $this->section($request);
+
+        $rules = [
             // Sometimes, so a client written before these moved here from the
             // Profile tab still saves.
             'provider_id' => ['sometimes', ...$this->providerRule($request->user(), $bot->provider_id)],
@@ -144,47 +155,60 @@ class BotBrainController extends Controller
             'files_out_formats.*' => [Rule::in(BotProfile::FILE_OUT_FORMATS)],
             'files_out_mode' => ['sometimes', 'in:on_request,own_initiative'],
             'files_retention_days' => ['sometimes', 'integer', 'min:1', 'max:365'],
-        ], [
+        ];
+        $messages = [
             'web_search_key_id.required_if' => 'Choose one of this workspace\'s keys, or add one.',
             'web_search_key_id.exists' => 'Choose one of this workspace\'s keys.',
             'voice_engine.in' => 'That voice engine is not set up. A super admin sets it up under Voice in admin settings.',
-        ]);
+        ];
+        // A tab's save checks only that tab's fields; the others are not on its form.
+        $validated = $request->validate(self::rulesFor($rules, $section), $messages);
 
         // A key is kept only while it is the one in use.
         if (array_key_exists('web_search_mode', $validated) && $validated['web_search_mode'] !== 'own') {
             $validated['web_search_key_id'] = null;
         }
 
-        $validated['retrieval_enabled'] = $request->boolean('retrieval_enabled');
-        $validated['web_search_enabled'] = $request->boolean('web_search_enabled');
-        $validated['db_query_enabled'] = $request->boolean('db_query_enabled');
-        $validated['intent_enabled'] = $request->boolean('intent_enabled');
-        $validated['combine_sources'] = $request->boolean('combine_sources');
-        $validated['guard_enabled'] = $request->boolean('guard_enabled');
-        // An unticked switch sends nothing, so only the form that has these
-        // switches may turn them off. An older client leaves them as they are.
-        if ($request->has('upgrades_present')) {
+        $in = fn (string $tab) => $section === null || $section === $tab;
+
+        // An unticked switch sends nothing, so a switch is read only from the
+        // tab that shows it. Another tab's switches stay as they are.
+        if ($in('brain')) {
+            foreach (['retrieval_enabled', 'web_search_enabled', 'db_query_enabled', 'intent_enabled', 'combine_sources'] as $switch) {
+                $validated[$switch] = $request->boolean($switch);
+            }
+        }
+        if ($in('safety')) {
+            $validated['guard_enabled'] = $request->boolean('guard_enabled');
+        }
+        // Without a tab: only the form that has these switches may turn them
+        // off, and an older client leaves them as they are.
+        if ($section === 'brain' || ($section === null && $request->has('upgrades_present'))) {
             $validated['cache_enabled'] = $request->boolean('cache_enabled');
+        }
+        if ($section === 'safety' || ($section === null && $request->has('upgrades_present'))) {
             $validated['grounding_check'] = $request->boolean('grounding_check');
+        }
+        if ($section === 'behaviour' || ($section === null && $request->has('upgrades_present'))) {
             $validated['voice_output'] = $request->boolean('voice_output');
             $validated['voice_autoplay'] = $request->boolean('voice_autoplay');
             $validated['voice_input'] = $request->boolean('voice_input');
         }
 
-        // Only the form with the Agentic card may change it; an older client
+        // Only the form with the Agents card may change it; an older client
         // leaves the switch and the tools as they were.
         $tools = null;
         $skills = null;
-        if ($request->has('agentic_present')) {
+        if ($section === 'agents' || ($section === null && $request->has('agentic_present'))) {
             $validated['agentic_enabled'] = $request->boolean('agentic_enabled');
             $tools = $this->agenticTools($bot, (array) $request->input('tools', []));
             $skills = $this->agenticSkills($bot, (array) $request->input('skills', []));
             $validated['builtin_tools'] = array_values(array_unique($validated['builtin_tools'] ?? []));
         }
 
-        // Only the form with the Files & visuals card may change them; an older
+        // Only the form with the Files & vision card may change them; an older
         // client leaves them as they were.
-        if ($request->has('files_present')) {
+        if ($section === 'files' || ($section === null && $request->has('files_present'))) {
             $current = $bot->fileSettings();
             $validated['file_settings'] = [
                 'in_enabled' => $request->boolean('files_in_enabled'),
@@ -203,9 +227,11 @@ class BotBrainController extends Controller
             $validated['files_daily'], $validated['files_out_formats'], $validated['files_out_mode'],
             $validated['files_retention_days']);
 
-        // Normalised rather than refused. A hand made submission must not be
-        // able to leave a bot with a source it can never reach.
-        $validated['source_order'] = SourceOrder::normalise($request->input('source_order'));
+        if ($in('brain')) {
+            // Normalised rather than refused. A hand made submission must not be
+            // able to leave a bot with a source it can never reach.
+            $validated['source_order'] = SourceOrder::normalise($request->input('source_order'));
+        }
 
         // So that my and MY are the same setting rather than two.
         if (!empty($validated['web_search_country'])) {
@@ -219,27 +245,82 @@ class BotBrainController extends Controller
             $bot->skills()->sync($skills);
         }
 
-        // Only collections from this bot's own workspace may be attached, whatever
-        // the form posted.
-        $allowed = KbCollection::where('system_id', $bot->system_id)
-            ->whereIn('id', $request->input('collections', []))
-            ->pluck('id')
-            ->all();
-        $bot->collections()->sync($allowed);
+        if ($in('brain')) {
+            // Only collections from this bot's own workspace may be attached,
+            // whatever the form posted.
+            $bot->collections()->sync(KbCollection::where('system_id', $bot->system_id)
+                ->whereIn('id', $request->input('collections', []))->pluck('id')->all());
 
-        // Only connections from this bot's own workspace may be attached,
-        // whatever the form posted. The same rule the collections picker has.
-        $allowedDbs = DbConnection::where('system_id', $bot->system_id)
-            ->whereIn('id', $request->input('db_connections', []))
-            ->pluck('id')
-            ->all();
-        $bot->dbConnections()->sync($allowedDbs);
+            // Only connections from this bot's own workspace may be attached,
+            // whatever the form posted. The same rule the collections picker has.
+            $bot->dbConnections()->sync(DbConnection::where('system_id', $bot->system_id)
+                ->whereIn('id', $request->input('db_connections', []))->pluck('id')->all());
+        }
 
         // A new prompt, model, collection or floor can make every cached
-        // answer wrong, so a save starts the cache afresh.
-        self::forgetCache($bot->id);
+        // answer wrong, so a save starts the cache afresh. Safety changes no
+        // stored answer: the guard runs before the cache is looked in.
+        if ($section !== 'safety') {
+            self::forgetCache($bot->id);
+        }
+
+        if ($section !== null) {
+            return redirect()->route('bots.settings', [$bot->id, $section])
+                ->with('success', self::TAB_NAMES[$section] . ' saved.');
+        }
 
         return redirect()->route('bots.brain', $bot->id)->with('success', 'Behaviour settings saved.');
+    }
+
+    /** The bot's settings tabs after Appearance, by the address each has. */
+    public const TAB_NAMES = [
+        'behaviour' => 'Behaviour',
+        'brain' => 'Brain',
+        'agents' => 'Agents',
+        'files' => 'Files & vision',
+        'safety' => 'Safety',
+    ];
+
+    /**
+     * Which fields each tab's form holds. A field in a list is validated only
+     * when that tab saves; one ending in .* goes with its array.
+     */
+    public const SECTION_FIELDS = [
+        'behaviour' => ['provider_id', 'model_name', 'system_prompt', 'temperature', 'max_tokens', 'top_p',
+            'top_k_sampling', 'presence_penalty', 'frequency_penalty', 'thinking_level',
+            'voice_gender', 'voice_language', 'voice_engine'],
+        'brain' => ['retrieval_mode', 'retrieval_top_k', 'retrieval_candidates', 'retrieval_min_score',
+            'rerank_min_score', 'retrieval_min_similarity', 'retrieval_fallback', 'web_search_max_results',
+            'web_search_country', 'collections', 'db_max_rows', 'db_query_timeout', 'source_order',
+            'db_connections', 'retrieval_keyword_weight', 'query_expansion', 'context_neighbours',
+            'cache_min_similarity', 'cache_ttl_hours', 'web_search_mode', 'web_search_key_id'],
+        'agents' => ['agentic_max_calls', 'tools', 'skills', 'builtin_tools'],
+        'files' => ['files_in_types', 'files_max_mb', 'files_per_message', 'files_daily', 'files_out_formats',
+            'files_out_mode', 'files_retention_days'],
+        'safety' => ['guard_refusal', 'guard_topics'],
+    ];
+
+    /** The tab a save came from, or null for a form that predates the tabs. */
+    private function section(Request $request): ?string
+    {
+        $section = $request->input('section');
+        if ($section === null || $section === '') {
+            return null;
+        }
+        abort_unless(array_key_exists($section, self::TAB_NAMES), 404);
+
+        return $section;
+    }
+
+    /** The rules for one tab's fields, or all of them without a tab. */
+    private static function rulesFor(array $rules, ?string $section): array
+    {
+        if ($section === null) {
+            return $rules;
+        }
+        $fields = self::SECTION_FIELDS[$section];
+
+        return array_filter($rules, fn ($key) => in_array(explode('.', $key)[0], $fields, true), ARRAY_FILTER_USE_KEY);
     }
 
     /**
@@ -307,7 +388,7 @@ class BotBrainController extends Controller
 
         $dropped = self::forgetCache($bot->id);
 
-        return redirect()->route('bots.brain', $bot->id)
+        return redirect()->route('bots.settings', [$bot->id, 'brain'])
             ->with('success', $dropped === 1 ? 'Cleared 1 cached answer.' : "Cleared {$dropped} cached answers.");
     }
 

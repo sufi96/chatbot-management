@@ -62,10 +62,14 @@ class BotBrainTest extends TestCase
 
     public function test_the_brain_page_shows_the_prompt_and_the_collections(): void
     {
-        $this->actingAs($this->editor())
-            ->get(route('bots.brain', $this->bot->id))
+        $editor = $this->editor();
+        $this->actingAs($editor)
+            ->get(route('bots.settings', [$this->bot->id, 'behaviour']))
             ->assertOk()
-            ->assertSee('Original prompt.')
+            ->assertSee('Original prompt.');
+        $this->actingAs($editor)
+            ->get(route('bots.settings', [$this->bot->id, 'brain']))
+            ->assertOk()
             ->assertSee('One')
             ->assertSee('Two');
     }
@@ -131,7 +135,7 @@ class BotBrainTest extends TestCase
         $viewer->systems()->attach('sys_test', ['role' => 'viewer']);
 
         $this->actingAs($viewer)
-            ->get(route('bots.brain', $this->bot->id))
+            ->get(route('bots.settings', [$this->bot->id, 'behaviour']))
             ->assertForbidden();
     }
 
@@ -153,13 +157,13 @@ class BotBrainTest extends TestCase
             ->get(route('bots.edit', $this->bot->id))
             ->assertOk()
             ->assertDontSee('name="system_prompt"', false)
-            ->assertSee('href="' . route('bots.brain', $this->bot->id) . '"', false);
+            ->assertSee('href="' . route('bots.settings', [$this->bot->id, 'behaviour']) . '"', false);
     }
 
     public function test_the_brain_page_links_back_to_the_profile_tab(): void
     {
         $this->actingAs($this->editor())
-            ->get(route('bots.brain', $this->bot->id))
+            ->get(route('bots.settings', [$this->bot->id, 'behaviour']))
             ->assertOk()
             ->assertSee('href="' . route('bots.edit', $this->bot->id) . '"', false)
             ->assertSee('aria-current="page"', false);

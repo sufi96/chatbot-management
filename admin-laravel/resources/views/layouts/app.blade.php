@@ -324,7 +324,7 @@
     @auth
         @php($assistantUser = auth()->user())
         @if(($assistantUser->isSuperAdmin() || \App\Assistant\Lookup::workspaces($assistantUser, 'system_admin')->isNotEmpty())
-            && !request()->routeIs('bots.edit', 'bots.brain'))
+            && !request()->routeIs('bots.edit', 'bots.brain', 'bots.settings'))
             @php($consoleBot = \App\Models\BotProfile::console())
             @if($consoleBot && $consoleBot->is_active && $consoleBot->provider_id)
                 <script

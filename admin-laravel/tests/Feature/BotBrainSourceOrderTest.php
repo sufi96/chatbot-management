@@ -67,7 +67,7 @@ class BotBrainSourceOrderTest extends TestCase
         $bot = $this->bot(['source_order' => 'database,documents,web']);
 
         $html = $this->actingAs($this->userWithRole('editor'))
-            ->get(route('bots.brain', $bot->id))
+            ->get(route('bots.settings', [$bot->id, 'brain']))
             ->assertOk()
             ->assertSee('Answer sources')
             ->getContent();
@@ -89,7 +89,7 @@ class BotBrainSourceOrderTest extends TestCase
         $bot = $this->bot(['db_query_enabled' => false]);
 
         $this->actingAs($this->userWithRole('editor'))
-            ->get(route('bots.brain', $bot->id))
+            ->get(route('bots.settings', [$bot->id, 'brain']))
             ->assertOk()
             ->assertSee('switched off');
     }
@@ -179,7 +179,7 @@ class BotBrainSourceOrderTest extends TestCase
     public function test_the_behaviour_page_has_no_test_widget_button(): void
     {
         $this->actingAs($this->userWithRole('editor'))
-            ->get(route('bots.brain', $this->bot()->id))
+            ->get(route('bots.settings', [$this->bot()->id, 'behaviour']))
             ->assertOk()
             ->assertDontSee('Open test widget');
     }
@@ -191,7 +191,7 @@ class BotBrainSourceOrderTest extends TestCase
         $bot = $this->bot();
         $editor = $this->userWithRole('editor');
 
-        $this->actingAs($editor)->get(route('bots.brain', $bot->id))
+        $this->actingAs($editor)->get(route('bots.settings', [$bot->id, 'behaviour']))
             ->assertOk()->assertSee('Model and endpoint')->assertSee('Office PC');
         $this->actingAs($editor)->get(route('bots.edit', $bot->id))
             ->assertOk()->assertDontSee('Model and endpoint');

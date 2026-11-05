@@ -47,7 +47,7 @@ class BotSaveBarTest extends TestCase
             ->get(route('bots.edit', 'bot_1'))
             ->assertOk()
             ->assertSee('data-track-form="botForm"', false)
-            ->assertSee('Save Profile changes')
+            ->assertSee('Save appearance changes')
             ->assertSee('data-discard', false)
             ->assertSeeInOrder(['id="botFormActions"', 'hidden', 'data-unsaved-text'], false);
     }
@@ -55,7 +55,7 @@ class BotSaveBarTest extends TestCase
     public function test_the_brain_bar_is_tracked_and_hidden_until_a_change(): void
     {
         $this->actingAs($this->editor)
-            ->get(route('bots.brain', 'bot_1'))
+            ->get(route('bots.settings', ['bot_1', 'behaviour']))
             ->assertOk()
             ->assertSee('data-track-form="brainForm"', false)
             ->assertSee('Save behaviour changes')

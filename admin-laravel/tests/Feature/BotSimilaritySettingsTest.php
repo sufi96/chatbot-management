@@ -69,7 +69,7 @@ class BotSimilaritySettingsTest extends TestCase
         $bot = $this->bot();
 
         $this->actingAs($this->editor())
-            ->get(route('bots.brain', $bot->id))
+            ->get(route('bots.settings', [$bot->id, 'brain']))
             ->assertOk()
             ->assertSee('Similarity floor')
             ->assertSee('name="retrieval_min_similarity"', false);

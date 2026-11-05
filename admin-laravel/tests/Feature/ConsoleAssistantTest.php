@@ -68,7 +68,7 @@ class ConsoleAssistantTest extends TestCase
             ->assertOk()
             ->assertSee('The console assistant')
             ->assertDontSee('Delete bot profile');
-        $this->actingAs($this->admin)->get(route('bots.brain', BotProfile::CONSOLE_ID))->assertOk();
+        $this->actingAs($this->admin)->get(route('bots.settings', [BotProfile::CONSOLE_ID, 'behaviour']))->assertOk();
 
         $this->actingAs($this->admin)->put(route('bots.update', BotProfile::CONSOLE_ID), [
             'name' => 'Console Assistant', 'widget_title' => 'Help',
@@ -83,7 +83,7 @@ class ConsoleAssistantTest extends TestCase
     public function test_nobody_else_can_open_it(): void
     {
         $this->actingAs($this->member)->get(route('bots.edit', BotProfile::CONSOLE_ID))->assertForbidden();
-        $this->actingAs($this->member)->get(route('bots.brain', BotProfile::CONSOLE_ID))->assertForbidden();
+        $this->actingAs($this->member)->get(route('bots.settings', [BotProfile::CONSOLE_ID, 'behaviour']))->assertForbidden();
     }
 
     public function test_it_cannot_be_deleted(): void

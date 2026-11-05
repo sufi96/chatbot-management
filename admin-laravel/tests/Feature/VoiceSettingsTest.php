@@ -297,14 +297,14 @@ class VoiceSettingsTest extends TestCase
     {
         $editor = $this->editor();
         $this->actingAs($editor)
-            ->get(route('bots.brain', 'bot_1'))
+            ->get(route('bots.settings', ['bot_1', 'behaviour']))
             ->assertOk()
             ->assertSee('Default settings by Admin (Visitor&#039;s browser)', false)
             ->assertDontSee('<option value="server"', false);
 
         $this->speechServer();
         $this->actingAs($editor)
-            ->get(route('bots.brain', 'bot_1'))
+            ->get(route('bots.settings', ['bot_1', 'behaviour']))
             ->assertSee('<option value="server"', false);
     }
 
@@ -343,30 +343,28 @@ class VoiceSettingsTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_the_left_cards_fold_with_safety_last(): void
+    public function test_voice_sits_on_the_behaviour_tab_with_every_card_open(): void
     {
-        $html = $this->actingAs($this->editor())->get(route('bots.brain', 'bot_1'))->assertOk()->getContent();
+        $html = $this->actingAs($this->editor())->get(route('bots.settings', ['bot_1', 'behaviour']))->assertOk()->getContent();
 
-        $order = ['bcard-system-prompt', 'bcard-generation', 'bcard-sources', 'bcard-web-search',
-            'bcard-cache', 'bcard-voice', 'bcard-safety'];
+        $order = ['bcard-system-prompt', 'bcard-generation', 'bcard-voice'];
         $positions = array_map(fn ($id) => strpos($html, 'id="' . $id . '"'), $order);
         $this->assertNotContains(false, $positions);
         $sorted = $positions;
         sort($sorted);
         $this->assertSame($sorted, $positions, 'Cards are out of order.');
 
-        // Open on a first visit: the prompt and generation only.
-        $this->assertStringContainsString('class="collapse show" id="bcard-system-prompt"', $html);
-        $this->assertStringContainsString('class="collapse show" id="bcard-generation"', $html);
-        $this->assertStringContainsString('class="collapse" id="bcard-sources"', $html);
-        $this->assertStringContainsString('class="collapse" id="bcard-safety"', $html);
+        // A tab has few cards, so a first visit opens them all.
+        foreach ($order as $id) {
+            $this->assertStringContainsString('class="collapse show" id="' . $id . '"', $html);
+        }
         $this->assertStringContainsString('id="voicePreview"', $html);
     }
 
     public function test_the_behaviour_page_offers_voice(): void
     {
         $this->actingAs($this->editor())
-            ->get(route('bots.brain', 'bot_1'))
+            ->get(route('bots.settings', ['bot_1', 'behaviour']))
             ->assertOk()
             ->assertSee('name="voice_output"', false)
             ->assertSee('name="voice_input"', false)

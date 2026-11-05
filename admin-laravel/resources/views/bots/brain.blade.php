@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('page-title', 'Behaviour')
+@section('page-title', $tabName)
 
 @section('content')
 <div style="max-width: 1200px;">
@@ -10,8 +10,14 @@
             <a href="{{ route('bots.edit', $bot->id) }}" class="d-inline-flex align-items-center gap-1.5 mb-2" style="font-size: 0.8125rem;">
                 <i class="bi bi-arrow-left"></i> {{ $bot->name }}
             </a>
-            <h1>Behaviour</h1>
-            <p>What this bot knows and how it decides what to say.</p>
+            <h1>{{ $tabName }}</h1>
+            <p>{{ [
+                'behaviour' => 'How this bot talks: its prompt, model, generation and voice.',
+                'brain' => 'What this bot knows: where its answers come from, in what order, and what it may search.',
+                'agents' => 'What this bot can do: the systems and agents it may call, its built-in tools and its skills.',
+                'files' => 'What this bot can see and hand back: files from visitors, files it makes, and drawn visuals.',
+                'safety' => 'What keeps this bot in line: checks on messages and answers, and what it says when it refuses.',
+            ][$section] }}</p>
         </div>
     </div>
 
@@ -20,13 +26,23 @@
     <form action="{{ route('bots.brain.update', $bot->id) }}" method="POST" id="brainForm">
         @csrf
         @method('PUT')
+        {{-- Which tab this is: the save changes only this tab's settings. --}}
+        <input type="hidden" name="section" value="{{ $section }}">
+        {{-- The Brain tab's source rows. Here, ahead of every one-line php directive in
+             this file: Blade reads a php block after one of those as part of it. --}}
+        @php
+                    $sourceLabels = [
+                        'documents' => ['Knowledge base', 'The written material attached below.', $bot->retrieval_enabled],
+                        'database' => ['Database', 'Live records from a connected database.', $bot->db_query_enabled],
+                        'tools' => ['Connected systems', 'Operations on the workspace\'s connectors, chosen on the Agents tab.', $bot->agentic_enabled],
+                        'web' => ['Web search', 'A public search of the open internet.', $bot->web_search_enabled],
+                    ];
+                @endphp
 
-        {{-- Two columns once there is room for them, split by what they
-             govern: how the bot speaks on the left, where its answers come
-             from on the right. The same grouping as admin settings. --}}
+        {{-- One tab's cards. Two columns on a wide screen where a tab has
+             more than one card; a tab with one card keeps it readable. --}}
         <div class="row g-3">
-
-            {{-- ============ How it speaks and decides ============ --}}
+            @if($section === 'behaviour')
             <div class="col-12 col-xl-6">
 
                 <div class="card mb-3">
@@ -53,15 +69,6 @@
                     </div>
                     </div>
                 </div>
-
-                @php
-                    $sourceLabels = [
-                        'documents' => ['Knowledge base', 'The written material attached below.', $bot->retrieval_enabled],
-                        'database' => ['Database', 'Live records from a connected database.', $bot->db_query_enabled],
-                        'tools' => ['Connected systems', 'Operations on the workspace\'s connectors, when the bot is agentic.', $bot->agentic_enabled],
-                        'web' => ['Web search', 'A public search of the open internet.', $bot->web_search_enabled],
-                    ];
-                @endphp
 
                 <div class="card mb-3">
                     <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
@@ -157,8 +164,123 @@
                     </div>
                 </div>
 
+            </div>
+            <div class="col-12 col-xl-6">
+
+                @include('bots._model-endpoint')
+
                 <div class="card mb-3">
-                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2 collapsed"
+                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
+                            data-bs-toggle="collapse" data-bs-target="#bcard-voice"
+                            aria-expanded="false" aria-controls="bcard-voice">
+                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-soundwave"></i> Voice</span>
+                        <span class="d-flex align-items-center gap-2">
+                            @php($botEngine = old('voice_engine', $bot->voice_engine ?: 'default'))
+                            @php($effectiveEngine = $botEngine === 'default' ? ($speechEngine ?: 'browser') : $botEngine)
+                            <span class="text-muted" style="font-size: 0.75rem;" id="voice_engine_badge">
+                            {{ ['server' => 'Speech server', 'azure' => 'Azure Speech'][$effectiveEngine] ?? "Visitor's browser" }}
+                        </span>
+                            <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
+                        </span>
+                    </button>
+                    <div class="collapse show" id="bcard-voice" data-card-collapse="voice">
+                    <div class="p-3">
+                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
+                            <input class="form-check-input" type="checkbox" role="switch" name="voice_output" value="1"
+                                   id="voice_output" {{ old('voice_output', $bot->voice_output) ? 'checked' : '' }}>
+                            <label class="form-check-label" for="voice_output">Read answers aloud</label>
+                        </div>
+                        <div class="form-text mb-2">A speaker on every answer, and a voice menu in the chat header where visitors pick English or Malay, female or male.</div>
+
+                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1 ms-4">
+                            <input class="form-check-input" type="checkbox" role="switch" name="voice_autoplay" value="1"
+                                   id="voice_autoplay" {{ old('voice_autoplay', $bot->voice_autoplay) ? 'checked' : '' }}>
+                            <label class="form-check-label" for="voice_autoplay">Start with every answer read as it arrives</label>
+                        </div>
+                        <div class="form-text mb-3 ms-4">A visitor can turn it off in the voice menu. Browsers allow sound only after the visitor has clicked, which sending a message is.</div>
+
+                        @php($voiceGender = old('voice_gender', $bot->voice_gender ?: 'female'))
+                        @php($voiceLanguage = old('voice_language', $bot->voice_language ?: 'auto'))
+                        <div class="row g-3 mb-3">
+                            <div class="col-6">
+                                <label for="voice_language" class="form-label">Starting language</label>
+                                <select name="voice_language" id="voice_language" class="form-select form-select-sm">
+                                    <option value="auto" @selected($voiceLanguage === 'auto')>Follow each answer</option>
+                                    <option value="en" @selected($voiceLanguage === 'en')>English</option>
+                                    <option value="ms" @selected($voiceLanguage === 'ms')>Malay</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label for="voice_gender" class="form-label">Starting voice</label>
+                                <select name="voice_gender" id="voice_gender" class="form-select form-select-sm">
+                                    <option value="female" @selected($voiceGender === 'female')>Female</option>
+                                    <option value="male" @selected($voiceGender === 'male')>Male</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="voice_engine" class="form-label">Speaks with</label>
+                            <select name="voice_engine" id="voice_engine" class="form-select form-select-sm"
+                                    data-install-engine="{{ $speechEngine ?: 'browser' }}">
+                                @foreach($voiceEngines as $value => $label)
+                                    <option value="{{ $value }}" @selected($botEngine === $value)>{{ $label }}</option>
+                                @endforeach
+                                @unless(array_key_exists($botEngine, $voiceEngines))
+                                    <option value="{{ $botEngine }}" selected>{{ ucfirst($botEngine) }} (no longer set up)</option>
+                                @endunless
+                            </select>
+                            @error('voice_engine')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                            <div class="form-text" id="voice_engine_hint"></div>
+                        </div>
+
+                        <div class="mb-3" id="voicePreview"
+                             data-engine="{{ $effectiveEngine }}"
+                             data-url="{{ route('bots.brain.voice-preview', $bot->id) }}">
+                            <label for="voice_preview_text" class="form-label">Hear it</label>
+                            <textarea id="voice_preview_text" rows="2" maxlength="300" class="form-control form-control-sm"
+                                      placeholder="Type anything, in English or Malay, and press Play.">Hello! Selamat datang. How can I help you today?</textarea>
+                            <div class="d-flex align-items-center gap-2 mt-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="voice_preview_play">
+                                    <i class="bi bi-play-fill"></i> Play
+                                </button>
+                                <span class="small text-muted" id="voice_preview_status" aria-live="polite">
+                                    Uses the starting language and voice above.
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1 pt-3" style="border-top: 1px solid var(--border);">
+                            <input class="form-check-input" type="checkbox" role="switch" name="voice_input" value="1"
+                                   id="voice_input" {{ old('voice_input', $bot->voice_input) ? 'checked' : '' }}>
+                            <label class="form-check-label" for="voice_input">Let visitors speak their questions</label>
+                        </div>
+                        <div class="form-text">
+                            A microphone beside the message box. What is heard is sent as if it were typed, through the same checks.
+                            {{ $listenEngine === 'server' ? 'Heard by the transcription server.' : "Heard by the visitor's browser; best in Chrome and Edge." }}
+                        </div>
+
+                        <div class="form-text mt-3">
+                            <i class="bi bi-info-circle"></i>
+                            The speech server and Azure, and which voice each of the four is, are set for the whole install
+                            @if(auth()->user()->isSuperAdmin())
+                                under <a href="{{ route('admin.settings', 'voice') }}">Voice in admin settings</a>.
+                            @else
+                                by a super admin in admin settings.
+                            @endif
+                            This bot only chooses which of them speaks.
+                        </div>
+                    </div>
+                    </div>
+                </div>
+
+            </div>
+            @elseif($section === 'brain')
+            <div class="col-12 col-xl-6">
+
+
+                <div class="card mb-3">
+                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
                             data-bs-toggle="collapse" data-bs-target="#bcard-sources"
                             aria-expanded="false" aria-controls="bcard-sources">
                         <span class="d-flex align-items-center gap-1.5"><i class="bi bi-signpost-2"></i> Answer sources</span>
@@ -166,7 +288,7 @@
                             <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
                         </span>
                     </button>
-                    <div class="collapse" id="bcard-sources" data-card-collapse="sources">
+                    <div class="collapse show" id="bcard-sources" data-card-collapse="sources">
                     <div class="p-3">
                         @php($combine = (bool) old('combine_sources', $bot->combine_sources))
                         <div class="form-check mb-1">
@@ -255,7 +377,7 @@
                 </div>
 
                 <div class="card mb-3">
-                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2 collapsed"
+                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
                             data-bs-toggle="collapse" data-bs-target="#bcard-web-search"
                             aria-expanded="false" aria-controls="bcard-web-search">
                         <span class="d-flex align-items-center gap-1.5"><i class="bi bi-globe2"></i> Web search</span>
@@ -263,7 +385,7 @@
                             <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
                         </span>
                     </button>
-                    <div class="collapse" id="bcard-web-search" data-card-collapse="web-search">
+                    <div class="collapse show" id="bcard-web-search" data-card-collapse="web-search">
                     <div class="p-3">
                         <div class="form-check form-switch d-flex align-items-center gap-2 mb-2">
                             <input class="form-check-input" type="checkbox" role="switch" name="web_search_enabled" value="1"
@@ -362,215 +484,7 @@
                 </div>
 
                 <div class="card mb-3">
-                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2 collapsed"
-                            data-bs-toggle="collapse" data-bs-target="#bcard-agentic"
-                            aria-expanded="false" aria-controls="bcard-agentic">
-                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-plug"></i> Agentic</span>
-                        <span class="d-flex align-items-center gap-2">
-                            <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
-                        </span>
-                    </button>
-                    <div class="collapse" id="bcard-agentic" data-card-collapse="agentic">
-                    <div class="p-3">
-                        <input type="hidden" name="agentic_present" value="1">
-                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
-                            <input class="form-check-input" type="checkbox" role="switch" name="agentic_enabled" value="1"
-                                   id="agentic_enabled" @checked(old('agentic_enabled', $bot->agentic_enabled))>
-                            <label class="form-check-label fw-semibold" for="agentic_enabled">Call connected systems</label>
-                        </div>
-                        <div class="form-text text-faint mb-3">
-                            The bot may call the operations ticked below when a question needs them, in the place
-                            "Connected systems" holds in the source order. An operation that changes something waits
-                            for the visitor to press Confirm.
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label" for="agentic_max_calls">Calls per message, at most</label>
-                            <select class="form-select" name="agentic_max_calls" id="agentic_max_calls" style="max-width: 120px;">
-                                @foreach(range(1, 5) as $n)
-                                    <option value="{{ $n }}" @selected((int) old('agentic_max_calls', $bot->agentic_max_calls) === $n)>{{ $n }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="fw-semibold small mb-1">Built into C⁴</div>
-                        @php($builtins = old('builtin_tools', $bot->builtin_tools ?? []))
-                        @foreach(\App\Models\BotProfile::BUILTIN_TOOLS as $name => $about)
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="builtin_tools[]" value="{{ $name }}"
-                                       id="builtin_{{ $name }}" @checked(in_array($name, $builtins, true))>
-                                <label class="form-check-label small" for="builtin_{{ $name }}">
-                                    <span class="figure-mono">{{ $name }}</span> <span class="text-muted">· {{ $about }}</span>
-                                </label>
-                            </div>
-                        @endforeach
-
-                        @error('tools')
-                            <div class="text-danger small mb-2 mt-2">{{ $message }}</div>
-                        @enderror
-
-                        @if($connectors->isEmpty())
-                            <p class="text-muted small mb-0">
-                                No switched-on operations in this workspace yet.
-                                <a href="{{ route('connectors.index') }}">Add a connector</a> and switch on what bots may use.
-                            </p>
-                        @else
-                            @php($ticked = old('tools', $attachedTools))
-                            @foreach($connectors as $connector)
-                                <div class="fw-semibold small mt-2 mb-1">{{ $connector->name }}</div>
-                                @foreach($connector->tools as $tool)
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="tools[]" value="{{ $tool->id }}"
-                                               id="tool_{{ $tool->id }}" @checked(in_array($tool->id, $ticked, true))>
-                                        <label class="form-check-label small" for="tool_{{ $tool->id }}">
-                                            <span class="figure-mono">{{ $tool->name }}</span>
-                                            @if($tool->writes)
-                                                <span class="badge text-bg-warning ms-1">Writes</span>
-                                            @endif
-                                            @if($tool->description)
-                                                <span class="text-muted">· {{ \Illuminate\Support\Str::limit($tool->description, 80) }}</span>
-                                            @endif
-                                        </label>
-                                    </div>
-                                @endforeach
-                            @endforeach
-                        @endif
-
-                        <div class="fw-semibold mt-3 mb-1">Skills</div>
-                        @error('skills')
-                            <div class="text-danger small mb-2">{{ $message }}</div>
-                        @enderror
-                        @if($skills->isEmpty())
-                            <p class="text-muted small mb-0">
-                                No skills in this workspace yet. <a href="{{ route('skills.index') }}">Add or copy one</a>.
-                            </p>
-                        @else
-                            @php($tickedSkills = old('skills', $attachedSkills))
-                            @foreach($skills as $skill)
-                                @php($missing = array_values(array_diff($skill->tools ?? [], $toolNames)))
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="skills[]" value="{{ $skill->id }}"
-                                           id="skill_{{ $skill->id }}" @checked(in_array($skill->id, $tickedSkills, true))>
-                                    <label class="form-check-label small" for="skill_{{ $skill->id }}">
-                                        <span class="figure-mono">{{ $skill->name }}</span>
-                                        <span class="text-muted">· {{ \Illuminate\Support\Str::limit($skill->description, 80) }}</span>
-                                        @if(($skill->mode ?? 'progressive') === 'always')
-                                            <span class="badge text-bg-info ms-1" title="Added to every answer">always on</span>
-                                        @endif
-                                        @if($missing)
-                                            <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1"
-                                                  title="Offered once the bot has these operations">needs: {{ implode(', ', $missing) }}</span>
-                                        @endif
-                                    </label>
-                                </div>
-                            @endforeach
-                        @endif
-                    </div>
-                    </div>
-                </div>
-
-                @php($fs = $bot->fileSettings())
-                <div class="card mb-3">
-                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2 collapsed"
-                            data-bs-toggle="collapse" data-bs-target="#bcard-files"
-                            aria-expanded="false" aria-controls="bcard-files">
-                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-paperclip"></i> Files &amp; visuals</span>
-                        <span class="d-flex align-items-center gap-2">
-                            <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
-                        </span>
-                    </button>
-                    <div class="collapse" id="bcard-files" data-card-collapse="files">
-                    <div class="p-3">
-                        <input type="hidden" name="files_present" value="1">
-
-                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
-                            <input class="form-check-input" type="checkbox" role="switch" name="files_in_enabled" value="1"
-                                   id="files_in_enabled" @checked(old('files_in_enabled', $fs['in_enabled']))>
-                            <label class="form-check-label fw-semibold" for="files_in_enabled">People can attach files</label>
-                        </div>
-                        <div class="form-text text-faint mb-2">
-                            Documents are read as text; pictures are read by the Vision model in admin settings.
-                            Every file's real type is checked, and it is virus-scanned when ClamAV is set up.
-                        </div>
-                        @php($inTypes = old('files_in_types', $fs['in_types']))
-                        <div class="d-flex flex-wrap gap-3 mb-2">
-                            @foreach(\App\Models\BotProfile::FILE_IN_TYPES as $type)
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="files_in_types[]" value="{{ $type }}"
-                                           id="files_in_{{ $type }}" @checked(in_array($type, $inTypes, true))>
-                                    <label class="form-check-label small figure-mono" for="files_in_{{ $type }}">{{ $type }}</label>
-                                </div>
-                            @endforeach
-                        </div>
-                        <div class="row g-2 mb-3">
-                            <div class="col-sm-4">
-                                <label class="form-label small" for="files_max_mb">Largest file (MB)</label>
-                                <input type="number" class="form-control form-control-sm" name="files_max_mb" id="files_max_mb"
-                                       min="1" max="50" value="{{ old('files_max_mb', $fs['max_mb']) }}">
-                            </div>
-                            <div class="col-sm-4">
-                                <label class="form-label small" for="files_per_message">Files per message</label>
-                                <input type="number" class="form-control form-control-sm" name="files_per_message" id="files_per_message"
-                                       min="1" max="10" value="{{ old('files_per_message', $fs['per_message']) }}">
-                            </div>
-                            <div class="col-sm-4">
-                                <label class="form-label small" for="files_daily">Per visitor per day</label>
-                                <input type="number" class="form-control form-control-sm" name="files_daily" id="files_daily"
-                                       min="1" max="500" value="{{ old('files_daily', $fs['daily']) }}">
-                            </div>
-                        </div>
-                        @foreach(['files_in_types.*', 'files_max_mb', 'files_per_message', 'files_daily'] as $field)
-                            @error($field)<div class="text-danger small mb-2">{{ $message }}</div>@enderror
-                        @endforeach
-
-                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
-                            <input class="form-check-input" type="checkbox" role="switch" name="files_out_enabled" value="1"
-                                   id="files_out_enabled" @checked(old('files_out_enabled', $fs['out_enabled']))>
-                            <label class="form-check-label fw-semibold" for="files_out_enabled">The bot can hand back files</label>
-                        </div>
-                        <div class="form-text text-faint mb-2">
-                            Every answer gets a "Download as" row. With Agentic on, the bot can also make a file itself.
-                        </div>
-                        @php($outFormats = old('files_out_formats', $fs['out_formats']))
-                        <div class="d-flex flex-wrap gap-3 mb-2">
-                            @foreach(\App\Models\BotProfile::FILE_OUT_FORMATS as $format)
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="files_out_formats[]" value="{{ $format }}"
-                                           id="files_out_{{ $format }}" @checked(in_array($format, $outFormats, true))>
-                                    <label class="form-check-label small figure-mono" for="files_out_{{ $format }}">{{ $format }}</label>
-                                </div>
-                            @endforeach
-                        </div>
-                        <div class="mb-3" style="max-width: 360px;">
-                            <label class="form-label small" for="files_out_mode">The bot makes a file</label>
-                            <select class="form-select form-select-sm" name="files_out_mode" id="files_out_mode">
-                                <option value="on_request" @selected(old('files_out_mode', $fs['out_mode']) === 'on_request')>Only when asked</option>
-                                <option value="own_initiative" @selected(old('files_out_mode', $fs['out_mode']) === 'own_initiative')>When asked, or when a file would help</option>
-                            </select>
-                        </div>
-                        @error('files_out_formats.*')<div class="text-danger small mb-2">{{ $message }}</div>@enderror
-
-                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
-                            <input class="form-check-input" type="checkbox" role="switch" name="visuals_enabled" value="1"
-                                   id="visuals_enabled" @checked(old('visuals_enabled', $fs['visuals']))>
-                            <label class="form-check-label fw-semibold" for="visuals_enabled">Draw visuals</label>
-                        </div>
-                        <div class="form-text text-faint mb-3">
-                            Charts, flowcharts, timelines and simple drawings, drawn in the chat. No image model needed.
-                        </div>
-
-                        <div style="max-width: 200px;">
-                            <label class="form-label small" for="files_retention_days">Keep files for (days)</label>
-                            <input type="number" class="form-control form-control-sm" name="files_retention_days" id="files_retention_days"
-                                   min="1" max="365" value="{{ old('files_retention_days', $fs['retention_days']) }}">
-                            @error('files_retention_days')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
-                        </div>
-                    </div>
-                    </div>
-                </div>
-
-                <div class="card mb-3">
-                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2 collapsed"
+                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
                             data-bs-toggle="collapse" data-bs-target="#bcard-cache"
                             aria-expanded="false" aria-controls="bcard-cache">
                         <span class="d-flex align-items-center gap-1.5"><i class="bi bi-lightning-charge"></i> Answer cache</span>
@@ -583,7 +497,7 @@
                             <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
                         </span>
                     </button>
-                    <div class="collapse" id="bcard-cache" data-card-collapse="cache">
+                    <div class="collapse show" id="bcard-cache" data-card-collapse="cache">
                     <div class="p-3">
                         <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
                             <input class="form-check-input" type="checkbox" role="switch" name="cache_enabled" value="1"
@@ -628,180 +542,8 @@
                     </div>
                 </div>
 
-                <div class="card mb-3">
-                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2 collapsed"
-                            data-bs-toggle="collapse" data-bs-target="#bcard-voice"
-                            aria-expanded="false" aria-controls="bcard-voice">
-                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-soundwave"></i> Voice</span>
-                        <span class="d-flex align-items-center gap-2">
-                            @php($botEngine = old('voice_engine', $bot->voice_engine ?: 'default'))
-                            @php($effectiveEngine = $botEngine === 'default' ? ($speechEngine ?: 'browser') : $botEngine)
-                            <span class="text-muted" style="font-size: 0.75rem;" id="voice_engine_badge">
-                            {{ ['server' => 'Speech server', 'azure' => 'Azure Speech'][$effectiveEngine] ?? "Visitor's browser" }}
-                        </span>
-                            <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
-                        </span>
-                    </button>
-                    <div class="collapse" id="bcard-voice" data-card-collapse="voice">
-                    <div class="p-3">
-                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
-                            <input class="form-check-input" type="checkbox" role="switch" name="voice_output" value="1"
-                                   id="voice_output" {{ old('voice_output', $bot->voice_output) ? 'checked' : '' }}>
-                            <label class="form-check-label" for="voice_output">Read answers aloud</label>
-                        </div>
-                        <div class="form-text mb-2">A speaker on every answer, and a voice menu in the chat header where visitors pick English or Malay, female or male.</div>
-
-                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1 ms-4">
-                            <input class="form-check-input" type="checkbox" role="switch" name="voice_autoplay" value="1"
-                                   id="voice_autoplay" {{ old('voice_autoplay', $bot->voice_autoplay) ? 'checked' : '' }}>
-                            <label class="form-check-label" for="voice_autoplay">Start with every answer read as it arrives</label>
-                        </div>
-                        <div class="form-text mb-3 ms-4">A visitor can turn it off in the voice menu. Browsers allow sound only after the visitor has clicked, which sending a message is.</div>
-
-                        @php($voiceGender = old('voice_gender', $bot->voice_gender ?: 'female'))
-                        @php($voiceLanguage = old('voice_language', $bot->voice_language ?: 'auto'))
-                        <div class="row g-3 mb-3">
-                            <div class="col-6">
-                                <label for="voice_language" class="form-label">Starting language</label>
-                                <select name="voice_language" id="voice_language" class="form-select form-select-sm">
-                                    <option value="auto" @selected($voiceLanguage === 'auto')>Follow each answer</option>
-                                    <option value="en" @selected($voiceLanguage === 'en')>English</option>
-                                    <option value="ms" @selected($voiceLanguage === 'ms')>Malay</option>
-                                </select>
-                            </div>
-                            <div class="col-6">
-                                <label for="voice_gender" class="form-label">Starting voice</label>
-                                <select name="voice_gender" id="voice_gender" class="form-select form-select-sm">
-                                    <option value="female" @selected($voiceGender === 'female')>Female</option>
-                                    <option value="male" @selected($voiceGender === 'male')>Male</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label for="voice_engine" class="form-label">Speaks with</label>
-                            <select name="voice_engine" id="voice_engine" class="form-select form-select-sm"
-                                    data-install-engine="{{ $speechEngine ?: 'browser' }}">
-                                @foreach($voiceEngines as $value => $label)
-                                    <option value="{{ $value }}" @selected($botEngine === $value)>{{ $label }}</option>
-                                @endforeach
-                                @unless(array_key_exists($botEngine, $voiceEngines))
-                                    <option value="{{ $botEngine }}" selected>{{ ucfirst($botEngine) }} (no longer set up)</option>
-                                @endunless
-                            </select>
-                            @error('voice_engine')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
-                            <div class="form-text" id="voice_engine_hint"></div>
-                        </div>
-
-                        <div class="mb-3" id="voicePreview"
-                             data-engine="{{ $effectiveEngine }}"
-                             data-url="{{ route('bots.brain.voice-preview', $bot->id) }}">
-                            <label for="voice_preview_text" class="form-label">Hear it</label>
-                            <textarea id="voice_preview_text" rows="2" maxlength="300" class="form-control form-control-sm"
-                                      placeholder="Type anything, in English or Malay, and press Play.">Hello! Selamat datang. How can I help you today?</textarea>
-                            <div class="d-flex align-items-center gap-2 mt-2">
-                                <button type="button" class="btn btn-sm btn-outline-secondary" id="voice_preview_play">
-                                    <i class="bi bi-play-fill"></i> Play
-                                </button>
-                                <span class="small text-muted" id="voice_preview_status" aria-live="polite">
-                                    Uses the starting language and voice above.
-                                </span>
-                            </div>
-                        </div>
-
-                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1 pt-3" style="border-top: 1px solid var(--border);">
-                            <input class="form-check-input" type="checkbox" role="switch" name="voice_input" value="1"
-                                   id="voice_input" {{ old('voice_input', $bot->voice_input) ? 'checked' : '' }}>
-                            <label class="form-check-label" for="voice_input">Let visitors speak their questions</label>
-                        </div>
-                        <div class="form-text">
-                            A microphone beside the message box. What is heard is sent as if it were typed, through the same checks.
-                            {{ $listenEngine === 'server' ? 'Heard by the transcription server.' : "Heard by the visitor's browser; best in Chrome and Edge." }}
-                        </div>
-
-                        <div class="form-text mt-3">
-                            <i class="bi bi-info-circle"></i>
-                            The speech server and Azure, and which voice each of the four is, are set for the whole install
-                            @if(auth()->user()->isSuperAdmin())
-                                under <a href="{{ route('admin.settings', 'voice') }}">Voice in admin settings</a>.
-                            @else
-                                by a super admin in admin settings.
-                            @endif
-                            This bot only chooses which of them speaks.
-                        </div>
-                    </div>
-                    </div>
-                </div>
-
-                <div class="card mb-3">
-                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2 collapsed"
-                            data-bs-toggle="collapse" data-bs-target="#bcard-safety"
-                            aria-expanded="false" aria-controls="bcard-safety">
-                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-shield-check"></i> Safety</span>
-                        <span class="d-flex align-items-center gap-2">
-                            <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
-                        </span>
-                    </button>
-                    <div class="collapse" id="bcard-safety" data-card-collapse="safety">
-                    <div class="p-3">
-                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
-                            <input class="form-check-input" type="checkbox" role="switch" name="guard_enabled" value="1"
-                                   id="guard_enabled" {{ old('guard_enabled', $bot->guard_enabled) ? 'checked' : '' }}>
-                            <label class="form-check-label" for="guard_enabled">Check messages and answers for harm</label>
-                        </div>
-                        <div class="form-text mb-3">
-                            A harmful message gets the refusal below and is never searched or answered.
-                            A harmful answer has already been sent, so it is flagged in conversations for you to review.
-                            If the check cannot run, messages go through as usual. The model is set in admin settings.
-                        </div>
-
-                        <label for="guard_refusal" class="form-label">Refusal</label>
-                        <textarea name="guard_refusal" id="guard_refusal" rows="2" maxlength="500" class="form-control"
-                                  placeholder="Sorry, I can't help with that. Is there something else I can help you with?">{{ old('guard_refusal', $bot->guard_refusal) }}</textarea>
-                        <div class="form-text">Leave blank for the default. Write it in the language your visitors use.</div>
-
-                        <label for="guard_topics" class="form-label mt-3">Also block these topics</label>
-                        <textarea name="guard_topics" id="guard_topics" rows="3" maxlength="2000"
-                                  class="form-control @error('guard_topics') is-invalid @enderror"
-                                  placeholder="competitor pricing&#10;legal advice">{{ old('guard_topics', $bot->guard_topics) }}</textarea>
-                        @error('guard_topics')<div class="invalid-feedback">{{ $message }}</div>@enderror
-                        <div class="form-text">
-                            One per line, in plain words. Added to the categories and topics every guarded bot blocks,
-                            which are set
-                            @if(auth()->user()->isSuperAdmin())
-                                under <a href="{{ route('admin.settings', 'guard') }}">Guard in admin settings</a>.
-                            @else
-                                by a super admin in admin settings.
-                            @endif
-                        </div>
-
-                        {{-- Tells the controller this form has the switches below,
-                             so an unticked one can mean off. --}}
-                        <input type="hidden" name="upgrades_present" value="1">
-
-                        <div class="mt-3 pt-3" style="border-top: 1px solid var(--border);">
-                            <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
-                                <input class="form-check-input" type="checkbox" role="switch" name="grounding_check" value="1"
-                                       id="grounding_check" {{ old('grounding_check', $bot->grounding_check) ? 'checked' : '' }}>
-                                <label class="form-check-label" for="grounding_check">Check answers against their sources</label>
-                            </div>
-                            <div class="form-text">
-                                After an answer drawn from the knowledge base, database or web has been sent, a model
-                                reads it beside the material it was given. A claim the material does not support, such
-                                as an invented price, is flagged in conversations, and the answer is never cached.
-                                Adds one model call per sourced answer; the model is Answer check in admin settings.
-                            </div>
-                        </div>
-                    </div>
-                    </div>
-                </div>
-
             </div>
-
-            {{-- ============ Where its answers come from ============ --}}
             <div class="col-12 col-xl-6">
-
-                @include('bots._model-endpoint')
 
                 {{-- Documents and databases are the two stores this bot reads,
                      so they are one card with a tab each rather than two boxes
@@ -809,7 +551,7 @@
                      keeps its own card below. --}}
                 <div class="card mb-3">
                     <div class="card-header p-0">
-                        <div class="px-3 pt-2 d-flex align-items-center gap-1.5"><i class="bi bi-diagram-2"></i> Brain</div>
+                        <div class="px-3 pt-2 d-flex align-items-center gap-1.5"><i class="bi bi-database"></i> Knowledge base &amp; databases</div>
                         <ul class="nav nav-tabs px-2 pt-2" role="tablist" style="border-bottom: 0;">
                             <li class="nav-item" role="presentation">
                                 <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pane-kb"
@@ -1046,13 +788,297 @@
                 </div>
 
             </div>
+            @elseif($section === 'agents')
+            <div class="col-12 col-xl-9">
+
+                <div class="card mb-3">
+                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
+                            data-bs-toggle="collapse" data-bs-target="#bcard-agentic"
+                            aria-expanded="false" aria-controls="bcard-agentic">
+                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-plug"></i> Agentic</span>
+                        <span class="d-flex align-items-center gap-2">
+                            <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
+                        </span>
+                    </button>
+                    <div class="collapse show" id="bcard-agentic" data-card-collapse="agentic">
+                    <div class="p-3">
+                        <input type="hidden" name="agentic_present" value="1">
+                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
+                            <input class="form-check-input" type="checkbox" role="switch" name="agentic_enabled" value="1"
+                                   id="agentic_enabled" @checked(old('agentic_enabled', $bot->agentic_enabled))>
+                            <label class="form-check-label fw-semibold" for="agentic_enabled">Call connected systems</label>
+                        </div>
+                        <div class="form-text text-faint mb-3">
+                            The bot may call the operations ticked below when a question needs them, in the place
+                            "Connected systems" holds in the source order. An operation that changes something waits
+                            for the visitor to press Confirm.
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="agentic_max_calls">Calls per message, at most</label>
+                            <select class="form-select" name="agentic_max_calls" id="agentic_max_calls" style="max-width: 120px;">
+                                @foreach(range(1, 5) as $n)
+                                    <option value="{{ $n }}" @selected((int) old('agentic_max_calls', $bot->agentic_max_calls) === $n)>{{ $n }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="fw-semibold small mb-1">Built into C⁴</div>
+                        @php($builtins = old('builtin_tools', $bot->builtin_tools ?? []))
+                        @foreach(\App\Models\BotProfile::BUILTIN_TOOLS as $name => $about)
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="builtin_tools[]" value="{{ $name }}"
+                                       id="builtin_{{ $name }}" @checked(in_array($name, $builtins, true))>
+                                <label class="form-check-label small" for="builtin_{{ $name }}">
+                                    <span class="figure-mono">{{ $name }}</span> <span class="text-muted">· {{ $about }}</span>
+                                </label>
+                            </div>
+                        @endforeach
+
+                        @error('tools')
+                            <div class="text-danger small mb-2 mt-2">{{ $message }}</div>
+                        @enderror
+
+                        @if($connectors->isEmpty())
+                            <p class="text-muted small mb-0">
+                                No switched-on operations in this workspace yet.
+                                <a href="{{ route('connectors.index') }}">Add a connector</a> and switch on what bots may use.
+                            </p>
+                        @else
+                            @php($ticked = old('tools', $attachedTools))
+                            @foreach($connectors as $connector)
+                                <div class="fw-semibold small mt-2 mb-1">{{ $connector->name }}</div>
+                                @foreach($connector->tools as $tool)
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="tools[]" value="{{ $tool->id }}"
+                                               id="tool_{{ $tool->id }}" @checked(in_array($tool->id, $ticked, true))>
+                                        <label class="form-check-label small" for="tool_{{ $tool->id }}">
+                                            <span class="figure-mono">{{ $tool->name }}</span>
+                                            @if($tool->writes)
+                                                <span class="badge text-bg-warning ms-1">Writes</span>
+                                            @endif
+                                            @if($tool->description)
+                                                <span class="text-muted">· {{ \Illuminate\Support\Str::limit($tool->description, 80) }}</span>
+                                            @endif
+                                        </label>
+                                    </div>
+                                @endforeach
+                            @endforeach
+                        @endif
+
+                        <div class="fw-semibold mt-3 mb-1">Skills</div>
+                        @error('skills')
+                            <div class="text-danger small mb-2">{{ $message }}</div>
+                        @enderror
+                        @if($skills->isEmpty())
+                            <p class="text-muted small mb-0">
+                                No skills in this workspace yet. <a href="{{ route('skills.index') }}">Add or copy one</a>.
+                            </p>
+                        @else
+                            @php($tickedSkills = old('skills', $attachedSkills))
+                            @foreach($skills as $skill)
+                                @php($missing = array_values(array_diff($skill->tools ?? [], $toolNames)))
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="skills[]" value="{{ $skill->id }}"
+                                           id="skill_{{ $skill->id }}" @checked(in_array($skill->id, $tickedSkills, true))>
+                                    <label class="form-check-label small" for="skill_{{ $skill->id }}">
+                                        <span class="figure-mono">{{ $skill->name }}</span>
+                                        <span class="text-muted">· {{ \Illuminate\Support\Str::limit($skill->description, 80) }}</span>
+                                        @if(($skill->mode ?? 'progressive') === 'always')
+                                            <span class="badge text-bg-info ms-1" title="Added to every answer">always on</span>
+                                        @endif
+                                        @if($missing)
+                                            <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1"
+                                                  title="Offered once the bot has these operations">needs: {{ implode(', ', $missing) }}</span>
+                                        @endif
+                                    </label>
+                                </div>
+                            @endforeach
+                        @endif
+                    </div>
+                    </div>
+                </div>
+
+            </div>
+            @elseif($section === 'files')
+            <div class="col-12 col-xl-9">
+
+                @php($fs = $bot->fileSettings())
+                <div class="card mb-3">
+                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
+                            data-bs-toggle="collapse" data-bs-target="#bcard-files"
+                            aria-expanded="false" aria-controls="bcard-files">
+                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-eye"></i> Files &amp; vision</span>
+                        <span class="d-flex align-items-center gap-2">
+                            <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
+                        </span>
+                    </button>
+                    <div class="collapse show" id="bcard-files" data-card-collapse="files">
+                    <div class="p-3">
+                        <input type="hidden" name="files_present" value="1">
+
+                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
+                            <input class="form-check-input" type="checkbox" role="switch" name="files_in_enabled" value="1"
+                                   id="files_in_enabled" @checked(old('files_in_enabled', $fs['in_enabled']))>
+                            <label class="form-check-label fw-semibold" for="files_in_enabled">People can attach files</label>
+                        </div>
+                        <div class="form-text text-faint mb-2">
+                            Documents are read as text; pictures are read by the Vision model in admin settings.
+                            Every file's real type is checked, and it is virus-scanned when ClamAV is set up.
+                        </div>
+                        @php($inTypes = old('files_in_types', $fs['in_types']))
+                        <div class="d-flex flex-wrap gap-3 mb-2">
+                            @foreach(\App\Models\BotProfile::FILE_IN_TYPES as $type)
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="files_in_types[]" value="{{ $type }}"
+                                           id="files_in_{{ $type }}" @checked(in_array($type, $inTypes, true))>
+                                    <label class="form-check-label small figure-mono" for="files_in_{{ $type }}">{{ $type }}</label>
+                                </div>
+                            @endforeach
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-sm-4">
+                                <label class="form-label small" for="files_max_mb">Largest file (MB)</label>
+                                <input type="number" class="form-control form-control-sm" name="files_max_mb" id="files_max_mb"
+                                       min="1" max="50" value="{{ old('files_max_mb', $fs['max_mb']) }}">
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label small" for="files_per_message">Files per message</label>
+                                <input type="number" class="form-control form-control-sm" name="files_per_message" id="files_per_message"
+                                       min="1" max="10" value="{{ old('files_per_message', $fs['per_message']) }}">
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label small" for="files_daily">Per visitor per day</label>
+                                <input type="number" class="form-control form-control-sm" name="files_daily" id="files_daily"
+                                       min="1" max="500" value="{{ old('files_daily', $fs['daily']) }}">
+                            </div>
+                        </div>
+                        @foreach(['files_in_types.*', 'files_max_mb', 'files_per_message', 'files_daily'] as $field)
+                            @error($field)<div class="text-danger small mb-2">{{ $message }}</div>@enderror
+                        @endforeach
+
+                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
+                            <input class="form-check-input" type="checkbox" role="switch" name="files_out_enabled" value="1"
+                                   id="files_out_enabled" @checked(old('files_out_enabled', $fs['out_enabled']))>
+                            <label class="form-check-label fw-semibold" for="files_out_enabled">The bot can hand back files</label>
+                        </div>
+                        <div class="form-text text-faint mb-2">
+                            Every answer gets a "Download as" row. With Agentic on, the bot can also make a file itself.
+                        </div>
+                        @php($outFormats = old('files_out_formats', $fs['out_formats']))
+                        <div class="d-flex flex-wrap gap-3 mb-2">
+                            @foreach(\App\Models\BotProfile::FILE_OUT_FORMATS as $format)
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="files_out_formats[]" value="{{ $format }}"
+                                           id="files_out_{{ $format }}" @checked(in_array($format, $outFormats, true))>
+                                    <label class="form-check-label small figure-mono" for="files_out_{{ $format }}">{{ $format }}</label>
+                                </div>
+                            @endforeach
+                        </div>
+                        <div class="mb-3" style="max-width: 360px;">
+                            <label class="form-label small" for="files_out_mode">The bot makes a file</label>
+                            <select class="form-select form-select-sm" name="files_out_mode" id="files_out_mode">
+                                <option value="on_request" @selected(old('files_out_mode', $fs['out_mode']) === 'on_request')>Only when asked</option>
+                                <option value="own_initiative" @selected(old('files_out_mode', $fs['out_mode']) === 'own_initiative')>When asked, or when a file would help</option>
+                            </select>
+                        </div>
+                        @error('files_out_formats.*')<div class="text-danger small mb-2">{{ $message }}</div>@enderror
+
+                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
+                            <input class="form-check-input" type="checkbox" role="switch" name="visuals_enabled" value="1"
+                                   id="visuals_enabled" @checked(old('visuals_enabled', $fs['visuals']))>
+                            <label class="form-check-label fw-semibold" for="visuals_enabled">Draw visuals</label>
+                        </div>
+                        <div class="form-text text-faint mb-3">
+                            Charts, flowcharts, timelines and simple drawings, drawn in the chat. No image model needed.
+                        </div>
+
+                        <div style="max-width: 200px;">
+                            <label class="form-label small" for="files_retention_days">Keep files for (days)</label>
+                            <input type="number" class="form-control form-control-sm" name="files_retention_days" id="files_retention_days"
+                                   min="1" max="365" value="{{ old('files_retention_days', $fs['retention_days']) }}">
+                            @error('files_retention_days')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
+                    </div>
+                </div>
+
+            </div>
+            @elseif($section === 'safety')
+            <div class="col-12 col-xl-9">
+
+                <div class="card mb-3">
+                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
+                            data-bs-toggle="collapse" data-bs-target="#bcard-safety"
+                            aria-expanded="false" aria-controls="bcard-safety">
+                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-shield-check"></i> Safety</span>
+                        <span class="d-flex align-items-center gap-2">
+                            <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
+                        </span>
+                    </button>
+                    <div class="collapse show" id="bcard-safety" data-card-collapse="safety">
+                    <div class="p-3">
+                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
+                            <input class="form-check-input" type="checkbox" role="switch" name="guard_enabled" value="1"
+                                   id="guard_enabled" {{ old('guard_enabled', $bot->guard_enabled) ? 'checked' : '' }}>
+                            <label class="form-check-label" for="guard_enabled">Check messages and answers for harm</label>
+                        </div>
+                        <div class="form-text mb-3">
+                            A harmful message gets the refusal below and is never searched or answered.
+                            A harmful answer has already been sent, so it is flagged in conversations for you to review.
+                            If the check cannot run, messages go through as usual. The model is set in admin settings.
+                        </div>
+
+                        <label for="guard_refusal" class="form-label">Refusal</label>
+                        <textarea name="guard_refusal" id="guard_refusal" rows="2" maxlength="500" class="form-control"
+                                  placeholder="Sorry, I can't help with that. Is there something else I can help you with?">{{ old('guard_refusal', $bot->guard_refusal) }}</textarea>
+                        <div class="form-text">Leave blank for the default. Write it in the language your visitors use.</div>
+
+                        <label for="guard_topics" class="form-label mt-3">Also block these topics</label>
+                        <textarea name="guard_topics" id="guard_topics" rows="3" maxlength="2000"
+                                  class="form-control @error('guard_topics') is-invalid @enderror"
+                                  placeholder="competitor pricing&#10;legal advice">{{ old('guard_topics', $bot->guard_topics) }}</textarea>
+                        @error('guard_topics')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">
+                            One per line, in plain words. Added to the categories and topics every guarded bot blocks,
+                            which are set
+                            @if(auth()->user()->isSuperAdmin())
+                                under <a href="{{ route('admin.settings', 'guard') }}">Guard in admin settings</a>.
+                            @else
+                                by a super admin in admin settings.
+                            @endif
+                        </div>
+
+                        {{-- Tells the controller this form has the switches below,
+                             so an unticked one can mean off. --}}
+                        <input type="hidden" name="upgrades_present" value="1">
+
+                        <div class="mt-3 pt-3" style="border-top: 1px solid var(--border);">
+                            <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
+                                <input class="form-check-input" type="checkbox" role="switch" name="grounding_check" value="1"
+                                       id="grounding_check" {{ old('grounding_check', $bot->grounding_check) ? 'checked' : '' }}>
+                                <label class="form-check-label" for="grounding_check">Check answers against their sources</label>
+                            </div>
+                            <div class="form-text">
+                                After an answer drawn from the knowledge base, database or web has been sent, a model
+                                reads it beside the material it was given. A claim the material does not support, such
+                                as an invented price, is flagged in conversations, and the answer is never cached.
+                                Adds one model call per sourced answer; the model is Answer check in admin settings.
+                            </div>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+
+            </div>
+            @endif
         </div>
 
-        {{-- Same bar as the Profile tab so the two tabs read as one bot's
-             settings; only the button names which half it saves. --}}
+        {{-- Same bar on every tab so they read as one bot's settings; only
+             the button names which tab it saves. --}}
         @include('bots._save-bar', [
             'formId' => 'brainForm',
-            'saveLabel' => 'Save behaviour changes',
+            'saveLabel' => 'Save ' . strtolower($tabName) . ' changes',
             'track' => true,
         ])
     </form>
@@ -1351,12 +1377,11 @@
 
 @push('scripts')
 <script>
-    // The left column's cards fold to their headers. A first visit opens the
-    // prompt and generation only; after that, each card stays as this person
-    // left it. A card holding a field that failed validation always opens,
+    // Each tab's cards fold to their headers. A first visit opens them all;
+    // after that, each card stays as this person left it. A card holding a field that failed validation always opens,
     // so an error is never hidden in a closed card.
     (function () {
-        var key = 'behaviour-cards';
+        var key = 'bot-tab-cards';
         var saved = {};
         try { saved = JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch (e) { saved = {}; }
 

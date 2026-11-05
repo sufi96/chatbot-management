@@ -74,7 +74,7 @@ class BotGuardSettingsTest extends TestCase
         $bot = $this->bot();
 
         $this->actingAs($this->editor())
-            ->get(route('bots.brain', $bot->id))
+            ->get(route('bots.settings', [$bot->id, 'safety']))
             ->assertOk()
             ->assertSee('Check messages and answers for harm')
             ->assertSee('name="guard_refusal"', false);
@@ -140,7 +140,7 @@ class BotGuardSettingsTest extends TestCase
         $editor = $this->editor();
 
         $this->actingAs($editor)
-            ->get(route('bots.brain', $bot->id))
+            ->get(route('bots.settings', [$bot->id, 'safety']))
             ->assertSee('name="guard_topics"', false);
 
         $this->actingAs($editor)

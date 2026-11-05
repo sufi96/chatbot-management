@@ -115,12 +115,12 @@ class FileSettingsTest extends TestCase
         $this->assertTrue(BotProfile::find('bot_1')->file_settings['in_enabled']);
     }
 
-    public function test_the_behaviour_page_shows_the_card(): void
+    public function test_the_files_and_vision_tab_shows_the_card(): void
     {
         $this->actingAs($this->member('editor'))
-            ->get(route('bots.brain', 'bot_1'))
+            ->get(route('bots.settings', ['bot_1', 'files']))
             ->assertOk()
-            ->assertSee('Files &amp; visuals', false)
+            ->assertSee('Files &amp; vision', false)
             ->assertSee('name="files_in_enabled"', false);
     }
 

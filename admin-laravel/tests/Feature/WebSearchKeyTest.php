@@ -166,7 +166,7 @@ class WebSearchKeyTest extends TestCase
         $this->key();
 
         $this->actingAs($this->member('system_admin'))
-            ->get(route('bots.brain', 'bot_1'))
+            ->get(route('bots.settings', ['bot_1', 'brain']))
             ->assertOk()
             ->assertSee('name="web_search_mode"', false)
             ->assertSee('Key wsk_1')
@@ -208,7 +208,7 @@ class WebSearchKeyTest extends TestCase
         $this->assertSame('none', AppSetting::get('web_search_lending'));
 
         $this->actingAs($this->member('editor'))
-            ->get(route('bots.brain', 'bot_1'))
+            ->get(route('bots.settings', ['bot_1', 'brain']))
             ->assertSee('The platform does not lend its search to workspaces');
     }
 }

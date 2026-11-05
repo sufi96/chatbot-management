@@ -61,7 +61,7 @@ class BotDatabaseSettingsTest extends TestCase
         $this->connection();
 
         $this->actingAs($editor)
-            ->get(route('bots.brain', 'bot_1'))
+            ->get(route('bots.settings', ['bot_1', 'brain']))
             ->assertOk()
             ->assertSee('Shop');
     }

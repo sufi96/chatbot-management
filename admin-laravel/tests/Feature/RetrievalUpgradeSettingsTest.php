@@ -95,15 +95,19 @@ class RetrievalUpgradeSettingsTest extends TestCase
     {
         $this->bot();
 
-        $this->actingAs($this->editor())
-            ->get(route('bots.brain', 'bot_1'))
+        $editor = $this->editor();
+        $this->actingAs($editor)
+            ->get(route('bots.settings', ['bot_1', 'brain']))
             ->assertOk()
             ->assertSee('name="retrieval_keyword_weight"', false)
             ->assertSee('name="query_expansion"', false)
             ->assertSee('name="context_neighbours"', false)
             ->assertSee('name="cache_enabled"', false)
-            ->assertSee('name="grounding_check"', false)
             ->assertSee('Answer cache');
+        // The check of answers against their sources is a safety setting.
+        $this->actingAs($editor)
+            ->get(route('bots.settings', ['bot_1', 'safety']))
+            ->assertSee('name="grounding_check"', false);
     }
 
     public function test_an_editor_turns_them_on(): void
@@ -173,12 +177,12 @@ class RetrievalUpgradeSettingsTest extends TestCase
         $this->cachedAnswer('c2');
         $editor = $this->editor();
 
-        $this->actingAs($editor)->get(route('bots.brain', 'bot_1'))
+        $this->actingAs($editor)->get(route('bots.settings', ['bot_1', 'brain']))
             ->assertSee('2 kept · 6 reused')
             ->assertSee('Clear cached answers');
 
         $this->actingAs($editor)->delete(route('bots.brain.cache.clear', 'bot_1'))
-            ->assertRedirect(route('bots.brain', 'bot_1'))
+            ->assertRedirect(route('bots.settings', ['bot_1', 'brain']))
             ->assertSessionHas('success', 'Cleared 2 cached answers.');
 
         $this->assertSame(0, AnswerCache::count());

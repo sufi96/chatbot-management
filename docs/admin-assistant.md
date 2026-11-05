@@ -70,7 +70,7 @@ Nothing in the engine changes for a new tool. The engine asks the portal for the
 - `bots.index`: `list_bots`
 - `bots.edit`: `get_bot`
 - `bots.update`: `set_bot_active`
-- `bots.brain`: `get_bot`
+- `bots.settings`: `get_bot`
 - `bots.brain.update`: `set_bot_sources`, `set_file_settings`
 - `bots.brain.cache.clear`: `clear_answer_cache`
 - `admin.bots.index`: `list_bots`
@@ -147,7 +147,7 @@ Nothing in the engine changes for a new tool. The engine asks the portal for the
 - `admin.settings.reindex`: re-index every knowledge base
 - `admin.settings.speech-server`: check the speech server
 
-### Never (27 routes)
+### Never (28 routes)
 
 - `login`: signing in is the person's own act
 - `logout`: signing out is the person's own act
@@ -160,6 +160,7 @@ Nothing in the engine changes for a new tool. The engine asks the portal for the
 - `users.store`: carries a secret, and a chat transcript is no place for one (a password)
 - `users.update`: carries a secret, and a chat transcript is no place for one (a password)
 - `bots.create`: a page or form, not an action; its data is read by the tools named on its actions
+- `bots.brain`: the old Behaviour address, now a redirect to its tab
 - `bots.brain.voice-preview`: plays audio in the page
 - `kb.playground`: a page or form, not an action; its data is read by the tools named on its actions
 - `connectors.store`: carries a secret, and a chat transcript is no place for one (connector auth)

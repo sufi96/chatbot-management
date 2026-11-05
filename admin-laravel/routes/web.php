@@ -54,7 +54,10 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     Route::get('/bots/{id}/edit', [BotProfileController::class, 'edit'])->name('bots.edit');
     Route::put('/bots/{id}', [BotProfileController::class, 'update'])->name('bots.update');
     Route::delete('/bots/{id}', [BotProfileController::class, 'destroy'])->name('bots.destroy');
-    Route::get('/bots/{id}/brain', [BotBrainController::class, 'edit'])->name('bots.brain');
+    // A bot's settings after Appearance, a tab each: see BotBrainController::TAB_NAMES.
+    Route::get('/bots/{id}/settings/{section}', [BotBrainController::class, 'edit'])
+        ->whereIn('section', array_keys(BotBrainController::TAB_NAMES))->name('bots.settings');
+    Route::get('/bots/{id}/brain', [BotBrainController::class, 'behaviour'])->name('bots.brain');
     Route::put('/bots/{id}/brain', [BotBrainController::class, 'update'])->name('bots.brain.update');
     Route::delete('/bots/{id}/brain/cache', [BotBrainController::class, 'clearCache'])->name('bots.brain.cache.clear');
     Route::post('/bots/{id}/brain/voice-preview', [BotBrainController::class, 'voicePreview'])->name('bots.brain.voice-preview');

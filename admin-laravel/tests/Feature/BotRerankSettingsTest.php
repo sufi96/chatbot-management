@@ -66,7 +66,7 @@ class BotRerankSettingsTest extends TestCase
         $bot = $this->bot();
 
         $this->actingAs($this->editor())
-            ->get(route('bots.brain', $bot->id))
+            ->get(route('bots.settings', [$bot->id, 'brain']))
             ->assertOk()
             ->assertSee('Reranker floor')
             ->assertSee('name="rerank_min_score"', false);

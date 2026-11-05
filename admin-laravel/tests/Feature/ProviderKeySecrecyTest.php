@@ -61,7 +61,7 @@ class ProviderKeySecrecyTest extends TestCase
     public function test_the_bot_form_never_contains_the_key(): void
     {
         $this->actingAs($this->member('editor'))
-            ->get(route('bots.brain', 'bot_1'))
+            ->get(route('bots.settings', ['bot_1', 'behaviour']))
             ->assertOk()
             ->assertDontSee(self::KEY)
             ->assertDontSee('data-api-key', false)

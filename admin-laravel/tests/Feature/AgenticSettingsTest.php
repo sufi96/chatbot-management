@@ -147,7 +147,8 @@ class AgenticSettingsTest extends TestCase
         $this->actingAs($this->member('editor'))
             ->get(route('bots.settings', ['bot_1', 'connectors']))
             ->assertOk()
-            ->assertSee('data-card-collapse="agentic"', false)
+            ->assertSee('id="bcard-agentic"', false)
+            ->assertSee('name="agentic_enabled" value="0"', false)
             ->assertSee('getApplication');
     }
 

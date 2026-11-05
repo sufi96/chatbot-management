@@ -15,40 +15,46 @@
 @endphp
 
 <div class="col-12">
-    <div class="card mb-3 connectors-master">
-        <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
-                data-bs-toggle="collapse" data-bs-target="#bcard-agentic"
-                aria-expanded="true" aria-controls="bcard-agentic">
-            <span class="d-flex align-items-center gap-1.5"><i class="bi bi-plug"></i> Connectors</span>
-            <span class="d-flex align-items-center gap-2">
-                <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
-            </span>
-        </button>
-        <div class="collapse show" id="bcard-agentic" data-card-collapse="agentic">
-        <div class="p-3 d-flex flex-wrap align-items-start justify-content-between gap-3">
+    {{-- The master switch, styled like the bot's power card so it reads as
+         the one control that decides whether anything below is used. It is
+         a form field like the rest and applies on save. --}}
+    @php($agenticOn = (bool) old('agentic_enabled', $bot->agentic_enabled))
+    <div class="card mb-3 bot-power connectors-master {{ $agenticOn ? 'is-on' : 'is-off' }}" id="bcard-agentic">
+        <div class="p-3 d-flex flex-wrap align-items-center justify-content-between gap-3">
             <input type="hidden" name="agentic_present" value="1">
-            <div style="max-width: 640px;">
-                <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
-                    <input class="form-check-input" type="checkbox" role="switch" name="agentic_enabled" value="1"
-                           id="agentic_enabled" style="width: 2.6em; height: 1.4em;"
-                           @checked(old('agentic_enabled', $bot->agentic_enabled))>
-                    <label class="form-check-label fw-semibold" for="agentic_enabled" style="font-size: 0.95rem;">Use connectors</label>
-                </div>
-                <div class="form-text text-faint mb-0">
-                    The master switch for this tab. On: when a question needs it, the bot may call what is ticked
-                    below, in the place "Connected systems" holds in the Brain tab's source order. A call that
-                    changes something waits for the visitor to press Confirm. Off: nothing below is called.
+            <div class="d-flex align-items-center gap-2" style="max-width: 640px;">
+                <span class="bot-power-icon"><i class="bi bi-plug"></i></span>
+                <div>
+                    <div class="bot-power-title">
+                        Connectors are <span data-power-label>{{ $agenticOn ? 'On' : 'Off' }}</span>
+                    </div>
+                    <div class="bot-power-desc">
+                        The master switch for this tab. On: when a question needs it, the bot may call what is ticked
+                        below, in the place "Connected systems" holds in the Brain tab's source order. A call that
+                        changes something waits for the visitor to press Confirm. Off: nothing below is called.
+                    </div>
                 </div>
             </div>
-            <div>
-                <label class="form-label small mb-1" for="agentic_max_calls">Calls per message, at most</label>
-                <select class="form-select form-select-sm" name="agentic_max_calls" id="agentic_max_calls" style="width: 110px;">
-                    @foreach(range(1, 5) as $n)
-                        <option value="{{ $n }}" @selected((int) old('agentic_max_calls', $bot->agentic_max_calls) === $n)>{{ $n }}</option>
-                    @endforeach
-                </select>
+            <div class="d-flex flex-wrap align-items-end gap-3">
+                <div>
+                    <label class="form-label small mb-1" for="agentic_max_calls">Calls per message, at most</label>
+                    <select class="form-select form-select-sm" name="agentic_max_calls" id="agentic_max_calls" style="width: 110px;">
+                        @foreach(range(1, 5) as $n)
+                            <option value="{{ $n }}" @selected((int) old('agentic_max_calls', $bot->agentic_max_calls) === $n)>{{ $n }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div class="bot-power-toggle" role="radiogroup" aria-label="Use connectors">
+                    <input type="radio" class="visually-hidden" name="agentic_enabled" value="1" id="agentic_enabled" @checked($agenticOn)>
+                    <label for="agentic_enabled" class="bot-power-opt is-opt-on">
+                        <i class="bi bi-plug-fill"></i> On
+                    </label>
+                    <input type="radio" class="visually-hidden" name="agentic_enabled" value="0" id="agentic_disabled" @checked(! $agenticOn)>
+                    <label for="agentic_disabled" class="bot-power-opt is-opt-idle">
+                        <i class="bi bi-pause-fill"></i> Off
+                    </label>
+                </div>
             </div>
-        </div>
         </div>
     </div>
     @error('tools')
@@ -60,8 +66,8 @@
 </div>
 
 @foreach([
-    $connectorCard('mcp', 'bi-hdd-network', 'MCP servers', 'Tools on MCP servers, including other agents. Add a server on the Connectors page.'),
-    $connectorCard('api', 'bi-code-slash', 'APIs', 'Operations imported from REST APIs. Add an API on the Connectors page.'),
+    $connectorCard('mcp', 'bi-hdd-network', 'MCP servers', 'Tools on MCP servers, including other agents.'),
+    $connectorCard('api', 'bi-code-slash', 'APIs', 'Operations imported from REST APIs.'),
 ] as $card)
     @php($group = $card['id'] === 'mcp' ? $mcpServers : $apis)
     <div class="col-12 col-xl-6 connectors-part">
@@ -77,7 +83,12 @@
             </button>
             <div class="collapse show" id="bcard-{{ $card['id'] }}" data-card-collapse="{{ $card['id'] }}">
             <div class="p-3">
-                <div class="form-text text-faint mt-0 mb-2">{{ $card['hint'] }}</div>
+                <div class="d-flex align-items-baseline justify-content-between gap-2 mb-2">
+                    <div class="form-text text-faint m-0">{{ $card['hint'] }}</div>
+                    <a href="{{ route('connectors.index') }}" class="card-manage-link">
+                        Manage {{ $card['id'] === 'mcp' ? 'servers' : 'APIs' }} <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
                 @forelse($group as $connector)
                     <div class="fw-semibold small mt-2 mb-1">{{ $connector->name }}</div>
                     @foreach($connector->tools as $tool)
@@ -147,7 +158,12 @@
         </button>
         <div class="collapse show" id="bcard-skills" data-card-collapse="skills">
         <div class="p-3">
-            <div class="form-text text-faint mt-0 mb-2">Step-by-step instructions the bot follows when a request matches one.</div>
+            <div class="d-flex align-items-baseline justify-content-between gap-2 mb-2">
+                <div class="form-text text-faint m-0">Step-by-step instructions the bot follows when a request matches one.</div>
+                <a href="{{ route('skills.index') }}" class="card-manage-link">
+                    Manage skills <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
             @forelse($skills as $skill)
                 @php($missing = array_values(array_diff($skill->tools ?? [], $toolNames)))
                 <div class="form-check">
@@ -180,14 +196,21 @@
     // With the master switch off, the cards below fade: still editable, so a
     // bot's tools can be prepared before it is let use them, but plainly idle.
     (function () {
-        var master = document.getElementById('agentic_enabled');
-        if (!master) { return; }
+        var card = document.getElementById('bcard-agentic');
+        var on = document.getElementById('agentic_enabled');
+        if (!card || !on) { return; }
+        var label = card.querySelector('[data-power-label]');
         function paint() {
+            card.classList.toggle('is-on', on.checked);
+            card.classList.toggle('is-off', !on.checked);
+            label.textContent = on.checked ? 'On' : 'Off';
             document.querySelectorAll('.connectors-part').forEach(function (part) {
-                part.style.opacity = master.checked ? '' : '0.55';
+                part.style.opacity = on.checked ? '' : '0.55';
             });
         }
-        master.addEventListener('change', paint);
+        card.querySelectorAll('input[name="agentic_enabled"]').forEach(function (radio) {
+            radio.addEventListener('change', paint);
+        });
         paint();
     })();
 </script>

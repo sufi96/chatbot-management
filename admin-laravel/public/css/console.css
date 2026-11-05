@@ -1003,7 +1003,8 @@ textarea.form-control { line-height: 1.55; }
 }
 
 /* Bot editor layout. One column on narrow screens (power, identity,
-   settings, preview); two on wide ones. Power and identity share the first
+   settings, preview, delete); two on wide ones, with delete under the
+   settings. Power and identity share the first
    row so they come out the same height; below them the preview's own
    wrapper is the only thing that sticks. */
 .bot-editor {
@@ -1017,6 +1018,7 @@ textarea.form-control { line-height: 1.55; }
   .bot-editor-power    { grid-column: 2; grid-row: 1; }
   .bot-editor-main     { grid-column: 1; grid-row: 2; }
   .bot-editor-output   { grid-column: 2; grid-row: 2; }
+  .bot-editor-danger   { grid-column: 1; grid-row: 3; }
 }
 @media (min-width: 1400px) {
   .bot-editor { grid-template-columns: minmax(0, 8fr) minmax(0, 4fr); }
@@ -1111,6 +1113,18 @@ textarea.form-control { line-height: 1.55; }
 input:checked + .bot-power-opt.is-opt-on  { color: #fff; background: var(--ok); }
 input:checked + .bot-power-opt.is-opt-off { color: #fff; background: var(--danger); }
 input:focus-visible + .bot-power-opt { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Connectors tab master switch. The power card's look, but off is a
+   resting state here, not an alarm, so it goes grey rather than red. */
+.connectors-master .bot-power-toggle { width: auto; min-width: 220px; }
+.connectors-master.is-off { border-color: var(--border-strong); background: var(--surface); }
+.connectors-master.is-off .bot-power-icon { color: var(--text-muted); background: var(--surface-2); }
+.connectors-master.is-off .bot-power-title [data-power-label] { color: var(--text-muted); }
+input:checked + .bot-power-opt.is-opt-idle { color: #fff; background: var(--text-muted); }
+
+/* "Manage" shortcut beside a card's hint, out to the page that holds it. */
+.card-manage-link { font-size: 0.78125rem; font-weight: 600; white-space: nowrap; text-decoration: none; }
+.card-manage-link:hover { text-decoration: underline; }
 
 /* Sticky action bar for long settings forms. Follows the column down so
    Save is always reachable without scrolling to the bottom. Only as wide as

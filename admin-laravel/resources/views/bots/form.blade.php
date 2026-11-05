@@ -315,7 +315,6 @@
                             </div>
                         </div>
                     </div>
-                    </div>
                 </section>
                 <section class="appearance-section">
                     <div class="appearance-head">
@@ -448,34 +447,6 @@
                     </div>
                 </div>
             </div>
-
-            {{-- Danger zone. Forms cannot nest, so the button submits
-                 botDeleteForm, which sits after this form, through form="". --}}
-            @if($isEdit && !$bot->is_platform && auth()->user()->canManageSystem($bot->system_id, 'system_admin'))
-                @php
-                    // The bot is only marked, whoever deletes it. A workspace is
-                    // told it is gone for good, and for its members it is: the bot,
-                    // its conversations and its analytics all disappear. A super
-                    // admin still sees all three and can restore it from Bots.
-                    $deleteWarning = auth()->user()->isSuperAdmin()
-                        ? 'It stops answering on every site and leaves this workspace. Its conversations and analytics are kept, and you can restore it from Bots under Admin settings.'
-                        : 'It stops answering on every site and is deleted permanently, with its conversations and analytics. This cannot be undone.';
-                @endphp
-                <div class="card mb-3 danger-zone">
-                    <div class="card-header">Delete bot profile</div>
-                    <div class="p-3 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3">
-                        <p class="mb-0" style="font-size: 0.8125rem;">{{ $deleteWarning }}</p>
-                        <button type="submit" form="botDeleteForm" class="btn btn-danger flex-shrink-0"
-                                data-confirm="{{ auth()->user()->isSuperAdmin() ? 'Delete this bot profile?' : 'Delete this bot profile permanently?' }}"
-                                data-confirm-subject="{{ $bot->name }}"
-                                data-confirm-message="{{ $deleteWarning }}"
-                                data-confirm-type="{{ $bot->name }}"
-                                data-confirm-label="{{ auth()->user()->isSuperAdmin() ? 'Delete bot' : 'Delete permanently' }}">
-                            <i class="bi bi-trash3"></i> Delete bot profile
-                        </button>
-                    </div>
-                </div>
-            @endif
 
             {{-- Sticky action bar: the form is long, so Save follows you down it.
                  A new bot has nothing to compare against, so its bar always shows. --}}
@@ -785,6 +756,36 @@
                 </div>
             </div>
         </div>
+
+
+        {{-- Danger zone, its own grid item so it comes after the preview on
+             narrow screens. Forms cannot nest, so the button submits
+             botDeleteForm, which sits after this form, through form="". --}}
+        @if($isEdit && !$bot->is_platform && auth()->user()->canManageSystem($bot->system_id, 'system_admin'))
+            @php
+                // The bot is only marked, whoever deletes it. A workspace is
+                // told it is gone for good, and for its members it is: the bot,
+                // its conversations and its analytics all disappear. A super
+                // admin still sees all three and can restore it from Bots.
+                $deleteWarning = auth()->user()->isSuperAdmin()
+                    ? 'It stops answering on every site and leaves this workspace. Its conversations and analytics are kept, and you can restore it from Bots under Admin settings.'
+                    : 'It stops answering on every site and is deleted permanently, with its conversations and analytics. This cannot be undone.';
+            @endphp
+            <div class="card mb-0 danger-zone bot-editor-danger">
+                <div class="card-header">Delete bot profile</div>
+                <div class="p-3 d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-3">
+                    <p class="mb-0" style="font-size: 0.8125rem;">{{ $deleteWarning }}</p>
+                    <button type="submit" form="botDeleteForm" class="btn btn-danger flex-shrink-0"
+                            data-confirm="{{ auth()->user()->isSuperAdmin() ? 'Delete this bot profile?' : 'Delete this bot profile permanently?' }}"
+                            data-confirm-subject="{{ $bot->name }}"
+                            data-confirm-message="{{ $deleteWarning }}"
+                            data-confirm-type="{{ $bot->name }}"
+                            data-confirm-label="{{ auth()->user()->isSuperAdmin() ? 'Delete bot' : 'Delete permanently' }}">
+                        <i class="bi bi-trash3"></i> Delete bot profile
+                    </button>
+                </div>
+            </div>
+        @endif
 
     </div>
 </form>

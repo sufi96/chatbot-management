@@ -958,15 +958,41 @@
                             <label class="form-check-label" for="guard_enabled">Check messages and answers for harm</label>
                         </div>
                         <div class="form-text mb-3">
-                            A harmful message gets the refusal below and is never searched or answered.
-                            A harmful answer has already been sent, so it is flagged in conversations for you to review.
-                            If the check cannot run, messages go through as usual. The model is set in admin settings.
+                            One switch, two checks: each visitor message on the way in, and each answer on the way out.
+                            If a check cannot run, messages go through as usual. The model is set in admin settings.
                         </div>
 
-                        <label for="guard_refusal" class="form-label">Refusal</label>
-                        <textarea name="guard_refusal" id="guard_refusal" rows="2" maxlength="500" class="form-control"
-                                  placeholder="Sorry, I can't help with that. Is there something else I can help you with?">{{ old('guard_refusal', $bot->guard_refusal) }}</textarea>
-                        <div class="form-text">Leave blank for the default. Write it in the language your visitors use.</div>
+                        {{-- The two sides act differently, so each says what it does:
+                             input can still stop a message, output can only flag one. --}}
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <div class="h-100 p-3" style="border: 1px solid var(--border); border-radius: var(--r-md);">
+                                    <div class="d-flex align-items-center gap-1.5 fw-semibold mb-1" style="font-size: 0.875rem;">
+                                        <i class="bi bi-box-arrow-in-right"></i> Input: visitor messages
+                                    </div>
+                                    <div class="form-text mt-0 mb-2">
+                                        Checked before anything is searched. A harmful message gets the refusal below
+                                        and is never searched or answered.
+                                    </div>
+                                    <label for="guard_refusal" class="form-label">Refusal</label>
+                                    <textarea name="guard_refusal" id="guard_refusal" rows="2" maxlength="500" class="form-control"
+                                              placeholder="Sorry, I can't help with that. Is there something else I can help you with?">{{ old('guard_refusal', $bot->guard_refusal) }}</textarea>
+                                    <div class="form-text">Leave blank for the default. Write it in the language your visitors use.</div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <div class="h-100 p-3" style="border: 1px solid var(--border); border-radius: var(--r-md);">
+                                    <div class="d-flex align-items-center gap-1.5 fw-semibold mb-1" style="font-size: 0.875rem;">
+                                        <i class="bi bi-box-arrow-right"></i> Output: bot answers
+                                    </div>
+                                    <div class="form-text mt-0 mb-2">
+                                        Checked once the answer has been sent, so visitors never wait for it. What was
+                                        sent cannot be unsent: a harmful answer is flagged in
+                                        <a href="{{ route('logs.index') }}">Conversations</a> for you to review.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
                         <label for="guard_topics" class="form-label mt-3">Also block these topics</label>
                         <textarea name="guard_topics" id="guard_topics" rows="3" maxlength="2000"
@@ -974,7 +1000,7 @@
                                   placeholder="competitor pricing&#10;legal advice">{{ old('guard_topics', $bot->guard_topics) }}</textarea>
                         @error('guard_topics')<div class="invalid-feedback">{{ $message }}</div>@enderror
                         <div class="form-text">
-                            One per line, in plain words. Added to the categories and topics every guarded bot blocks,
+                            One per line, in plain words. Applies to both sides. Added to the categories and topics every guarded bot blocks,
                             which are set
                             @if(auth()->user()->isSuperAdmin())
                                 under <a href="{{ route('admin.settings', 'guard') }}">Guard in admin settings</a>.

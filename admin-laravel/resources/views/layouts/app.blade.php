@@ -317,17 +317,21 @@
         ])
     @endauth
 
-    {{-- The console assistant, for super admins only, once it has a provider
-         and is switched on. Not on a bot's own settings pages, which already
-         carry that bot's widget for testing. --}}
+    {{-- The console assistant, for super admins and workspace admins, once it
+         has a provider and is switched on. Not on a bot's own settings pages,
+         which already carry that bot's widget for testing. The console token
+         tells the assistant's tools whose rights to use; see app/Assistant. --}}
     @auth
-        @if(auth()->user()->isSuperAdmin() && !request()->routeIs('bots.edit', 'bots.brain'))
+        @php($assistantUser = auth()->user())
+        @if(($assistantUser->isSuperAdmin() || \App\Assistant\Lookup::workspaces($assistantUser, 'system_admin')->isNotEmpty())
+            && !request()->routeIs('bots.edit', 'bots.brain'))
             @php($consoleBot = \App\Models\BotProfile::console())
             @if($consoleBot && $consoleBot->is_active && $consoleBot->provider_id)
                 <script
                     src="{{ env('API_HOST_URL', 'http://localhost:8000') }}/widget.js"
                     data-bot-id="{{ $consoleBot->id }}"
                     data-api-host="{{ env('API_HOST_URL', 'http://localhost:8000') }}"
+                    data-console-token="{{ \App\Assistant\ConsoleToken::issue($assistantUser) }}"
                     defer>
                 </script>
             @endif

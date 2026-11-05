@@ -98,18 +98,42 @@ class ConsoleAssistantTest extends TestCase
         $this->assertFalse(BotProfile::withTrashed()->find(BotProfile::CONSOLE_ID)->trashed());
     }
 
-    public function test_its_widget_is_on_console_pages_for_super_admins_only_once_switched_on(): void
+    public function test_its_widget_is_on_console_pages_for_admins_once_switched_on(): void
     {
         $widget = 'data-bot-id="' . BotProfile::CONSOLE_ID . '"';
+        $editor = User::create(['name' => 'Ed', 'email' => 'ed@example.test', 'password' => 'password', 'global_role' => 'user']);
+        $editor->systems()->attach('sys_1', ['role' => 'editor']);
 
         $this->actingAs($this->admin)->get(route('dashboard'))->assertDontSee($widget, false);
 
         $this->switchOn();
 
         $this->actingAs($this->admin)->get(route('dashboard'))->assertSee($widget, false);
-        $this->actingAs($this->member)->get(route('dashboard'))->assertDontSee($widget, false);
+        // A workspace admin gets it too; the tools hold them to their own workspaces.
+        $this->actingAs($this->member)->get(route('dashboard'))->assertSee($widget, false);
+        $this->actingAs($editor)->get(route('dashboard'))->assertDontSee($widget, false);
         // A bot's own settings page carries that bot's widget instead.
         $this->actingAs($this->admin)->get(route('bots.edit', 'bot_shop'))->assertDontSee($widget, false);
+    }
+
+    public function test_its_widget_carries_a_token_naming_who_is_signed_in(): void
+    {
+        $this->switchOn();
+
+        $html = $this->actingAs($this->member)->get(route('dashboard'))->getContent();
+
+        $this->assertMatchesRegularExpression('/data-console-token="([^"]+)"/', $html);
+        preg_match('/data-console-token="([^"]+)"/', $html, $match);
+        $this->assertSame($this->member->id, \App\Assistant\ConsoleToken::resolve(html_entity_decode($match[1]))->id);
+    }
+
+    public function test_it_is_made_able_to_use_its_tools(): void
+    {
+        $bot = BotProfile::console();
+
+        $this->assertTrue((bool) $bot->agentic_enabled);
+        $this->assertStringStartsWith('tools', $bot->source_order);
+        $this->assertStringContainsString('Confirm', $bot->system_prompt);
     }
 
     public function test_it_stays_out_of_workspace_pages(): void

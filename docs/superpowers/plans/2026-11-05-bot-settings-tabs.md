@@ -2,7 +2,7 @@
 
 > Executed inline (superpowers:executing-plans), TDD per task.
 
-**Goal:** Split the packed Behaviour page into tabs: **Appearance · Behaviour · Brain · Agents · Files & vision · Safety**. Each tab is its own page with its own Save.
+**Goal:** Split the packed Behaviour page into tabs: **Appearance · Behaviour · Brain · Connectors · Files & vision · Safety**. Each tab is its own page with its own Save.
 
 **Decided with the user (2026-11-05):**
 - The tab names above, in this order.
@@ -23,10 +23,10 @@
 | Tab | Route | Cards |
 |---|---|---|
 | Appearance | `bots.edit` (unchanged) | the Profile page's cards; the tab label changes |
-| Behaviour | `bots.settings` / behaviour | System prompt, Model & endpoint, Generation, Voice |
+| Behaviour | `bots.settings` / behaviour | System prompt and Voice; Model & endpoint and Generation |
 | Brain | `bots.settings` / brain | Answer sources (with follow-ups), Knowledge base & databases, Web search, Answer cache |
-| Agents | `bots.settings` / agents | Agentic (tools, built-ins, skills, call limit) |
-| Files & vision | `bots.settings` / files | Files & visuals, renamed Files & vision |
+| Connectors | `bots.settings` / connectors | Master switch and call limit; MCP servers; APIs; built-in tools; skills (renamed from Agents, whose address redirects) |
+| Files & vision | `bots.settings` / files | Files in, Files out, Visuals, Keeping files |
 | Safety | `bots.settings` / safety | Guard, refusal, topics, the check that answers match their sources |
 
 - `bots.brain` (GET) redirects to the Behaviour tab, so old links keep working.

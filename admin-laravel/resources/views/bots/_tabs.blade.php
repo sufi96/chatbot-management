@@ -6,7 +6,7 @@
     $botTabs = [
         ['route' => 'bots.edit', 'params' => [$bot->id], 'icon' => 'bi-palette', 'label' => 'Appearance', 'active' => request()->routeIs('bots.edit')],
     ];
-    foreach (['behaviour' => 'bi-chat-left-text', 'brain' => 'bi-diagram-2', 'agents' => 'bi-plug',
+    foreach (['behaviour' => 'bi-chat-left-text', 'brain' => 'bi-diagram-2', 'connectors' => 'bi-plug',
               'files' => 'bi-eye', 'safety' => 'bi-shield-check'] as $tab => $icon) {
         $botTabs[] = ['route' => 'bots.settings', 'params' => [$bot->id, $tab], 'icon' => $icon,
             'label' => \App\Http\Controllers\BotBrainController::TAB_NAMES[$tab],

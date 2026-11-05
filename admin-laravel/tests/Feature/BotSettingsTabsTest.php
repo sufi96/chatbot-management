@@ -98,7 +98,7 @@ class BotSettingsTabsTest extends TestCase
 
     public function test_agents_files_and_safety_each_save_their_own(): void
     {
-        $this->save('agents', ['agentic_max_calls' => 2])->assertSessionHasNoErrors();
+        $this->save('connectors', ['agentic_max_calls' => 2])->assertSessionHasNoErrors();
         $this->assertFalse((bool) $this->bot()->agentic_enabled);
         $this->assertSame(2, (int) $this->bot()->agentic_max_calls);
         $this->assertSame([], $this->bot()->builtin_tools);
@@ -140,8 +140,8 @@ class BotSettingsTabsTest extends TestCase
         $cards = [
             'behaviour' => ['bcard-system-prompt', 'bcard-generation', 'bcard-voice'],
             'brain' => ['bcard-sources', 'bcard-web-search', 'bcard-cache', 'pane-kb'],
-            'agents' => ['bcard-agentic'],
-            'files' => ['bcard-files'],
+            'connectors' => ['bcard-agentic', 'bcard-mcp', 'bcard-api', 'bcard-builtins', 'bcard-skills'],
+            'files' => ['bcard-files-in', 'bcard-files-out', 'bcard-visuals'],
             'safety' => ['bcard-safety'],
         ];
 
@@ -163,7 +163,7 @@ class BotSettingsTabsTest extends TestCase
         $html = $this->actingAs($this->editor)->get(route('bots.settings', ['bot_1', 'brain']))->getContent();
 
         preg_match_all('/class="nav-link[^"]*"[^>]*>\s*<i class="bi [^"]+"><\/i>\s*([^<]+?)\s*</', $html, $m);
-        $this->assertSame(['Appearance', 'Behaviour', 'Brain', 'Agents', 'Files &amp; vision', 'Safety'], array_slice($m[1], 0, 6));
+        $this->assertSame(['Appearance', 'Behaviour', 'Brain', 'Connectors', 'Files &amp; vision', 'Safety'], array_slice($m[1], 0, 6));
         $this->actingAs($this->editor)->get(route('bots.edit', 'bot_1'))->assertSee('Appearance');
     }
 
@@ -172,6 +172,9 @@ class BotSettingsTabsTest extends TestCase
         $this->actingAs($this->editor)->get(route('bots.brain', 'bot_1'))
             ->assertRedirect(route('bots.settings', ['bot_1', 'behaviour']));
         $this->actingAs($this->editor)->get('/bots/bot_1/settings/nonsense')->assertNotFound();
+        // The tab was called Agents for a day; its address still works.
+        $this->actingAs($this->editor)->get('/bots/bot_1/settings/agents')
+            ->assertRedirect(route('bots.settings', ['bot_1', 'connectors']));
     }
 
     public function test_a_viewer_cannot_open_a_tab(): void
@@ -180,5 +183,72 @@ class BotSettingsTabsTest extends TestCase
         $viewer->systems()->attach('sys_test', ['role' => 'viewer']);
 
         $this->actingAs($viewer)->get(route('bots.settings', ['bot_1', 'safety']))->assertForbidden();
+    }
+
+    public function test_behaviour_puts_voice_beside_the_prompt_and_generation_beside_the_model(): void
+    {
+        $html = $this->actingAs($this->editor)->get(route('bots.settings', ['bot_1', 'behaviour']))->getContent();
+        $at = fn ($id) => strpos($html, 'id="' . $id . '"');
+
+        // Left column: prompt then voice. Right column: model then generation.
+        $this->assertTrue($at('bcard-system-prompt') < $at('bcard-voice'));
+        $this->assertTrue($at('bcard-voice') < $at('bcard-generation'));
+    }
+
+    public function test_connectors_groups_mcp_servers_apart_from_apis(): void
+    {
+        \App\Models\Connector::create(['id' => 'con_mcp', 'system_id' => 'sys_test', 'name' => 'Aduan MCP', 'type' => 'mcp', 'base_url' => 'http://m']);
+        \App\Models\Connector::create(['id' => 'con_api', 'system_id' => 'sys_test', 'name' => 'Aduan REST', 'type' => 'rest', 'base_url' => 'http://r']);
+        \App\Models\ConnectorTool::create(['id' => 'ct_m', 'connector_id' => 'con_mcp', 'name' => 'mcp_lookup', 'method' => 'POST', 'path' => 'lookup', 'enabled' => true]);
+        \App\Models\ConnectorTool::create(['id' => 'ct_r', 'connector_id' => 'con_api', 'name' => 'rest_lookup', 'method' => 'GET', 'path' => '/x', 'enabled' => true]);
+
+        $html = $this->actingAs($this->editor)->get(route('bots.settings', ['bot_1', 'connectors']))->getContent();
+        $mcp = strpos($html, 'id="bcard-mcp"');
+        $api = strpos($html, 'id="bcard-api"');
+        $builtins = strpos($html, 'id="bcard-builtins"');
+
+        $this->assertTrue($mcp < strpos($html, 'mcp_lookup') && strpos($html, 'mcp_lookup') < $api);
+        $this->assertTrue($api < strpos($html, 'rest_lookup') && strpos($html, 'rest_lookup') < $builtins);
+        $this->assertStringContainsString('Use connectors', $html);
+    }
+
+    public function test_files_in_and_out_are_their_own_cards_and_safety_is_a_guardrail(): void
+    {
+        $files = $this->actingAs($this->editor)->get(route('bots.settings', ['bot_1', 'files']))->getContent();
+        $this->assertTrue(strpos($files, 'id="bcard-files-in"') < strpos($files, 'name="files_in_enabled"'));
+        $this->assertTrue(strpos($files, 'name="files_in_enabled"') < strpos($files, 'id="bcard-files-out"'));
+        $this->assertTrue(strpos($files, 'id="bcard-files-out"') < strpos($files, 'name="files_out_enabled"'));
+
+        $this->actingAs($this->editor)->get(route('bots.settings', ['bot_1', 'safety']))
+            ->assertSee('<i class="bi bi-shield-check"></i> Guardrail', false);
+    }
+
+    public function test_the_launcher_shapes_are_compact_tiles(): void
+    {
+        $html = $this->actingAs($this->editor)->get(route('bots.edit', 'bot_1'))->getContent();
+
+        $this->assertStringContainsString('class="shape-grid"', $html);
+        foreach (['circle', 'circle_transparent', 'transparent_fit', 'cutout_circle', 'cutout_ring'] as $shape) {
+            $this->assertStringContainsString('id="launcher_shape_' . $shape . '"', $html);
+        }
+        // One line says what the chosen shape does, instead of a line under each.
+        $this->assertStringContainsString('id="launcher_shape_hint"', $html);
+    }
+
+    public function test_header_and_conversation_mirror_each_other_row_by_row(): void
+    {
+        $html = $this->actingAs($this->editor)->get(route('bots.edit', 'bot_1'))->getContent();
+        $at = fn ($needle) => strpos($html, $needle);
+
+        // Colour, picture, opacity: each row holds the header's then the conversation's.
+        $rows = ['id="widget_header_color"', 'id="widget_background_color"',
+            'id="header_image_input"', 'id="background_image_input"',
+            'name="header_image_opacity"', 'name="background_image_opacity"'];
+        $positions = array_map($at, $rows);
+        $this->assertNotContains(false, $positions);
+        $sorted = $positions;
+        sort($sorted);
+        $this->assertSame($sorted, $positions);
+        $this->assertSame(3, substr_count($html, 'class="row g-3 appearance-mirror"'));
     }
 }

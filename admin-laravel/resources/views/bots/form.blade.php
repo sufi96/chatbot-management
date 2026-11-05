@@ -149,6 +149,7 @@
                     .appearance-part { font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
                         letter-spacing: 0.04em; margin-bottom: 0.5rem; }
                     .appearance-split { border-top: 1px dashed var(--border); margin-top: 1rem; padding-top: 1rem; }
+                    .appearance-mirror + .appearance-mirror { margin-top: 1.25rem; }
                 </style>
                 <div class="tab-content">
                     <div class="tab-pane fade show active" id="appearanceOnline" role="tabpanel" aria-labelledby="appearanceOnlineTab" tabindex="0">
@@ -204,9 +205,14 @@
                         <div class="form-text">Used for the launcher, the visitor's message bubbles and the send button, and for the header unless you give it a colour of its own.</div>
                     </div>
 
-                    <div class="row g-3 appearance-split">
+                    {{-- Header and conversation side by side, one row per kind of setting,
+                         so each colour, picture and opacity sits beside its twin. --}}
+                    <div class="row g-3 appearance-split d-none d-md-flex mb-0">
+                        <div class="col-md-6"><div class="appearance-part text-muted">Header</div></div>
+                        <div class="col-md-6"><div class="appearance-part text-muted">Conversation</div></div>
+                    </div>
+                    <div class="row g-3 appearance-mirror">
                         <div class="col-12 col-md-6">
-                            <div class="appearance-part text-muted">Header</div>
                             @php $headerMatches = old('header_color_matches', $bot->widget_header_color ? null : '1'); @endphp
                             <label for="widget_header_color" class="form-label">Header colour</label>
                             <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -232,8 +238,24 @@
                                 @endforeach
                             </div>
                             <div class="form-text">The title and the clear, expand and close icons. Pick a dark one for a light header picture.</div>
-
-                            <label for="header_image_input" class="form-label mt-3 mb-1">Header picture <span class="text-muted fw-normal">(optional)</span></label>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label for="widget_background_color" class="form-label">Background colour</label>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <input type="color" name="widget_background_color" id="widget_background_color" class="form-control"
+                                       value="{{ old('widget_background_color', $bot->widget_background_color ?: '#FAFAFA') }}"
+                                       oninput="updateLivePreview()" style="width: 52px;">
+                                @foreach(['#FAFAFA' => 'Paper', '#FFFFFF' => 'White', '#F1F5F9' => 'Mist', '#FDF6E3' => 'Cream', '#ECFDF5' => 'Mint'] as $hex => $label)
+                                    <button type="button" onclick="setBackgroundColor('{{ $hex }}')" title="{{ $label }}"
+                                            style="width: 26px; height: 26px; padding: 0; background-color: {{ $hex }};
+                                                   border: 1px solid var(--border-strong); border-radius: var(--r-sm);"></button>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3 appearance-mirror">
+                        <div class="col-12 col-md-6">
+                            <label for="header_image_input" class="form-label mb-1">Header picture <span class="text-muted fw-normal">(optional)</span></label>
                             <input type="file" name="header_image" id="header_image_input" accept=".png,.jpg,.jpeg,.gif,.svg,.webp"
                                    class="form-control form-control-sm"
                                    onchange="previewBackground(this, 'header')">
@@ -249,31 +271,9 @@
                                 </div>
                             @endif
                             <div class="form-text">Behind the title, shown as uploaded. If the text is hard to read, lower the opacity or change the text colour.</div>
-                            <div class="mt-3">
-                                @include('bots._slider', [
-                                    'name' => 'header_image_opacity', 'label' => 'Picture opacity',
-                                    'min' => 0, 'max' => 100, 'step' => 5, 'decimals' => 0, 'unit' => '%',
-                                    'value' => old('header_image_opacity', $bot->widget_header_image_opacity ?? 100),
-                                    'ends' => ['Colour only', 'Picture only'],
-                                    'hint' => 'Lower it to let the header colour show through the picture.',
-                                ])
-                            </div>
                         </div>
                         <div class="col-12 col-md-6">
-                            <div class="appearance-part text-muted">Conversation</div>
-                            <label for="widget_background_color" class="form-label">Background colour</label>
-                            <div class="d-flex align-items-center gap-2 flex-wrap">
-                                <input type="color" name="widget_background_color" id="widget_background_color" class="form-control"
-                                       value="{{ old('widget_background_color', $bot->widget_background_color ?: '#FAFAFA') }}"
-                                       oninput="updateLivePreview()" style="width: 52px;">
-                                @foreach(['#FAFAFA' => 'Paper', '#FFFFFF' => 'White', '#F1F5F9' => 'Mist', '#FDF6E3' => 'Cream', '#ECFDF5' => 'Mint'] as $hex => $label)
-                                    <button type="button" onclick="setBackgroundColor('{{ $hex }}')" title="{{ $label }}"
-                                            style="width: 26px; height: 26px; padding: 0; background-color: {{ $hex }};
-                                                   border: 1px solid var(--border-strong); border-radius: var(--r-sm);"></button>
-                                @endforeach
-                            </div>
-
-                            <label for="background_image_input" class="form-label mt-3 mb-1">Background picture <span class="text-muted fw-normal">(optional)</span></label>
+                            <label for="background_image_input" class="form-label mb-1">Background picture <span class="text-muted fw-normal">(optional)</span></label>
                             <input type="file" name="background_image" id="background_image_input" accept=".png,.jpg,.jpeg,.gif,.svg,.webp"
                                    class="form-control form-control-sm"
                                    onchange="previewBackground(this, 'body')">
@@ -289,9 +289,24 @@
                                 </div>
                             @endif
                             <div class="form-text">Behind the messages. The colour shows while the picture loads and wherever it is transparent.</div>
-                            <div class="mt-3">
+                        </div>
+                    </div>
+                    <div class="row g-3 appearance-mirror">
+                        <div class="col-12 col-md-6">
+                            <div>
                                 @include('bots._slider', [
-                                    'name' => 'background_image_opacity', 'label' => 'Picture opacity',
+                                    'name' => 'header_image_opacity', 'label' => 'Header picture opacity',
+                                    'min' => 0, 'max' => 100, 'step' => 5, 'decimals' => 0, 'unit' => '%',
+                                    'value' => old('header_image_opacity', $bot->widget_header_image_opacity ?? 100),
+                                    'ends' => ['Colour only', 'Picture only'],
+                                    'hint' => 'Lower it to let the header colour show through the picture.',
+                                ])
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div>
+                                @include('bots._slider', [
+                                    'name' => 'background_image_opacity', 'label' => 'Background picture opacity',
                                     'min' => 0, 'max' => 100, 'step' => 5, 'decimals' => 0, 'unit' => '%',
                                     'value' => old('background_image_opacity', $bot->widget_background_image_opacity ?? 100),
                                     'ends' => ['Colour only', 'Picture only'],
@@ -299,6 +314,7 @@
                                 ])
                             </div>
                         </div>
+                    </div>
                     </div>
                 </section>
                 <section class="appearance-section">
@@ -332,50 +348,7 @@
                             @endif
 
                             <div class="mt-3">
-                                <div class="text-muted mb-1.5" style="font-size: 0.75rem;">Shape</div>
-                                <div class="d-flex flex-column gap-1.5">
-                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
-                                        <input type="radio" name="launcher_shape" id="launcher_shape_circle" value="circle"
-                                               {{ old('launcher_shape', $bot->launcher_shape ?? 'circle') === 'circle' ? 'checked' : '' }}
-                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
-                                        <span>
-                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Filled circle</span>
-                                            <span class="text-muted" style="font-size: 0.6875rem;">Solid colour behind the icon</span>
-                                        </span>
-                                    </label>
-
-                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
-                                        <input type="radio" name="launcher_shape" id="launcher_shape_circle_transparent" value="circle_transparent"
-                                               {{ old('launcher_shape', $bot->launcher_shape ?? 'circle') === 'circle_transparent' ? 'checked' : '' }}
-                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
-                                        <span>
-                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Outlined circle</span>
-                                            <span class="text-muted" style="font-size: 0.6875rem;">Ring border, transparent inside</span>
-                                        </span>
-                                    </label>
-
-                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
-                                        <input type="radio" name="launcher_shape" id="launcher_shape_transparent_fit" value="transparent_fit"
-                                               {{ old('launcher_shape', $bot->launcher_shape ?? 'circle') === 'transparent_fit' ? 'checked' : '' }}
-                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
-                                        <span>
-                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Cutout silhouette</span>
-                                            <span class="text-muted" style="font-size: 0.6875rem;">Follows the PNG outline, no container</span>
-                                        </span>
-                                    </label>
-                                    @foreach(['cutout_circle' => ['Cutout in filled circle', 'The top of the picture rises out of a solid circle'],
-                                              'cutout_ring' => ['Cutout in outlined circle', 'The top of the picture rises out of a ring']] as $value => $option)
-                                        <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
-                                            <input type="radio" name="launcher_shape" id="launcher_shape_{{ $value }}" value="{{ $value }}"
-                                                   {{ old('launcher_shape', $bot->launcher_shape ?? 'circle') === $value ? 'checked' : '' }}
-                                                   onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
-                                            <span>
-                                                <span class="d-block fw-semibold" style="font-size: 0.78125rem;">{{ $option[0] }}</span>
-                                                <span class="text-muted" style="font-size: 0.6875rem;">{{ $option[1] }}</span>
-                                            </span>
-                                        </label>
-                                    @endforeach
-                                </div>
+                                @include('bots._shape-tiles', ['field' => 'launcher_shape', 'default' => 'circle'])
                             </div>
 
                             <div class="mt-3">
@@ -416,50 +389,7 @@
                             @endif
 
                             <div class="mt-3">
-                                <div class="text-muted mb-1.5" style="font-size: 0.75rem;">Shape</div>
-                                <div class="d-flex flex-column gap-1.5">
-                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
-                                        <input type="radio" name="close_shape" id="close_shape_circle" value="circle"
-                                               {{ old('close_shape', $bot->close_shape ?? 'circle') === 'circle' ? 'checked' : '' }}
-                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
-                                        <span>
-                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Filled circle</span>
-                                            <span class="text-muted" style="font-size: 0.6875rem;">Solid colour behind the icon</span>
-                                        </span>
-                                    </label>
-
-                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
-                                        <input type="radio" name="close_shape" id="close_shape_circle_transparent" value="circle_transparent"
-                                               {{ old('close_shape', $bot->close_shape ?? 'circle') === 'circle_transparent' ? 'checked' : '' }}
-                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
-                                        <span>
-                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Outlined circle</span>
-                                            <span class="text-muted" style="font-size: 0.6875rem;">Ring border, transparent inside</span>
-                                        </span>
-                                    </label>
-
-                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
-                                        <input type="radio" name="close_shape" id="close_shape_transparent_fit" value="transparent_fit"
-                                               {{ old('close_shape', $bot->close_shape ?? 'circle') === 'transparent_fit' ? 'checked' : '' }}
-                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
-                                        <span>
-                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Cutout silhouette</span>
-                                            <span class="text-muted" style="font-size: 0.6875rem;">Follows the PNG outline, no container</span>
-                                        </span>
-                                    </label>
-                                    @foreach(['cutout_circle' => ['Cutout in filled circle', 'The top of the picture rises out of a solid circle'],
-                                              'cutout_ring' => ['Cutout in outlined circle', 'The top of the picture rises out of a ring']] as $value => $option)
-                                        <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
-                                            <input type="radio" name="close_shape" id="close_shape_{{ $value }}" value="{{ $value }}"
-                                                   {{ old('close_shape', $bot->close_shape ?? 'circle') === $value ? 'checked' : '' }}
-                                                   onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
-                                            <span>
-                                                <span class="d-block fw-semibold" style="font-size: 0.78125rem;">{{ $option[0] }}</span>
-                                                <span class="text-muted" style="font-size: 0.6875rem;">{{ $option[1] }}</span>
-                                            </span>
-                                        </label>
-                                    @endforeach
-                                </div>
+                                @include('bots._shape-tiles', ['field' => 'close_shape', 'default' => 'circle'])
                             </div>
 
                             <div class="mt-3">
@@ -505,50 +435,9 @@
                             @endif
 
                             <div class="mt-3">
-                                <div class="text-muted mb-1.5" style="font-size: 0.75rem;">Shape</div>
-                                <div class="d-flex flex-column gap-1.5">
-                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
-                                        <input type="radio" name="avatar_shape" id="avatar_shape_circle" value="circle"
-                                               {{ old('avatar_shape', $bot->avatar_shape ?? 'circle') === 'circle' ? 'checked' : '' }}
-                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
-                                        <span>
-                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Circle badge</span>
-                                            <span class="text-muted" style="font-size: 0.6875rem;">Cropped to a circular frame</span>
-                                        </span>
-                                    </label>
-
-                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
-                                        <input type="radio" name="avatar_shape" id="avatar_shape_circle_transparent" value="circle_transparent"
-                                               {{ old('avatar_shape', $bot->avatar_shape ?? 'circle') === 'circle_transparent' ? 'checked' : '' }}
-                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
-                                        <span>
-                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Outlined circle</span>
-                                            <span class="text-muted" style="font-size: 0.6875rem;">Hairline border, no fill</span>
-                                        </span>
-                                    </label>
-
-                                    <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
-                                        <input type="radio" name="avatar_shape" id="avatar_shape_transparent_fit" value="transparent_fit"
-                                               {{ old('avatar_shape', $bot->avatar_shape ?? 'circle') === 'transparent_fit' ? 'checked' : '' }}
-                                               onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
-                                        <span>
-                                            <span class="d-block fw-semibold" style="font-size: 0.78125rem;">Cutout silhouette</span>
-                                            <span class="text-muted" style="font-size: 0.6875rem;">Tall or wide art without cropping</span>
-                                        </span>
-                                    </label>
-                                    @foreach(['cutout_circle' => ['Cutout in filled circle', 'The top of the picture rises out of a solid circle'],
-                                              'cutout_ring' => ['Cutout in outlined circle', 'The top of the picture rises out of a ring']] as $value => $option)
-                                        <label class="d-flex align-items-start gap-2 p-2" style="border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer;">
-                                            <input type="radio" name="avatar_shape" id="avatar_shape_{{ $value }}" value="{{ $value }}"
-                                                   {{ old('avatar_shape', $bot->avatar_shape ?? 'circle') === $value ? 'checked' : '' }}
-                                                   onchange="updateLivePreview()" class="form-check-input mt-0 flex-shrink-0">
-                                            <span>
-                                                <span class="d-block fw-semibold" style="font-size: 0.78125rem;">{{ $option[0] }}</span>
-                                                <span class="text-muted" style="font-size: 0.6875rem;">{{ $option[1] }}</span>
-                                            </span>
-                                        </label>
-                                    @endforeach
-                                </div>
+                                @include('bots._shape-tiles', ['field' => 'avatar_shape', 'default' => 'circle', 'hints' => [
+                                    'circle' => 'Cropped to a circular frame.', 'circle_transparent' => 'Hairline border, no fill.',
+                                    'transparent_fit' => 'Tall or wide art without cropping.']])
                             </div>
                         </div>
                     </div>

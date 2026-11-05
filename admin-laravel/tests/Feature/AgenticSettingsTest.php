@@ -145,7 +145,7 @@ class AgenticSettingsTest extends TestCase
         $this->tool('ctl_a', 'getApplication');
 
         $this->actingAs($this->member('editor'))
-            ->get(route('bots.settings', ['bot_1', 'agents']))
+            ->get(route('bots.settings', ['bot_1', 'connectors']))
             ->assertOk()
             ->assertSee('data-card-collapse="agentic"', false)
             ->assertSee('getApplication');
@@ -221,7 +221,7 @@ class AgenticSettingsTest extends TestCase
         $this->skill('s1', tools: ['create_ticket']);
 
         $this->actingAs($this->member('editor'))
-            ->get(route('bots.settings', ['bot_1', 'agents']))
+            ->get(route('bots.settings', ['bot_1', 'connectors']))
             ->assertOk()
             ->assertSee('skill-s1')
             ->assertSee('needs: create_ticket');
@@ -248,7 +248,7 @@ class AgenticSettingsTest extends TestCase
     public function test_the_card_offers_the_built_ins(): void
     {
         $this->actingAs($this->member('editor'))
-            ->get(route('bots.settings', ['bot_1', 'agents']))
+            ->get(route('bots.settings', ['bot_1', 'connectors']))
             ->assertSee('name="builtin_tools[]" value="current_datetime"', false)
             ->assertSee('name="builtin_tools[]" value="request_human"', false);
     }
@@ -272,7 +272,7 @@ class AgenticSettingsTest extends TestCase
         $_SERVER['ENGINE_ADMIN_TOKEN'] = $_ENV['ENGINE_ADMIN_TOKEN'] = 'portal-token';
         putenv('ENGINE_ADMIN_TOKEN=portal-token');
 
-        $html = $this->actingAs($this->member('editor'))->get(route('bots.settings', ['bot_1', 'agents']))->assertOk()->getContent();
+        $html = $this->actingAs($this->member('editor'))->get(route('bots.settings', ['bot_1', 'connectors']))->assertOk()->getContent();
 
         $this->assertMatchesRegularExpression('/data-trace-token=\"(\d+)\.([0-9a-f]{64})\"/', $html);
         preg_match('/data-trace-token=\"(\d+)\.([0-9a-f]{64})\"/', $html, $m);

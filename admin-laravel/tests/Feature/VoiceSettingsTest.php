@@ -347,7 +347,7 @@ class VoiceSettingsTest extends TestCase
     {
         $html = $this->actingAs($this->editor())->get(route('bots.settings', ['bot_1', 'behaviour']))->assertOk()->getContent();
 
-        $order = ['bcard-system-prompt', 'bcard-generation', 'bcard-voice'];
+        $order = ['bcard-system-prompt', 'bcard-voice', 'bcard-generation'];
         $positions = array_map(fn ($id) => strpos($html, 'id="' . $id . '"'), $order);
         $this->assertNotContains(false, $positions);
         $sorted = $positions;

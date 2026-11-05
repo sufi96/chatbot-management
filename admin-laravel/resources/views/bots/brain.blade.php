@@ -14,7 +14,7 @@
             <p>{{ [
                 'behaviour' => 'How this bot talks: its prompt, model, generation and voice.',
                 'brain' => 'What this bot knows: where its answers come from, in what order, and what it may search.',
-                'agents' => 'What this bot can do: the systems and agents it may call, its built-in tools and its skills.',
+                'connectors' => 'What this bot can reach: MCP servers and other agents, APIs, its built-in tools and its skills.',
                 'files' => 'What this bot can see and hand back: files from visitors, files it makes, and drawn visuals.',
                 'safety' => 'What keeps this bot in line: checks on messages and answers, and what it says when it refuses.',
             ][$section] }}</p>
@@ -34,7 +34,7 @@
                     $sourceLabels = [
                         'documents' => ['Knowledge base', 'The written material attached below.', $bot->retrieval_enabled],
                         'database' => ['Database', 'Live records from a connected database.', $bot->db_query_enabled],
-                        'tools' => ['Connected systems', 'Operations on the workspace\'s connectors, chosen on the Agents tab.', $bot->agentic_enabled],
+                        'tools' => ['Connected systems', 'Operations on the workspace\'s connectors, chosen on the Connectors tab.', $bot->agentic_enabled],
                         'web' => ['Web search', 'A public search of the open internet.', $bot->web_search_enabled],
                     ];
                 @endphp
@@ -69,105 +69,6 @@
                     </div>
                     </div>
                 </div>
-
-                <div class="card mb-3">
-                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
-                            data-bs-toggle="collapse" data-bs-target="#bcard-generation"
-                            aria-expanded="true" aria-controls="bcard-generation">
-                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-sliders"></i> Generation</span>
-                        <span class="d-flex align-items-center gap-2">
-                            <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
-                        </span>
-                    </button>
-                    <div class="collapse show" id="bcard-generation" data-card-collapse="generation">
-                    <div class="p-3">
-                        {{-- Thinking first: it changes speed and length more than any
-                             sampling setting below. One short line per level. One-line
-                             php directives, since Blade misreads a block form in a file
-                             that already uses the one-line form. --}}
-                        @php($thinking = old('thinking_level', $bot->thinking_level ?: 'off'))
-                        @php($thinkingHints = ['off' => 'Answers straight away. Fastest.', 'low' => 'Thinks briefly first.', 'medium' => 'Thinks through harder questions.', 'high' => 'Thinks longest. Slowest, most careful.'])
-                        <div class="mb-3">
-                            <div class="form-label" id="thinkingLabel">Thinking level</div>
-                            <div class="segmented" role="radiogroup" aria-labelledby="thinkingLabel">
-                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_off" value="off"
-                                           data-hint="Answers straight away. Fastest." @checked($thinking === 'off')>
-                                    <label for="thinking_off" class="segmented-opt"><i class="bi bi-lightning-charge"></i> Off</label>
-                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_low" value="low"
-                                           data-hint="Thinks briefly first." @checked($thinking === 'low')>
-                                    <label for="thinking_low" class="segmented-opt"><i class="bi bi-lightbulb"></i> Low</label>
-                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_medium" value="medium"
-                                           data-hint="Thinks through harder questions." @checked($thinking === 'medium')>
-                                    <label for="thinking_medium" class="segmented-opt"><i class="bi bi-lightbulb-fill"></i> Medium</label>
-                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_high" value="high"
-                                           data-hint="Thinks longest. Slowest, most careful." @checked($thinking === 'high')>
-                                    <label for="thinking_high" class="segmented-opt"><i class="bi bi-stars"></i> High</label>
-                            </div>
-                            <div class="form-text" id="thinkingHint">{{ $thinkingHints[$thinking] ?? $thinkingHints['off'] }}</div>
-                            <div class="form-text text-faint">Thinking shows folded above each answer. Some providers treat Low, Medium and High alike.</div>
-                        </div>
-
-                        <div class="row g-3 pt-1 mt-2" style="border-top: 1px solid var(--border);">
-                            <div class="col-12 col-sm-6">
-                                {{-- 0 to 1, the range where a change is felt. A value saved
-                                     above 1 before the cap shows at 1 and saves as 1. --}}
-                                @include('bots._slider', [
-                                    'name' => 'temperature', 'label' => 'Temperature',
-                                    'min' => 0, 'max' => 1, 'step' => 0.05,
-                                    'value' => old('temperature', $bot->temperature ?? 0.7),
-                                    'ends' => ['Predictable', 'Creative'],
-                                ])
-                            </div>
-                            <div class="col-12 col-sm-6">
-                                <label for="max_tokens" class="form-label slider-label"><span>Max tokens</span></label>
-                                <input type="number" step="64" min="64" max="8192" name="max_tokens" id="max_tokens"
-                                       class="form-control form-control-sm font-monospace" style="max-width: 140px;"
-                                       value="{{ old('max_tokens', $bot->max_tokens ?? 1024) }}">
-                                <div class="form-text">Ceiling on one reply.</div>
-                            </div>
-                            <div class="col-12 col-sm-6">
-                                @include('bots._slider', [
-                                    'name' => 'top_p', 'label' => 'Top p',
-                                    'min' => 0, 'max' => 1, 'step' => 0.05,
-                                    'value' => old('top_p', $bot->top_p ?? 1),
-                                    'ends' => ['Focused', 'Varied'],
-                                ])
-                            </div>
-                            <div class="col-12 col-sm-6">
-                                <label for="top_k_sampling" class="form-label slider-label">
-                                    <span>Top k</span>
-                                    <span class="text-faint" style="font-size: 0.75rem;">optional</span>
-                                </label>
-                                <input type="number" min="1" max="200" name="top_k_sampling" id="top_k_sampling"
-                                       class="form-control form-control-sm font-monospace" style="max-width: 140px;"
-                                       value="{{ old('top_k_sampling', $bot->top_k_sampling) }}" placeholder="Auto">
-                                <div class="form-text">Blank leaves it to the model.</div>
-                            </div>
-                            <div class="col-12 col-sm-6">
-                                @include('bots._slider', [
-                                    'name' => 'presence_penalty', 'label' => 'Presence penalty',
-                                    'min' => -2, 'max' => 2, 'step' => 0.1, 'decimals' => 1,
-                                    'value' => old('presence_penalty', $bot->presence_penalty ?? 0),
-                                    'ends' => ['Stay on topic', 'New topics'],
-                                ])
-                            </div>
-                            <div class="col-12 col-sm-6">
-                                @include('bots._slider', [
-                                    'name' => 'frequency_penalty', 'label' => 'Frequency penalty',
-                                    'min' => -2, 'max' => 2, 'step' => 0.1, 'decimals' => 1,
-                                    'value' => old('frequency_penalty', $bot->frequency_penalty ?? 0),
-                                    'ends' => ['Allow repeats', 'Avoid repeats'],
-                                ])
-                            </div>
-                        </div>
-                    </div>
-                    </div>
-                </div>
-
-            </div>
-            <div class="col-12 col-xl-6">
-
-                @include('bots._model-endpoint')
 
                 <div class="card mb-3">
                     <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
@@ -269,6 +170,105 @@
                                 by a super admin in admin settings.
                             @endif
                             This bot only chooses which of them speaks.
+                        </div>
+                    </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="col-12 col-xl-6">
+
+                @include('bots._model-endpoint')
+
+                <div class="card mb-3">
+                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
+                            data-bs-toggle="collapse" data-bs-target="#bcard-generation"
+                            aria-expanded="true" aria-controls="bcard-generation">
+                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-sliders"></i> Generation</span>
+                        <span class="d-flex align-items-center gap-2">
+                            <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
+                        </span>
+                    </button>
+                    <div class="collapse show" id="bcard-generation" data-card-collapse="generation">
+                    <div class="p-3">
+                        {{-- Thinking first: it changes speed and length more than any
+                             sampling setting below. One short line per level. One-line
+                             php directives, since Blade misreads a block form in a file
+                             that already uses the one-line form. --}}
+                        @php($thinking = old('thinking_level', $bot->thinking_level ?: 'off'))
+                        @php($thinkingHints = ['off' => 'Answers straight away. Fastest.', 'low' => 'Thinks briefly first.', 'medium' => 'Thinks through harder questions.', 'high' => 'Thinks longest. Slowest, most careful.'])
+                        <div class="mb-3">
+                            <div class="form-label" id="thinkingLabel">Thinking level</div>
+                            <div class="segmented" role="radiogroup" aria-labelledby="thinkingLabel">
+                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_off" value="off"
+                                           data-hint="Answers straight away. Fastest." @checked($thinking === 'off')>
+                                    <label for="thinking_off" class="segmented-opt"><i class="bi bi-lightning-charge"></i> Off</label>
+                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_low" value="low"
+                                           data-hint="Thinks briefly first." @checked($thinking === 'low')>
+                                    <label for="thinking_low" class="segmented-opt"><i class="bi bi-lightbulb"></i> Low</label>
+                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_medium" value="medium"
+                                           data-hint="Thinks through harder questions." @checked($thinking === 'medium')>
+                                    <label for="thinking_medium" class="segmented-opt"><i class="bi bi-lightbulb-fill"></i> Medium</label>
+                                    <input type="radio" class="visually-hidden" name="thinking_level" id="thinking_high" value="high"
+                                           data-hint="Thinks longest. Slowest, most careful." @checked($thinking === 'high')>
+                                    <label for="thinking_high" class="segmented-opt"><i class="bi bi-stars"></i> High</label>
+                            </div>
+                            <div class="form-text" id="thinkingHint">{{ $thinkingHints[$thinking] ?? $thinkingHints['off'] }}</div>
+                            <div class="form-text text-faint">Thinking shows folded above each answer. Some providers treat Low, Medium and High alike.</div>
+                        </div>
+
+                        <div class="row g-3 pt-1 mt-2" style="border-top: 1px solid var(--border);">
+                            <div class="col-12 col-sm-6">
+                                {{-- 0 to 1, the range where a change is felt. A value saved
+                                     above 1 before the cap shows at 1 and saves as 1. --}}
+                                @include('bots._slider', [
+                                    'name' => 'temperature', 'label' => 'Temperature',
+                                    'min' => 0, 'max' => 1, 'step' => 0.05,
+                                    'value' => old('temperature', $bot->temperature ?? 0.7),
+                                    'ends' => ['Predictable', 'Creative'],
+                                ])
+                            </div>
+                            <div class="col-12 col-sm-6">
+                                <label for="max_tokens" class="form-label slider-label"><span>Max tokens</span></label>
+                                <input type="number" step="64" min="64" max="8192" name="max_tokens" id="max_tokens"
+                                       class="form-control form-control-sm font-monospace" style="max-width: 140px;"
+                                       value="{{ old('max_tokens', $bot->max_tokens ?? 1024) }}">
+                                <div class="form-text">Ceiling on one reply.</div>
+                            </div>
+                            <div class="col-12 col-sm-6">
+                                @include('bots._slider', [
+                                    'name' => 'top_p', 'label' => 'Top p',
+                                    'min' => 0, 'max' => 1, 'step' => 0.05,
+                                    'value' => old('top_p', $bot->top_p ?? 1),
+                                    'ends' => ['Focused', 'Varied'],
+                                ])
+                            </div>
+                            <div class="col-12 col-sm-6">
+                                <label for="top_k_sampling" class="form-label slider-label">
+                                    <span>Top k</span>
+                                    <span class="text-faint" style="font-size: 0.75rem;">optional</span>
+                                </label>
+                                <input type="number" min="1" max="200" name="top_k_sampling" id="top_k_sampling"
+                                       class="form-control form-control-sm font-monospace" style="max-width: 140px;"
+                                       value="{{ old('top_k_sampling', $bot->top_k_sampling) }}" placeholder="Auto">
+                                <div class="form-text">Blank leaves it to the model.</div>
+                            </div>
+                            <div class="col-12 col-sm-6">
+                                @include('bots._slider', [
+                                    'name' => 'presence_penalty', 'label' => 'Presence penalty',
+                                    'min' => -2, 'max' => 2, 'step' => 0.1, 'decimals' => 1,
+                                    'value' => old('presence_penalty', $bot->presence_penalty ?? 0),
+                                    'ends' => ['Stay on topic', 'New topics'],
+                                ])
+                            </div>
+                            <div class="col-12 col-sm-6">
+                                @include('bots._slider', [
+                                    'name' => 'frequency_penalty', 'label' => 'Frequency penalty',
+                                    'min' => -2, 'max' => 2, 'step' => 0.1, 'decimals' => 1,
+                                    'value' => old('frequency_penalty', $bot->frequency_penalty ?? 0),
+                                    'ends' => ['Allow repeats', 'Avoid repeats'],
+                                ])
+                            </div>
                         </div>
                     </div>
                     </div>
@@ -788,135 +788,24 @@
                 </div>
 
             </div>
-            @elseif($section === 'agents')
-            <div class="col-12 col-xl-9">
-
-                <div class="card mb-3">
-                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
-                            data-bs-toggle="collapse" data-bs-target="#bcard-agentic"
-                            aria-expanded="false" aria-controls="bcard-agentic">
-                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-plug"></i> Agentic</span>
-                        <span class="d-flex align-items-center gap-2">
-                            <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
-                        </span>
-                    </button>
-                    <div class="collapse show" id="bcard-agentic" data-card-collapse="agentic">
-                    <div class="p-3">
-                        <input type="hidden" name="agentic_present" value="1">
-                        <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
-                            <input class="form-check-input" type="checkbox" role="switch" name="agentic_enabled" value="1"
-                                   id="agentic_enabled" @checked(old('agentic_enabled', $bot->agentic_enabled))>
-                            <label class="form-check-label fw-semibold" for="agentic_enabled">Call connected systems</label>
-                        </div>
-                        <div class="form-text text-faint mb-3">
-                            The bot may call the operations ticked below when a question needs them, in the place
-                            "Connected systems" holds in the source order. An operation that changes something waits
-                            for the visitor to press Confirm.
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label" for="agentic_max_calls">Calls per message, at most</label>
-                            <select class="form-select" name="agentic_max_calls" id="agentic_max_calls" style="max-width: 120px;">
-                                @foreach(range(1, 5) as $n)
-                                    <option value="{{ $n }}" @selected((int) old('agentic_max_calls', $bot->agentic_max_calls) === $n)>{{ $n }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="fw-semibold small mb-1">Built into C⁴</div>
-                        @php($builtins = old('builtin_tools', $bot->builtin_tools ?? []))
-                        @foreach(\App\Models\BotProfile::BUILTIN_TOOLS as $name => $about)
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="builtin_tools[]" value="{{ $name }}"
-                                       id="builtin_{{ $name }}" @checked(in_array($name, $builtins, true))>
-                                <label class="form-check-label small" for="builtin_{{ $name }}">
-                                    <span class="figure-mono">{{ $name }}</span> <span class="text-muted">· {{ $about }}</span>
-                                </label>
-                            </div>
-                        @endforeach
-
-                        @error('tools')
-                            <div class="text-danger small mb-2 mt-2">{{ $message }}</div>
-                        @enderror
-
-                        @if($connectors->isEmpty())
-                            <p class="text-muted small mb-0">
-                                No switched-on operations in this workspace yet.
-                                <a href="{{ route('connectors.index') }}">Add a connector</a> and switch on what bots may use.
-                            </p>
-                        @else
-                            @php($ticked = old('tools', $attachedTools))
-                            @foreach($connectors as $connector)
-                                <div class="fw-semibold small mt-2 mb-1">{{ $connector->name }}</div>
-                                @foreach($connector->tools as $tool)
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="tools[]" value="{{ $tool->id }}"
-                                               id="tool_{{ $tool->id }}" @checked(in_array($tool->id, $ticked, true))>
-                                        <label class="form-check-label small" for="tool_{{ $tool->id }}">
-                                            <span class="figure-mono">{{ $tool->name }}</span>
-                                            @if($tool->writes)
-                                                <span class="badge text-bg-warning ms-1">Writes</span>
-                                            @endif
-                                            @if($tool->description)
-                                                <span class="text-muted">· {{ \Illuminate\Support\Str::limit($tool->description, 80) }}</span>
-                                            @endif
-                                        </label>
-                                    </div>
-                                @endforeach
-                            @endforeach
-                        @endif
-
-                        <div class="fw-semibold mt-3 mb-1">Skills</div>
-                        @error('skills')
-                            <div class="text-danger small mb-2">{{ $message }}</div>
-                        @enderror
-                        @if($skills->isEmpty())
-                            <p class="text-muted small mb-0">
-                                No skills in this workspace yet. <a href="{{ route('skills.index') }}">Add or copy one</a>.
-                            </p>
-                        @else
-                            @php($tickedSkills = old('skills', $attachedSkills))
-                            @foreach($skills as $skill)
-                                @php($missing = array_values(array_diff($skill->tools ?? [], $toolNames)))
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="skills[]" value="{{ $skill->id }}"
-                                           id="skill_{{ $skill->id }}" @checked(in_array($skill->id, $tickedSkills, true))>
-                                    <label class="form-check-label small" for="skill_{{ $skill->id }}">
-                                        <span class="figure-mono">{{ $skill->name }}</span>
-                                        <span class="text-muted">· {{ \Illuminate\Support\Str::limit($skill->description, 80) }}</span>
-                                        @if(($skill->mode ?? 'progressive') === 'always')
-                                            <span class="badge text-bg-info ms-1" title="Added to every answer">always on</span>
-                                        @endif
-                                        @if($missing)
-                                            <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1"
-                                                  title="Offered once the bot has these operations">needs: {{ implode(', ', $missing) }}</span>
-                                        @endif
-                                    </label>
-                                </div>
-                            @endforeach
-                        @endif
-                    </div>
-                    </div>
-                </div>
-
-            </div>
+            @elseif($section === 'connectors')
+            @include('bots._tab-connectors')
             @elseif($section === 'files')
-            <div class="col-12 col-xl-9">
-
                 @php($fs = $bot->fileSettings())
-                <div class="card mb-3">
+                <input type="hidden" name="files_present" value="1">
+            {{-- Files in and out side by side; visuals and keeping below. --}}
+            <div class="col-12 col-xl-6">
+                <div class="card mb-3 h-100">
                     <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
-                            data-bs-toggle="collapse" data-bs-target="#bcard-files"
-                            aria-expanded="false" aria-controls="bcard-files">
-                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-eye"></i> Files &amp; vision</span>
+                            data-bs-toggle="collapse" data-bs-target="#bcard-files-in"
+                            aria-expanded="true" aria-controls="bcard-files-in">
+                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-box-arrow-in-down"></i> Files in</span>
                         <span class="d-flex align-items-center gap-2">
                             <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
                         </span>
                     </button>
-                    <div class="collapse show" id="bcard-files" data-card-collapse="files">
+                    <div class="collapse show" id="bcard-files-in" data-card-collapse="files-in">
                     <div class="p-3">
-                        <input type="hidden" name="files_present" value="1">
-
                         <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
                             <input class="form-check-input" type="checkbox" role="switch" name="files_in_enabled" value="1"
                                    id="files_in_enabled" @checked(old('files_in_enabled', $fs['in_enabled']))>
@@ -956,7 +845,22 @@
                         @foreach(['files_in_types.*', 'files_max_mb', 'files_per_message', 'files_daily'] as $field)
                             @error($field)<div class="text-danger small mb-2">{{ $message }}</div>@enderror
                         @endforeach
-
+                    </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-xl-6">
+                <div class="card mb-3 h-100">
+                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
+                            data-bs-toggle="collapse" data-bs-target="#bcard-files-out"
+                            aria-expanded="true" aria-controls="bcard-files-out">
+                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-box-arrow-up"></i> Files out</span>
+                        <span class="d-flex align-items-center gap-2">
+                            <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
+                        </span>
+                    </button>
+                    <div class="collapse show" id="bcard-files-out" data-card-collapse="files-out">
+                    <div class="p-3">
                         <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
                             <input class="form-check-input" type="checkbox" role="switch" name="files_out_enabled" value="1"
                                    id="files_out_enabled" @checked(old('files_out_enabled', $fs['out_enabled']))>
@@ -983,26 +887,56 @@
                             </select>
                         </div>
                         @error('files_out_formats.*')<div class="text-danger small mb-2">{{ $message }}</div>@enderror
-
+                    </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-xl-6">
+                <div class="card mb-3 h-100">
+                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
+                            data-bs-toggle="collapse" data-bs-target="#bcard-visuals"
+                            aria-expanded="true" aria-controls="bcard-visuals">
+                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-bar-chart"></i> Visuals</span>
+                        <span class="d-flex align-items-center gap-2">
+                            <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
+                        </span>
+                    </button>
+                    <div class="collapse show" id="bcard-visuals" data-card-collapse="visuals">
+                    <div class="p-3">
                         <div class="form-check form-switch d-flex align-items-center gap-2 mb-1">
                             <input class="form-check-input" type="checkbox" role="switch" name="visuals_enabled" value="1"
                                    id="visuals_enabled" @checked(old('visuals_enabled', $fs['visuals']))>
                             <label class="form-check-label fw-semibold" for="visuals_enabled">Draw visuals</label>
                         </div>
-                        <div class="form-text text-faint mb-3">
+                        <div class="form-text text-faint mb-0">
                             Charts, flowcharts, timelines and simple drawings, drawn in the chat. No image model needed.
                         </div>
-
+                    </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-xl-6">
+                <div class="card mb-3 h-100">
+                    <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
+                            data-bs-toggle="collapse" data-bs-target="#bcard-files-keep"
+                            aria-expanded="true" aria-controls="bcard-files-keep">
+                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-clock-history"></i> Keeping files</span>
+                        <span class="d-flex align-items-center gap-2">
+                            <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
+                        </span>
+                    </button>
+                    <div class="collapse show" id="bcard-files-keep" data-card-collapse="files-keep">
+                    <div class="p-3">
                         <div style="max-width: 200px;">
                             <label class="form-label small" for="files_retention_days">Keep files for (days)</label>
                             <input type="number" class="form-control form-control-sm" name="files_retention_days" id="files_retention_days"
                                    min="1" max="365" value="{{ old('files_retention_days', $fs['retention_days']) }}">
                             @error('files_retention_days')<div class="text-danger small mt-1">{{ $message }}</div>@enderror
                         </div>
+                        <div class="form-text text-faint">Files in and out are deleted after this many days.</div>
                     </div>
                     </div>
                 </div>
-
             </div>
             @elseif($section === 'safety')
             <div class="col-12 col-xl-9">
@@ -1011,7 +945,7 @@
                     <button type="button" class="card-header card-toggle d-flex align-items-center justify-content-between gap-2"
                             data-bs-toggle="collapse" data-bs-target="#bcard-safety"
                             aria-expanded="false" aria-controls="bcard-safety">
-                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-shield-check"></i> Safety</span>
+                        <span class="d-flex align-items-center gap-1.5"><i class="bi bi-shield-check"></i> Guardrail</span>
                         <span class="d-flex align-items-center gap-2">
                             <i class="bi bi-chevron-down card-toggle-chevron" aria-hidden="true"></i>
                         </span>

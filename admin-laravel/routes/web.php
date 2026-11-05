@@ -55,6 +55,8 @@ Route::middleware(['auth', 'system.access'])->group(function () {
     Route::put('/bots/{id}', [BotProfileController::class, 'update'])->name('bots.update');
     Route::delete('/bots/{id}', [BotProfileController::class, 'destroy'])->name('bots.destroy');
     // A bot's settings after Appearance, a tab each: see BotBrainController::TAB_NAMES.
+    // The Connectors tab was called Agents at first.
+    Route::get('/bots/{id}/settings/agents', fn (string $id) => redirect()->route('bots.settings', [$id, 'connectors']));
     Route::get('/bots/{id}/settings/{section}', [BotBrainController::class, 'edit'])
         ->whereIn('section', array_keys(BotBrainController::TAB_NAMES))->name('bots.settings');
     Route::get('/bots/{id}/brain', [BotBrainController::class, 'behaviour'])->name('bots.brain');

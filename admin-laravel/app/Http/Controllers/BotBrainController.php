@@ -195,11 +195,11 @@ class BotBrainController extends Controller
             $validated['voice_input'] = $request->boolean('voice_input');
         }
 
-        // Only the form with the Agents card may change it; an older client
+        // Only the form with the Connectors tab may change it; an older client
         // leaves the switch and the tools as they were.
         $tools = null;
         $skills = null;
-        if ($section === 'agents' || ($section === null && $request->has('agentic_present'))) {
+        if ($section === 'connectors' || ($section === null && $request->has('agentic_present'))) {
             $validated['agentic_enabled'] = $request->boolean('agentic_enabled');
             $tools = $this->agenticTools($bot, (array) $request->input('tools', []));
             $skills = $this->agenticSkills($bot, (array) $request->input('skills', []));
@@ -276,7 +276,7 @@ class BotBrainController extends Controller
     public const TAB_NAMES = [
         'behaviour' => 'Behaviour',
         'brain' => 'Brain',
-        'agents' => 'Agents',
+        'connectors' => 'Connectors',
         'files' => 'Files & vision',
         'safety' => 'Safety',
     ];
@@ -294,7 +294,7 @@ class BotBrainController extends Controller
             'web_search_country', 'collections', 'db_max_rows', 'db_query_timeout', 'source_order',
             'db_connections', 'retrieval_keyword_weight', 'query_expansion', 'context_neighbours',
             'cache_min_similarity', 'cache_ttl_hours', 'web_search_mode', 'web_search_key_id'],
-        'agents' => ['agentic_max_calls', 'tools', 'skills', 'builtin_tools'],
+        'connectors' => ['agentic_max_calls', 'tools', 'skills', 'builtin_tools'],
         'files' => ['files_in_types', 'files_max_mb', 'files_per_message', 'files_daily', 'files_out_formats',
             'files_out_mode', 'files_retention_days'],
         'safety' => ['guard_refusal', 'guard_topics'],

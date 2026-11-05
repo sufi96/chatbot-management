@@ -21,6 +21,10 @@
     // Only the portal's own test chat has one; it lets the engine send a line
     // per tool call and loaded skill. See api-engine/trace_token.py.
     var traceToken = scriptTag.getAttribute("data-trace-token") || null;
+    // Only the console assistant has one: who is signed in to the console, so
+    // its tools run with that person's rights. Passed along unread; see
+    // api-engine/console_tools.py.
+    var consoleToken = scriptTag.getAttribute("data-console-token") || null;
     if (!botId) {
         console.error("[ChatbotWidget] data-bot-id attribute is required.");
         return;
@@ -1912,7 +1916,7 @@
             fetch(apiHost + "/api/v1/chat/actions/" + encodeURIComponent(action.action_id), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ bot_id: botId, session_id: sessionId, decision: decision })
+                body: JSON.stringify({ bot_id: botId, session_id: sessionId, decision: decision, console_token: consoleToken })
             }).then(function (response) {
                 return response.json().catch(function () { return {}; });
             }).then(function (data) {
@@ -2964,6 +2968,7 @@
                 message: text,
                 history: messageHistory.slice(-10),
                 trace_token: traceToken,
+                console_token: consoleToken,
                 attachments: sending.map(function (f) { return f.id; })
             })
         })

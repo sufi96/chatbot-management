@@ -16,6 +16,7 @@ from database import (get_db, get_settings, provider_endpoint, provider_merges_s
                       ChatConversation, ChatMessage, ChatToolCall, BotKbCollection)
 import answer_cache
 import builtin_tools
+import console_tools
 import grounding
 import guard
 import history
@@ -187,6 +188,9 @@ class ChatStreamRequest(BaseModel):
     history: Optional[List[Dict[str, str]]] = []
     # Set only by the portal's own test chat; see trace_token.py.
     trace_token: Optional[str] = None
+    # Sent by the console assistant's widget: who is signed in to the console.
+    # Passed to the portal unread; see console_tools.py.
+    console_token: Optional[str] = Field(None, max_length=4000)
 
 async def save_assistant_message(conv_id: str, **fields) -> None:
     """Write the bot's side of an exchange once its stream has ended.
@@ -335,6 +339,14 @@ async def chat_stream(
         engine_settings = await get_settings(db)
         enabled = sources.enabled_for(bot)
 
+        # The console assistant acts for the person signed in to the console,
+        # with their tools and their rights. The console's database is raw SQL
+        # over every workspace, so only a super admin's questions may use it.
+        console = (await console_tools.load(req.console_token) if bot.is_platform
+                   else console_tools.Console())
+        if bot.is_platform and not console.super_admin:
+            enabled["database"] = False
+
         guarding = bool(bot.guard_enabled)
 
         # The turns before this one, from the engine's own records unless the
@@ -440,7 +452,7 @@ async def chat_stream(
                 sources.normalise(bot.source_order),
                 enabled,
                 sources.build_attempts(db, bot, decision.query, source_settings, collection_ids,
-                                       tool_log=tool_log, turns=turns,
+                                       tool_log=tool_log, turns=turns, extra_tools=console.tools,
                                        **({"query_vector": query_vector} if query_vector else {})),
                 combine)
             async for step in consulting:
@@ -825,6 +837,9 @@ class ActionDecision(BaseModel):
     bot_id: str
     session_id: str
     decision: str = Field(pattern="^(confirm|decline)$")
+    # The console assistant's: whose rights the change runs with, checked again
+    # by the portal at this moment.
+    console_token: Optional[str] = Field(None, max_length=4000)
 
 
 @router.post("/actions/{action_id}")
@@ -871,6 +886,19 @@ async def decide_action(action_id: str, req: ActionDecision, request: Request,
 
     if req.decision == "decline":
         text = "Cancelled. Nothing was sent."
+    elif bot.is_platform and action.connector_tool_id is None:
+        # A console assistant tool: the portal runs it as the person who
+        # clicked, and says no if their role does not allow it.
+        if not bot.agentic_enabled or not req.console_token:
+            action.status, text = "failed", "Sign in to the console again, then ask once more. Nothing was changed."
+        else:
+            outcome = await console_tools.call(req.console_token, action.tool_name, action.arguments or {})
+            action.duration_ms = outcome.ms or None
+            action.result_excerpt = (outcome.detail or outcome.text or outcome.error or "")[:500] or None
+            if outcome.ok:
+                action.status, text = "confirmed", f"Done. {outcome.text}".strip()
+            else:
+                action.status, text = "failed", f"That didn't go through: {outcome.error}"
     else:
         found = (await db.execute(
             select(ConnectorTool, Connector)

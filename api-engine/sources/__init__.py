@@ -58,9 +58,10 @@ def answer_kind(found: SourceResult | None, searched: bool, refused: bool) -> st
 
 
 def build_attempts(session, bot, message: str, settings: dict, collection_ids,
-                   query_vector=None, tool_log=None, turns=None) -> dict:
+                   query_vector=None, tool_log=None, turns=None, extra_tools=None) -> dict:
     return {
-        "tools": partial(attempt_module.tools, session, bot, message, settings, log=tool_log, history=turns),
+        "tools": partial(attempt_module.tools, session, bot, message, settings, log=tool_log, history=turns,
+                         extra_tools=extra_tools),
         "documents": partial(attempt_module.documents, session, bot, message,
                              settings, collection_ids, query_vector=query_vector),
         "database": partial(attempt_module.database, session, bot, message, settings),

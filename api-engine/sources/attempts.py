@@ -137,7 +137,7 @@ async def web(bot, message: str, settings: dict, search=None, session=None,
 
 
 async def tools(session, bot, message: str, settings: dict, run=None, load=None, log=None,
-                load_skills=None, history=None) -> SourceResult:
+                load_skills=None, history=None, extra_tools=None) -> SourceResult:
     """The bot's connector tools, through the agent loop. See agent.py.
 
     Every call the loop made goes on the log, answered or not, because a tool
@@ -153,7 +153,8 @@ async def tools(session, bot, message: str, settings: dict, run=None, load=None,
     load_skills = load_skills or agent.skills_for
 
     import builtin_tools
-    available = [*await load(session, bot), *builtin_tools.for_bot(bot)]
+    # extra_tools: the console assistant's, for the person signed in (console_tools.py).
+    available = [*await load(session, bot), *builtin_tools.for_bot(bot), *(extra_tools or [])]
     skills = await load_skills(session, bot, {tool.name for tool in available})
     if not available and not skills:
         return SourceResult(kind="tools")
